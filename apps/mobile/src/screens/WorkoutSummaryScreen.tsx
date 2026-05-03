@@ -377,8 +377,8 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     title: {
       color: theme.colors.surface,
       fontSize: 34,
-      fontFamily: "Satoshi-Black",
-      fontWeight: "900",
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "700",
       letterSpacing: -1.2,
     },
     completedAt: {
