@@ -383,8 +383,8 @@ export function AddWorkoutModal({
                     </Text>
                     <Text style={styles.slowImportBody}>
                       {predictedSlow
-                        ? "Transcribing will take about a minute. Keep scrolling — we\u2019ll notify you when it\u2019s built."
-                        : "Long reels need 60–90s to transcribe. Keep scrolling — we\u2019ll notify you when it\u2019s built."}
+                        ? "Transcribing will take about a minute. Keep scrolling; we'll notify you when it's built."
+                        : "Long reels need 60-90 seconds to transcribe. Keep scrolling; we'll notify you when it's built."}
                     </Text>
                     <Pressable
                       onPress={() => setRememberAutoNotify((prev) => !prev)}
@@ -406,7 +406,7 @@ export function AddWorkoutModal({
                         ) : null}
                       </View>
                       <Text style={styles.slowImportCheckLabel}>
-                        Always notify me — don&apos;t ask again
+                        Always notify me, don't ask again
                       </Text>
                     </Pressable>
                     <View style={styles.slowImportActions}>

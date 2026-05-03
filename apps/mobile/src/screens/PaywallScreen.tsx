@@ -131,7 +131,7 @@ export function PaywallScreen({
       <Text style={styles.eyebrow}>Fitfo Pro</Text>
       <Text style={styles.title}>Turn TikToks into real workouts.</Text>
       <Text style={styles.body}>
-        Stop saving clips you never train. Structure them into real sessions—starting
+        Stop saving clips you never train. Structure them into real sessions, starting
         with your 7-day free trial, cancel anytime. Annual plan $59.99/year, billed
         annually.
       </Text>

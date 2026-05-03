@@ -738,7 +738,7 @@ export function OnboardingScreen({
       {renderScreenIntro(
         "Step 07 · Coach",
         "Your trainer in the corner.",
-        "During any session, tap the coach avatar (top-right)—same spot on every workout. Ask about form cues, exercise swaps or order, footwear, reps and weight—it answers from the workout you're actually logging, not generic internet advice.",
+        "During any session, tap the coach avatar (top-right), same spot on every workout. Ask about form cues, exercise swaps or order, footwear, reps and weight. It answers from the workout you're actually logging, not generic internet advice.",
       )}
       <View style={styles.featureCard}>
         <View style={styles.coachHeroRow}>
@@ -755,9 +755,9 @@ export function OnboardingScreen({
           </Text>
         </View>
         {[
-          "Coaching only—training, lifts, scheduling around your workout.",
+          "Coaching only: training, lifts, scheduling around your workout.",
           "Keeps rough context of exercise # / set while you bounce between Chat and logs.",
-          "Answers stay short—quick cues mid-set, then back to lifting.",
+          "Answers stay short: quick cues mid-set, then back to lifting.",
         ].map((item) => (
           <View key={item} style={styles.featureBullet}>
             <Ionicons color={theme.colors.primaryLight} name="checkmark-circle" size={16} />
@@ -862,8 +862,8 @@ export function OnboardingScreen({
     <>
       {renderScreenIntro(
         "Step 10 · Spotlight reel",
-        "Jacob clips land the same way.",
-        "Jacob reels follow the same share → compile → save rhythm. Flip the card once to peek at exactly what we'd pull from captions, audio, and video.",
+        "Reels land the same way in Fitfo.",
+        "Any TikTok workout reel follows the same share → compile → save rhythm. Flip the card once to peek at what we pull from captions, audio, and video.",
       )}
       <View style={styles.demoPhone}>
         <LinearGradient
@@ -877,10 +877,10 @@ export function OnboardingScreen({
             <Text style={styles.demoTopActive}>For You</Text>
           </View>
           <View style={styles.demoPerson}>
-            <Text style={styles.demoPersonText}>J</Text>
+            <Text style={styles.demoPersonText}>N</Text>
           </View>
           <View style={styles.demoCaption}>
-            <Text style={styles.demoCreator}>@coach.daley</Text>
+            <Text style={styles.demoCreator}>@nunoliftz</Text>
             <Text style={styles.demoCaptionText}>Push workout you actually stick with</Text>
             <Text style={styles.demoTag}>Push workout</Text>
           </View>

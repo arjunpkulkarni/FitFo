@@ -968,7 +968,7 @@ function TargetField({
         <InlineEditableText
           value={displayValue}
           onSave={onSave}
-          placeholder="—"
+          placeholder="-"
           keyboardType="number-pad"
           maxLength={4}
           textStyle={styles.targetValue}

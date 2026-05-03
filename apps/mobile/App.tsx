@@ -893,9 +893,6 @@ export default function App() {
     if (!accessToken || !currentUser?.onboarding) {
       return undefined;
     }
-    if (activeOnboardingUserId === currentUser.id) {
-      return undefined;
-    }
     if (!hasBillingAccess || isBillingCheckPending) {
       return undefined;
     }
@@ -938,7 +935,6 @@ export default function App() {
     };
   }, [
     accessToken,
-    activeOnboardingUserId,
     currentUser?.id,
     currentUser?.onboarding,
     currentUser?.onboarding?.sex,
@@ -1691,6 +1687,9 @@ export default function App() {
       setAuthLandingIndex(0);
       setAuthMode("signup");
       resetPostLoginState();
+      if (profile.onboarding) {
+        setActiveOnboardingUserId(null);
+      }
     },
     [resetPostLoginState],
   );
@@ -2136,6 +2135,7 @@ export default function App() {
         setCurrentUser(response.profile);
         setAuthPrefillPhone(response.profile.phone ?? "");
         setAuthPrefillFullName(response.profile.full_name);
+        setActiveOnboardingUserId(null);
         await storeAuthSession(accessToken, response.profile);
         await loadBodyWeightEntries(accessToken);
       } catch (error) {

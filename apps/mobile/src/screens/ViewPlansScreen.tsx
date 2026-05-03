@@ -23,7 +23,7 @@ import { getTheme, type ThemeMode } from "../theme";
 const PRO_BENEFITS = [
   "Import workouts from TikTok & IG in seconds",
   "Turn videos into structured routines you can actually follow",
-  "Track real progress—not a folder of random clips",
+  "Track real progress, not a folder of random clips",
   "AI coach guides you through every session",
 ] as const;
 
@@ -292,7 +292,7 @@ export function ViewPlansScreen({
           </Text>
         ) : !nativeOk ? (
           <Text style={styles.hint}>
-            Apple checkout isn&apos;t available in Expo Go—open this build in TestFlight or a dev
+            Apple checkout isn&apos;t available in Expo Go. Open this build in TestFlight or a dev
             client to subscribe.
           </Text>
         ) : null}
@@ -362,7 +362,7 @@ export function ViewPlansScreen({
           >
             <Text style={styles.planName}>Monthly</Text>
             <Text style={styles.planPriceLarge}>
-              {monthlyPrice ?? (sdkOk ? "—" : "Monthly price")}
+              {monthlyPrice ?? (sdkOk ? "-" : "Monthly price")}
             </Text>
             <Text style={styles.planPeriodMuted}>Billed every month · Cancel anytime</Text>
             {purchasingId === REVENUECAT_PRODUCT_IDS.monthly ? (

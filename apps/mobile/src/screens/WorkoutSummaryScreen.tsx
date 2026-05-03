@@ -196,7 +196,7 @@ export function WorkoutSummaryScreen({
 
       {!canReplaySession && onRepeatWorkout ? (
         <Text style={styles.helperMuted}>
-          This log has no lifts to repeat yet—finish logging in the tracker first.
+          This log has no lifts to repeat yet. Finish logging in the tracker first.
         </Text>
       ) : null}
 

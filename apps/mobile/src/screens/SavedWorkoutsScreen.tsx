@@ -214,8 +214,8 @@ function UpcomingWorkoutRow({
     : null;
   const dayLabel = scheduledTime
     ? DAY_LABELS[scheduledTime.getDay()].toUpperCase()
-    : "—";
-  const dayNumber = scheduledTime ? `${scheduledTime.getDate()}` : "—";
+    : "-";
+  const dayNumber = scheduledTime ? `${scheduledTime.getDate()}` : "-";
   const monthLabel = scheduledTime
     ? MONTH_LABELS[scheduledTime.getMonth()]
     : "";
@@ -450,9 +450,9 @@ export function SavedWorkoutsScreen({
   }, [historyLoadBlocked, historyLoadingCold, streakDays]);
 
   const weekTileValue =
-    historyLoadBlocked ? "—" : historyLoadingCold ? "…" : `${thisWeekStats.count}`;
+    historyLoadBlocked ? "-" : historyLoadingCold ? "…" : `${thisWeekStats.count}`;
   const streakTileValue =
-    historyLoadBlocked ? "—" : historyLoadingCold ? "…" : `${streakDays}`;
+    historyLoadBlocked ? "-" : historyLoadingCold ? "…" : `${streakDays}`;
   const scheduledByDate = useMemo(() => {
     const map = new Map<string, SavedRoutinePreview[]>();
     for (const routine of scheduledWorkouts) {

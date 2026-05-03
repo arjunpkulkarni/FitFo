@@ -34,6 +34,7 @@ const WORKOUT_VIDEO = require("../../assets/my-workout.mp4");
 const NUNO_VIDEO = require("../../assets/nuno.mov");
 const SAMANTHA_VIDEO = require("../../assets/samantha2.mov");
 const FITFO_APP_ICON = require("../../assets/icon.png");
+const COACH_AVATAR = require("../../assets/coach.png");
 
 function createAuthColors(mode: ThemeMode) {
   const theme = getTheme(mode);
@@ -180,8 +181,8 @@ export function AuthLandingScreen({
   const [tryStage, setTryStage] = useState<"tiktok" | "share" | "import" | "workout">("tiktok");
   const tryDemoVideoPlayer = sex === "female" ? samanthaVideoPlayer : nunoVideoPlayer;
   const isSamanthaDemo = sex === "female";
-  const demoCreatorName = isSamanthaDemo ? "Samantha" : "Jacob";
-  const demoCreatorHandle = isSamanthaDemo ? "@samantha.baio" : "@coach.daley";
+  const demoCreatorName = isSamanthaDemo ? "Samantha" : "Nuno";
+  const demoCreatorHandle = isSamanthaDemo ? "@samantha.baio" : "@nunoliftz";
   const demoWorkoutTitle = isSamanthaDemo
     ? "Samantha glutes and abs day"
     : "Jacob 6 day push workout";
@@ -774,7 +775,7 @@ export function AuthLandingScreen({
           index={7}
           next={next}
           title="Coach in your pocket."
-          subtitle="Form cues, swaps, and progression notes while you train."
+          subtitle="Once you start a workout, open the coach and ask about form, swaps, progression, reps, weights, or anything about the session you're in."
           width={width}
         >
           <FeatureCard type="coach" />
@@ -1135,7 +1136,12 @@ function FeatureCard({ title, type }: { title?: string; type: "calendar" | "coac
     <View style={[styles.featureCard, styles.coachFeatureCard]}>
       <View style={styles.coachCardHeader}>
         <View style={styles.coachIcon}>
-          <Image resizeMode="cover" source={FITFO_APP_ICON} style={styles.coachIconImage} />
+          <Image
+            accessibilityIgnoresInvertColors
+            resizeMode="contain"
+            source={COACH_AVATAR}
+            style={styles.coachIconImage}
+          />
         </View>
         <View style={styles.optionCopy}>
           <Text style={styles.coachTitle}>Fitfo AI Coach</Text>

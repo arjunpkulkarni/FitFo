@@ -5,27 +5,27 @@ import type { OnboardingSex, SavedWorkoutRecord, WorkoutPlan } from "../types";
 export const STARTER_JACOB_TITLE = "Jacob 6 day push workout";
 export const STARTER_SAMANTHA_TITLE = "Samantha glutes and abs day";
 
-/** Shown once in-app after onboarding; copy used by `FirstHubTipModal`. */
-export const FIRST_HUB_TIP_MODAL_TITLE = "Your demo workout is loaded";
-
 const HUB_TIP_INTRO =
-  "We loaded the workout you tried in the demo into your Fitfo library. It is ready to save, schedule, or start whenever you want.";
+  "We saved the workouts from your onboarding demos into your Fitfo library from the reels you walked through during setup, so you can schedule or start whenever you want.";
 
-/** Male / prefer-not-to-say hub tip copy (same as legacy constant). */
-export const FIRST_HUB_TIP_MODAL_BODY = `${HUB_TIP_INTRO}\n\nJacob's push workout is waiting for you, just like you imported it from the demo.`;
+/** Default body when parent does not pass explicit `body` (e.g. story / tests). */
+export const FIRST_HUB_TIP_MODAL_BODY = `${HUB_TIP_INTRO}\n\nTwo starter routines from the onboarding demos are in your Saved tab.`;
 
-export function getFirstHubTipModalTitle(sex: OnboardingSex | null): string {
-  if (sex === "female") {
-    return "Samantha's workout is loaded";
-  }
-  return "Jacob's workout is loaded";
+/** Shown once in-app after onboarding; copy used by `FirstHubTipModal`. */
+export const FIRST_HUB_TIP_MODAL_TITLE = "Demo workouts loaded";
+
+export function getFirstHubTipModalTitle(_sex: OnboardingSex | null): string {
+  return FIRST_HUB_TIP_MODAL_TITLE;
 }
 
 export function getFirstHubTipModalBody(sex: OnboardingSex | null): string {
   if (sex === "female") {
-    return `${HUB_TIP_INTRO}\n\nSamantha's glutes and abs day is waiting for you, just like you imported it from the demo.`;
+    return `${HUB_TIP_INTRO}\n\nYou'll find Samantha's routine and Jacob's push day in Saved.`;
   }
-  return FIRST_HUB_TIP_MODAL_BODY;
+  if (sex === "male") {
+    return `${HUB_TIP_INTRO}\n\nThe push workout from the demo reel you tried is in Saved.`;
+  }
+  return `${HUB_TIP_INTRO}\n\nTwo starter routines from the onboarding demos are in your Saved tab.`;
 }
 
 export function getFirstHubTipStorageKey(profileId: string): string {
@@ -159,27 +159,28 @@ type StarterTemplate = {
   badge_label: string;
 };
 
+/** Female gets both Samantha + Jacob demos; male includes both push + glutes; prefer_not includes both. */
 function starterTemplatesForSex(sex: OnboardingSex | null): StarterTemplate[] {
-  if (sex === "female") {
-    return [
-      {
-        title: STARTER_SAMANTHA_TITLE,
-        description:
-          "Imported from the Samantha demo reel during onboarding.",
-        plan: SAMANTHA_PLAN,
-        badge_label: "Demo import",
-      },
-    ];
-  }
+  const sam: StarterTemplate = {
+    title: STARTER_SAMANTHA_TITLE,
+    description: "Imported from the Samantha demo reel during onboarding.",
+    plan: SAMANTHA_PLAN,
+    badge_label: "Demo import",
+  };
+  const jacob: StarterTemplate = {
+    title: STARTER_JACOB_TITLE,
+    description: "Imported from the push-day demo reel during onboarding.",
+    plan: JACOB_PLAN,
+    badge_label: "Demo import",
+  };
 
-  return [
-    {
-      title: STARTER_JACOB_TITLE,
-      description: "Imported from the Jacob demo reel during onboarding.",
-      plan: JACOB_PLAN,
-      badge_label: "Demo import",
-    },
-  ];
+  if (sex === "female") {
+    return [sam, jacob];
+  }
+  if (sex === "male") {
+    return [jacob];
+  }
+  return [sam, jacob];
 }
 
 async function seedStartersIfNeeded(
