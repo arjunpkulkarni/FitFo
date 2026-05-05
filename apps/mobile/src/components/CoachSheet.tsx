@@ -286,51 +286,6 @@ export default function CoachSheet({
                   <View key={idx} style={styles.assistantRow}>
                     <View style={styles.assistantBubble}>
                       {renderMarkdown(message.content, `m${idx}`, message.citations)}
-                      {message.citations && message.citations.length > 0 ? (
-                        <View style={styles.referenceSection}>
-                          <Text style={styles.referenceEyebrow}>References</Text>
-                          {[...message.citations]
-                            .sort((a, b) => a.index - b.index)
-                            .slice(0, 3)
-                            .map((c) => {
-                              const href = (c.source_url || "").trim();
-                              const canOpen = /^https?:\/\//iu.test(href);
-                              return (
-                                <Pressable
-                                  disabled={!canOpen}
-                                  key={`${idx}-ref-${c.index}`}
-                                  onPress={() =>
-                                    void Linking.openURL(href)
-                                  }
-                                  style={({ pressed }) => [
-                                    styles.referenceCard,
-                                    pressed && canOpen ? styles.referenceCardPressed : null,
-                                  ]}
-                                >
-                                  <View style={styles.referenceCardRow}>
-                                    <Text style={styles.referenceIndex}>[{c.index}]</Text>
-                                    <Text
-                                      style={styles.referenceSnippet}
-                                      numberOfLines={5}
-                                    >
-                                      {c.snippet || "Coach tip"}
-                                    </Text>
-                                    {canOpen ? (
-                                      <Ionicons
-                                        color={theme.colors.primaryBright}
-                                        name="open-outline"
-                                        size={15}
-                                        style={styles.referenceOpenIcon}
-                                      />
-                                    ) : (
-                                      <View style={styles.referenceOpenSpacer} />
-                                    )}
-                                  </View>
-                                </Pressable>
-                              );
-                            })}
-                        </View>
-                      ) : null}
                     </View>
                   </View>
                 );
@@ -576,66 +531,6 @@ function createStyles(theme: ReturnType<typeof getTheme>) {
       fontFamily: F.medium,
       fontSize: 11,
       lineHeight: 21,
-    },
-    referenceSection: {
-      borderTopColor: colors.borderSoft,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      gap: 8,
-      marginTop: 10,
-      paddingTop: 10,
-      width: "100%",
-      alignSelf: "stretch",
-    },
-    referenceEyebrow: {
-      color: colors.textMuted,
-      fontFamily: F.black,
-      fontSize: 10,
-      letterSpacing: 1.2,
-      textTransform: "uppercase",
-    },
-    referenceCard: {
-      width: "100%",
-      alignSelf: "stretch",
-      borderRadius: radii.medium,
-      borderWidth: 1,
-      borderColor: colors.borderSoft,
-      backgroundColor: colors.surface,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-    },
-    referenceCardPressed: {
-      opacity: 0.82,
-    },
-    referenceCardRow: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: 10,
-      width: "100%",
-    },
-    referenceIndex: {
-      color: colors.primaryBright,
-      fontFamily: F.bold,
-      fontSize: 12,
-      lineHeight: 18,
-      marginTop: 1,
-      flexShrink: 0,
-    },
-    referenceSnippet: {
-      flex: 1,
-      flexShrink: 1,
-      minWidth: 0,
-      color: colors.textSecondary,
-      fontFamily: F.regular,
-      fontSize: 13,
-      lineHeight: 19,
-    },
-    referenceOpenIcon: {
-      marginTop: 2,
-      flexShrink: 0,
-    },
-    referenceOpenSpacer: {
-      width: 18,
-      flexShrink: 0,
     },
     thinking: {
       flexDirection: "row",
