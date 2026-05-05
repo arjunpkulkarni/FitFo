@@ -284,6 +284,11 @@ export interface ActiveSessionPreview {
   description: string;
   startedAt: number;
   /**
+   * When set, finishing the session marks this `scheduled_workouts` row
+   * completed so it drops off the calendar and upcoming lists.
+   */
+  scheduledWorkoutId?: string | null;
+  /**
    * Set when the in-session workout UI is dismissed — hub/logs cards use this
    * instead of Date.now so elapsed stops until the athlete resumes.
    */

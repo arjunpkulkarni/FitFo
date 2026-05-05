@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import {
   ActivityIndicator,
@@ -315,6 +315,12 @@ export default function App() {
   >(null);
   const [isDevPaywallBypassed, setIsDevPaywallBypassed] = useState(false);
   const [isFirstHubTipVisible, setIsFirstHubTipVisible] = useState(false);
+
+  /** Calendar + upcoming only show rows still waiting to be trained. */
+  const upcomingScheduledRows = useMemo(
+    () => scheduledWorkouts.filter((row) => row.status === "scheduled"),
+    [scheduledWorkouts],
+  );
 
   const handledImportedWorkoutId = useRef<string | null>(null);
   const handledNativeShareUrls = useRef(new Set<string>());
@@ -748,7 +754,9 @@ export default function App() {
       const rows = await listScheduledWorkouts(token);
       setScheduledWorkouts(rows);
       // Clear any local notifications whose schedule rows were removed elsewhere.
-      void reconcileScheduledNotifications(rows.map((row) => row.id));
+      void reconcileScheduledNotifications(
+        rows.filter((row) => row.status === "scheduled").map((row) => row.id),
+      );
     } catch (error) {
       setScheduledWorkoutsError(
         error instanceof Error
@@ -1041,6 +1049,7 @@ export default function App() {
         setActiveSession(
           createActiveSessionFromPlan(sourceRoutine.workoutPlan, {
             description: sourceRoutine.description,
+            scheduledWorkoutId: sourceRoutine.scheduledWorkoutId ?? null,
             sourceJobId: sourceRoutine.jobId ?? null,
             sourceUrl: sourceRoutine.sourceUrl ?? null,
             sourceWorkoutId: sourceRoutine.workoutId ?? null,
@@ -1051,6 +1060,7 @@ export default function App() {
         setActiveSession(
           createDefaultActiveSession({
             description: sourceRoutine?.description,
+            scheduledWorkoutId: sourceRoutine?.scheduledWorkoutId ?? null,
             sourceJobId: sourceRoutine?.jobId ?? null,
             sourceUrl: sourceRoutine?.sourceUrl ?? null,
             sourceWorkoutId: sourceRoutine?.workoutId ?? null,
@@ -1631,6 +1641,7 @@ export default function App() {
 
   const handleFinishWorkout = useCallback(async () => {
     const session = activeSession;
+    const scheduledWorkoutIdToComplete = session?.scheduledWorkoutId ?? null;
     const finishedCoachKey = session ? String(session.startedAt) : null;
 
     setActiveSession(null);
@@ -1667,12 +1678,27 @@ export default function App() {
           : null,
         exercise_count: completed.exercises?.length ?? null,
       });
+
+      if (scheduledWorkoutIdToComplete) {
+        void cancelWorkoutReminder(scheduledWorkoutIdToComplete);
+        try {
+          await updateScheduledWorkout(accessToken, scheduledWorkoutIdToComplete, {
+            status: "completed",
+          });
+          setScheduledWorkouts((prev) =>
+            prev.filter((item) => item.id !== scheduledWorkoutIdToComplete),
+          );
+        } catch {
+          // Row may still appear until the next hub refresh patches state.
+          void loadScheduledWorkouts(accessToken);
+        }
+      }
     } catch (error) {
       setCompletedWorkoutsError(
         error instanceof Error ? error.message : "Unable to save your workout log.",
       );
     }
-  }, [accessToken, activeSession]);
+  }, [accessToken, activeSession, loadScheduledWorkouts]);
 
   const applyAuthenticatedSession = useCallback(
     (profile: UserProfile, token: string) => {
@@ -2410,7 +2436,7 @@ export default function App() {
             }}
             onScheduleWorkout={handleRequestScheduleSavedWorkout}
             onStartSession={handleStartSession}
-            scheduledWorkouts={scheduledWorkouts.map(
+            scheduledWorkouts={upcomingScheduledRows.map(
               createScheduledRoutinePreview,
             )}
             themeMode={themeMode}
@@ -2442,7 +2468,7 @@ export default function App() {
           onStartSession={handleStartSession}
           onUnschedule={handleUnscheduleWorkout}
           scheduledError={scheduledWorkoutsError}
-          scheduledWorkouts={scheduledWorkouts.map(createScheduledRoutinePreview)}
+          scheduledWorkouts={upcomingScheduledRows.map(createScheduledRoutinePreview)}
           themeMode={themeMode}
         />
       );

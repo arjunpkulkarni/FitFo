@@ -63,7 +63,7 @@ export default function LandingPage() {
   return (
     <>
       <Nav />
-      <main className="flex flex-1 flex-col">
+      <main id="top" className="flex flex-1 flex-col">
         {/* Hero: editorial top-left alignment, airy padding */}
         <section className="relative isolate min-h-[min(92dvh,52rem)] overflow-hidden lg:min-h-[min(88dvh,56rem)]">
           <div className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 gap-14 px-4 pb-20 pt-16 text-left sm:gap-16 sm:px-6 sm:pt-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.92fr)] lg:items-start lg:gap-12 lg:pb-24 lg:pt-24 xl:gap-20 xl:px-10 xl:pt-28">
@@ -120,7 +120,7 @@ export default function LandingPage() {
                   </span>
                 </a>
                 <Link
-                  href="/marketing"
+                  href="/#demo"
                   className="cta-lift inline-flex min-h-10 items-center justify-center rounded-full border border-white/55 bg-transparent px-6 text-[13px] font-medium text-white transition-colors hover:border-white/90 hover:bg-white/10"
                 >
                   See how it works
@@ -148,6 +148,7 @@ export default function LandingPage() {
 
         {/* Product story: numbered flow sections */}
         <FlowSection
+          id="how"
           index="01"
           compactBelowHeader
           eyebrow="How it works"
@@ -189,6 +190,7 @@ export default function LandingPage() {
         </FlowSection>
 
         <FlowSection
+          id="demo"
           index="02"
           eyebrow="Import"
           title={
@@ -284,6 +286,8 @@ export default function LandingPage() {
             </div>
           </div>
         </FlowSection>
+
+        <CoachHighlightSection />
 
         <FlowSection
           index="03"
@@ -540,7 +544,7 @@ export default function LandingPage() {
           </div>
         </FlowSection>
 
-        <section className="scroll-mt-24">
+        <section id="download" className="scroll-mt-24">
           <div className="mx-auto w-full max-w-7xl px-4 pb-20 pt-4 sm:px-6 sm:pb-24 xl:px-10">
             <Reveal delay={80} className="mb-8 lg:mb-10">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-10 lg:gap-14">
@@ -622,6 +626,7 @@ export default function LandingPage() {
 }
 
 function FlowSection({
+  id,
   index,
   eyebrow,
   title,
@@ -629,6 +634,7 @@ function FlowSection({
   compactBelowHeader,
   children,
 }: {
+  id?: string;
   index: string;
   eyebrow: string;
   title: ReactNode;
@@ -638,7 +644,7 @@ function FlowSection({
   children: ReactNode;
 }) {
   return (
-    <section className="scroll-mt-24">
+    <section id={id} className="scroll-mt-24">
       <div className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:py-20 xl:px-10">
         <Reveal
           className={
@@ -693,5 +699,47 @@ function Eyebrow({
     >
       {children}
     </p>
+  );
+}
+
+function CoachHighlightSection() {
+  const [, , trainFeature] = FEATURES;
+
+  return (
+    <section id="coach" className="scroll-mt-24">
+      <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:py-14 xl:px-10">
+        <Reveal delay={90} variant="scale" className={`${bento} p-6 sm:p-8`}>
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:gap-10">
+            <div className="min-w-0 flex-1">
+              <Eyebrow>Built-in AI coach</Eyebrow>
+              <h2
+                className="mt-3 text-2xl font-bold leading-[1.08] tracking-[-0.025em] sm:text-3xl text-balance"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                Training advice that knows what you&apos;re{" "}
+                <span className="text-[var(--primary)]">training.</span>
+              </h2>
+              <p className="mt-4 text-[14px] leading-relaxed text-[var(--text-secondary)] text-pretty sm:text-[15px]">
+                Ask the in-app coach about form cues, swaps, or why a lift is
+                programmed. It uses your{" "}
+                <strong className="text-[var(--text-primary)]">
+                  current session
+                </strong>
+                , not generic chat.
+              </p>
+            </div>
+            <div className="flex shrink-0 justify-center lg:justify-end">
+              <PhoneFrame
+                src={trainFeature.image}
+                alt="Fitfo in-app coach during an active workout session"
+                width={220}
+                float
+                rotate={2}
+              />
+            </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
   );
 }

@@ -755,6 +755,7 @@ export function createManualRoutinePreview(): SavedRoutinePreview {
 
 export function createDefaultActiveSession(overrides?: {
   description?: string;
+  scheduledWorkoutId?: string | null;
   sourceJobId?: string | null;
   sourceUrl?: string | null;
   sourceWorkoutId?: string | null;
@@ -768,6 +769,7 @@ export function createDefaultActiveSession(overrides?: {
     startedAt: Date.now(),
     averageRestSeconds: null,
     exercises: [],
+    scheduledWorkoutId: overrides?.scheduledWorkoutId ?? undefined,
     sourceWorkoutId: overrides?.sourceWorkoutId ?? null,
     sourceJobId: overrides?.sourceJobId ?? null,
     sourceUrl: overrides?.sourceUrl ?? null,
@@ -779,6 +781,7 @@ export function createActiveSessionFromPlan(
   plan: WorkoutPlan,
   overrides?: {
     description?: string;
+    scheduledWorkoutId?: string | null;
     sourceJobId?: string | null;
     sourceUrl?: string | null;
     sourceWorkoutId?: string | null;
@@ -800,6 +803,7 @@ export function createActiveSessionFromPlan(
     startedAt: Date.now(),
     averageRestSeconds: computeAverageRestSeconds(plan),
     exercises,
+    scheduledWorkoutId: overrides?.scheduledWorkoutId ?? undefined,
     sourceWorkoutId: overrides?.sourceWorkoutId ?? null,
     sourceJobId: overrides?.sourceJobId ?? null,
     sourceUrl: overrides?.sourceUrl ?? null,

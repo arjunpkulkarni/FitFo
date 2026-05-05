@@ -38,7 +38,37 @@ export function Nav() {
           />
         </Link>
 
-        <nav className="flex items-center" aria-label="Get the app">
+        <nav
+          aria-label="Primary"
+          className="mr-6 hidden flex-1 flex-wrap justify-end gap-5 text-[13px] font-medium text-[var(--text-secondary)] sm:flex sm:gap-7 md:justify-center"
+        >
+          <Link
+            href="/#how"
+            className="transition hover:text-[var(--text-primary)]"
+          >
+            How it works
+          </Link>
+          <Link
+            href="/#demo"
+            className="transition hover:text-[var(--text-primary)]"
+          >
+            Demo
+          </Link>
+          <Link
+            href="/support#faq"
+            className="transition hover:text-[var(--text-primary)]"
+          >
+            FAQ
+          </Link>
+          <Link
+            href="/support"
+            className="transition hover:text-[var(--text-primary)]"
+          >
+            Support
+          </Link>
+        </nav>
+
+        <div className="flex shrink-0 items-center gap-3">
           <a
             href="https://apps.apple.com/app/id6762418380"
             target="_blank"
@@ -47,7 +77,7 @@ export function Nav() {
           >
             Download
           </a>
-        </nav>
+        </div>
       </div>
     </header>
   );

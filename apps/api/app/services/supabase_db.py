@@ -408,6 +408,7 @@ def list_scheduled_workouts(
         supa.table("scheduled_workouts")
         .select(SCHEDULED_WORKOUT_FIELDS)
         .eq("user_id", user_id)
+        .eq("status", "scheduled")
     )
     if start_date is not None:
         query = query.gte("scheduled_for", start_date)

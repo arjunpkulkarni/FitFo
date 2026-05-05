@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 
 import { Footer } from "@/components/site/Footer";
 import { Nav } from "@/components/site/Nav";
+import { FITFO_PRODUCT_FAQ } from "@/content/fitfoProductFaq";
 
 export const metadata: Metadata = {
   title: "Support, FAQ, and Account Help",
   description:
-    "Get help with Fitfo imports, TikTok and Instagram workout parsing, SMS sign-in, privacy, creator takedowns, account deletion, and workout troubleshooting.",
+    "Fitfo FAQ: TikTok and Instagram imports, logging, AI coach, scheduling, free trial and pricing. Plus SMS sign-in, account deletion, creator takedowns, and privacy.",
   alternates: {
     canonical: "/support",
   },
 };
 
-const FAQS: { q: string; a: React.ReactNode }[] = [
+const ACCOUNT_FAQS: { q: string; a: ReactNode }[] = [
   {
     q: "I'm not receiving my SMS sign-in code.",
     a: (
@@ -135,19 +137,6 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
     ),
   },
   {
-    q: "Is Fitfo free?",
-    a: (
-      <>
-        <p>
-          Yes, Fitfo is free to download on the App Store. If we add premium
-          features later (e.g. higher video volume, advanced analytics) we will
-          give everyone plenty of notice and the core &ldquo;share a video, get
-          a workout&rdquo; loop will always remain available.
-        </p>
-      </>
-    ),
-  },
-  {
     q: "Does Fitfo give medical or training advice?",
     a: (
       <>
@@ -162,6 +151,42 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
     ),
   },
 ];
+
+const ANDROID_FAQ_INDEX = FITFO_PRODUCT_FAQ.findIndex((item) =>
+  item.question.includes("Android"),
+);
+
+const PRODUCT_FAQ_ENTRIES: { q: string; a: ReactNode }[] =
+  FITFO_PRODUCT_FAQ.map((faq, i) => ({
+    q: faq.question,
+    a:
+      ANDROID_FAQ_INDEX !== -1 && i === ANDROID_FAQ_INDEX ? (
+        <p>
+          Not yet. Fitfo is currently iOS-only on the App Store. We don&apos;t
+          have a waitlist, but if you want to know when Android launches, follow{" "}
+          <a
+            href="https://www.instagram.com/fitfo.app/"
+            className="text-[var(--primary-bright)] underline underline-offset-2"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            @fitfo.app on Instagram
+          </a>{" "}
+          and{" "}
+          <a
+            href="https://www.tiktok.com/@fitfo.app"
+            className="text-[var(--primary-bright)] underline underline-offset-2"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            @fitfo.app on TikTok
+          </a>{" "}
+          and you&apos;ll see it the moment it ships.
+        </p>
+      ) : (
+        <p>{faq.answer}</p>
+      ),
+  }));
 
 export default function SupportPage() {
   return (
@@ -212,35 +237,34 @@ export default function SupportPage() {
           </div>
         </section>
 
-        <section>
+        <section id="faq" className="scroll-mt-28">
           <div className="mx-auto max-w-4xl px-5 py-20 sm:px-8 sm:py-24">
+            <p
+              className="text-[10px] font-black uppercase tracking-[0.27em] text-[var(--primary-bright)]"
+              style={{ fontFamily: "var(--font-sans)" }}
+            >
+              Fitfo FAQ
+            </p>
             <h2
-              className="text-2xl font-bold tracking-[-0.015em] sm:text-3xl"
+              className="mt-3 text-2xl font-bold tracking-[-0.015em] sm:text-3xl"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              Frequently asked questions
+              Product & app
             </h2>
 
-            <div className="mt-10 divide-y divide-[var(--border-soft)] rounded-3xl border border-[var(--border-soft)] bg-[var(--surface)]">
-              {FAQS.map((faq, i) => (
-                <details key={i} className="group p-6 sm:p-7">
-                  <summary className="flex cursor-pointer list-none items-start justify-between gap-6 text-left">
-                    <h3
-                      className="text-base font-semibold tracking-[-0.005em] text-[var(--text-primary)] sm:text-lg"
-                      style={{ fontFamily: "var(--font-display)" }}
-                    >
-                      {faq.q}
-                    </h3>
-                    <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--border-soft)] text-[var(--text-secondary)] transition group-open:rotate-45 group-open:border-[var(--primary)] group-open:text-[var(--primary)]">
-                      +
-                    </span>
-                  </summary>
-                  <div className="mt-4 max-w-3xl text-[13px] leading-relaxed text-[var(--text-secondary)]">
-                    {faq.a}
-                  </div>
-                </details>
-              ))}
-            </div>
+            <FaqList entries={PRODUCT_FAQ_ENTRIES} />
+
+            <h2
+              className="mt-16 text-2xl font-bold tracking-[-0.015em] sm:text-3xl"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Account & technical help
+            </h2>
+            <p className="mt-3 max-w-2xl text-[14px] leading-relaxed text-[var(--text-secondary)]">
+              Sign-in, privacy, troubleshooting, and safety.
+            </p>
+
+            <FaqList entries={ACCOUNT_FAQS} />
 
             <p className="mt-10 text-sm text-[var(--text-muted)]">
               Didn&apos;t find what you needed? Email us at{" "}
@@ -257,6 +281,31 @@ export default function SupportPage() {
       </main>
       <Footer />
     </>
+  );
+}
+
+function FaqList({ entries }: { entries: { q: string; a: ReactNode }[] }) {
+  return (
+    <div className="mt-10 divide-y divide-[var(--border-soft)] rounded-3xl border border-[var(--border-soft)] bg-[var(--surface)]">
+      {entries.map((faq) => (
+        <details key={faq.q} className="group p-6 sm:p-7">
+          <summary className="flex cursor-pointer list-none items-start justify-between gap-6 text-left">
+            <h3
+              className="text-base font-semibold tracking-[-0.005em] text-[var(--text-primary)] sm:text-lg"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {faq.q}
+            </h3>
+            <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--border-soft)] text-[var(--text-secondary)] transition group-open:rotate-45 group-open:border-[var(--primary)] group-open:text-[var(--primary)]">
+              +
+            </span>
+          </summary>
+          <div className="mt-4 max-w-3xl text-[13px] leading-relaxed text-[var(--text-secondary)] [&_strong]:font-semibold [&_strong]:text-[var(--text-primary)] [&_ul]:mt-3 [&_ul]:list-disc [&_ul]:space-y-1.5 [&_ul]:pl-5">
+            {faq.a}
+          </div>
+        </details>
+      ))}
+    </div>
   );
 }
 

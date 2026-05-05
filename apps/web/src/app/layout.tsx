@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+
+import { FITFO_PRODUCT_FAQ } from "@/content/fitfoProductFaq";
+
 import "./globals.css";
 
 // Self-host the same Fontshare TTFs the mobile app ships. Using next/font/local
@@ -114,6 +117,15 @@ export const metadata: Metadata = {
   },
 };
 
+const faqPageMainEntity = FITFO_PRODUCT_FAQ.map((item) => ({
+  "@type": "Question" as const,
+  name: item.question,
+  acceptedAnswer: {
+    "@type": "Answer" as const,
+    text: item.answer,
+  },
+}));
+
 const structuredData = {
   "@context": "https://schema.org",
   "@graph": [
@@ -168,32 +180,7 @@ const structuredData = {
     {
       "@type": "FAQPage",
       "@id": `${SITE_URL}/support#faq`,
-      mainEntity: [
-        {
-          "@type": "Question",
-          name: "What does Fitfo do?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Fitfo turns public TikTok and Instagram workout videos into structured workouts with exercises, sets, reps, rest times, and notes.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "Is Fitfo available on iPhone?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "Yes. Fitfo is available for iPhone on the App Store.",
-          },
-        },
-        {
-          "@type": "Question",
-          name: "Does Fitfo host TikTok or Instagram videos?",
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: "No. Fitfo does not host or redistribute third-party video content. It extracts factual workout data and links back to the original source post.",
-          },
-        },
-      ],
+      mainEntity: faqPageMainEntity,
     },
   ],
 };

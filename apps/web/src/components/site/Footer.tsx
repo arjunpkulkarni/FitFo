@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export function Footer() {
   return (
-    <footer className="nav-surface">
+    <footer id="support" className="nav-surface">
       <div className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6 xl:px-10">
         <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
           <div className="max-w-sm">
@@ -33,12 +33,19 @@ export function Footer() {
               title="Product"
               links={[
                 { label: "Home", href: "/" },
+                { label: "How it works", href: "/#how" },
+                { label: "Demo", href: "/#demo" },
+                {
+                  label: "Download",
+                  href: "https://apps.apple.com/app/id6762418380",
+                },
               ]}
             />
             <FooterCol
               title="Support"
               links={[
                 { label: "Help center", href: "/support" },
+                { label: "FAQ", href: "/support#faq" },
                 { label: "Contact", href: "mailto:nirv@fitfo.app" },
               ]}
             />
