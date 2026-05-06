@@ -2,7 +2,7 @@ export default {
   expo: {
     name: "Fitfo",
     slug: "fitfo-mobile",
-    version: "0.1.1",
+    version: "1.0.2",
     orientation: "portrait",
     icon: "./assets/icon.png",
     scheme: "fitfo",
@@ -16,7 +16,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.fitfo.mobile",
-      buildNumber: "18",
+      buildNumber: "19",
       icon: "./assets/icon.png",
       usesAppleSignIn: true,
     },
