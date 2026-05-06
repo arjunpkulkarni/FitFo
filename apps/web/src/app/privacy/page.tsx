@@ -37,7 +37,7 @@ export default function PrivacyPage() {
               and how to get rid of it whenever you want.
             </p>
             <p className="mt-3 text-[12px] text-[var(--text-muted)]">
-              Effective date: April 22, 2026
+              Effective date: May 6, 2026
             </p>
           </div>
         </section>
@@ -55,6 +55,10 @@ export default function PrivacyPage() {
                 <li>
                   You can delete your account and all associated data from
                   inside the app at any time.
+                </li>
+                <li>
+                  Subscription payments are processed entirely by Apple. We
+                  never see or store your card details.
                 </li>
                 <li>
                   Questions? Email{" "}
@@ -100,9 +104,21 @@ export default function PrivacyPage() {
                   metadata and transcript we generate from them.
                 </li>
                 <li>
+                  <strong>Subscription status.</strong> Whether you have an
+                  active subscription or trial, which plan (monthly or annual),
+                  the start and renewal dates, and a unique anonymous
+                  identifier provided by Apple and RevenueCat to verify your
+                  subscription. We do <strong>NOT</strong> receive, see, or
+                  store your credit card number, billing address, or any
+                  payment method details. All payment data is handled
+                  exclusively by Apple.
+                </li>
+                <li>
                   <strong>Device identifiers.</strong> A user ID we assign to
-                  your account. We do not use Apple&apos;s advertising
-                  identifier (IDFA) and do not integrate any advertising SDKs.
+                  your account, plus an anonymous identifier from RevenueCat
+                  used solely to track subscription entitlements. We do not
+                  use Apple&apos;s advertising identifier (IDFA) and do not
+                  integrate any advertising SDKs.
                 </li>
                 <li>
                   <strong>Apple Sign-In refresh token.</strong> If you signed
@@ -120,8 +136,16 @@ export default function PrivacyPage() {
                   sensitive personal information.
                 </li>
                 <li>
+                  We do not collect or store any payment card numbers, CVV
+                  codes, expiration dates, billing addresses, or other
+                  financial information. All payment processing is handled by
+                  Apple&apos;s In-App Purchase system.
+                </li>
+                <li>
                   We do not run advertising SDKs, analytics SDKs, crash
-                  reporters, or third-party tracking SDKs in the iOS app.
+                  reporters, or third-party tracking SDKs in the iOS app, with
+                  the limited exception of RevenueCat, which we use solely to
+                  validate subscription status (see Section 5).
                 </li>
               </ul>
 
@@ -133,6 +157,11 @@ export default function PrivacyPage() {
                   Process the TikTok and Instagram URLs you submit by fetching
                   public metadata, transcribing audio, and running OCR on a
                   small number of frames so we can extract exercise data.
+                </li>
+                <li>
+                  Validate and manage your subscription status (whether you
+                  have an active trial, monthly, or annual plan) so we can
+                  grant or restrict access to paid features.
                 </li>
                 <li>Respond to support requests.</li>
                 <li>Protect against abuse and comply with legal obligations.</li>
@@ -160,6 +189,26 @@ export default function PrivacyPage() {
                 <li>
                   <strong>Apple</strong>, Sign in with Apple authentication
                   and refresh-token revocation when you delete your account.
+                  Apple also processes all subscription payments through
+                  In-App Purchase and handles all payment information directly.
+                </li>
+                <li>
+                  <strong>RevenueCat</strong>, validates your subscription
+                  status with Apple&apos;s servers and provides us with a
+                  simple yes/no signal about whether your subscription is
+                  active. RevenueCat receives an anonymous user identifier
+                  and your subscription transaction details from Apple, but
+                  does not receive or store your name, email, phone number,
+                  or payment card information. See RevenueCat&apos;s privacy
+                  policy at{" "}
+                  <a
+                    href="https://www.revenuecat.com/privacy"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    revenuecat.com/privacy
+                  </a>{" "}
+                  for details.
                 </li>
                 <li>
                   <strong>Apify</strong>, fetching public metadata from
@@ -189,6 +238,13 @@ export default function PrivacyPage() {
                 server logs or backups may persist for up to 30 days before
                 being fully expunged.
               </p>
+              <p>
+                Subscription transaction records held by Apple and RevenueCat
+                may be retained for tax, accounting, and legal compliance
+                purposes for up to 7 years, in accordance with applicable law.
+                These records do not include identifying information beyond a
+                transaction ID.
+              </p>
 
               <H2>7. Your rights</H2>
               <p>
@@ -211,6 +267,21 @@ export default function PrivacyPage() {
                 <li>
                   <strong>Object</strong> to processing or withdraw consent.
                   Simply stop using the app and request deletion.
+                </li>
+                <li>
+                  <strong>Manage your subscription.</strong> You can manage,
+                  cancel, or turn off auto-renewal of your Fitfo subscription
+                  at any time through your Apple ID settings (Settings →
+                  [Your Name] → Subscriptions on iPhone, or{" "}
+                  <a
+                    href="https://apps.apple.com/account/subscriptions"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    apps.apple.com/account/subscriptions
+                  </a>{" "}
+                  on the web). Deleting the Fitfo app does not cancel your
+                  subscription.
                 </li>
               </ul>
               <p>
@@ -241,10 +312,12 @@ export default function PrivacyPage() {
                 All traffic between your device and our servers uses HTTPS/TLS.
                 Stored data is encrypted at rest by our infrastructure
                 providers. Access to production data is limited to a small
-                number of engineers using least-privilege credentials. No
-                method of transmission or storage is perfectly secure, but we
-                work hard to treat your data with the same care we&apos;d want
-                for our own.
+                number of engineers using least-privilege credentials. Payment
+                data is never transmitted to or stored on our servers; it is
+                handled exclusively by Apple&apos;s secure payment
+                infrastructure. No method of transmission or storage is
+                perfectly secure, but we work hard to treat your data with the
+                same care we&apos;d want for our own.
               </p>
 
               <H2>11. Third-party content (TikTok / Instagram videos)</H2>
@@ -263,19 +336,62 @@ export default function PrivacyPage() {
 
               <H2>12. Subscriptions, billing, refunds, and App Store purchases</H2>
               <p>
-                If Fitfo offers paid plans or trials, they are processed by{" "}
-                <strong>Apple</strong> through In-App Purchase. Pricing, trial
-                length, renewal, and cancellation are shown at checkout and in
-                your Apple ID subscription settings.{" "}
-                <strong>Refund requests</strong> generally go through Apple’s
-                support tools (for example &ldquo;Report a Problem&rdquo;), not
-                by charging your card directly on our site. We do not receive or
-                store your full card number.
+                <strong>12.1 Payment processing.</strong> All Fitfo
+                subscription payments are processed exclusively by Apple
+                through In-App Purchase. We do not operate our own payment
+                infrastructure and we do not collect, see, or store your
+                credit card number, CVV, expiration date, billing address, or
+                any other payment method details. Apple&apos;s privacy policy
+                governs how Apple handles your payment information; see{" "}
+                <a
+                  href="https://www.apple.com/legal/privacy/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  apple.com/legal/privacy
+                </a>
+                .
               </p>
               <p>
-                If we materially change subscription benefits or pricing, we
-                will describe the change in the app or on this site where
-                practical, consistent with App Store guidelines.
+                <strong>12.2 Subscription plans.</strong> Fitfo currently
+                offers two auto-renewable subscription plans: Monthly at
+                $5.99 USD per month, and Annual at $39.99 USD per year. New
+                subscribers may be eligible for a 7-day free trial. Pricing,
+                trial length, renewal terms, and cancellation options are
+                displayed at checkout and in your Apple ID subscription
+                settings.
+              </p>
+              <p>
+                <strong>12.3 What we receive from Apple.</strong> When you
+                start a subscription or trial, Apple provides us with a
+                transaction identifier and a validation receipt confirming
+                your purchase. RevenueCat, our subscription validation
+                provider (see Section 5), uses this information to confirm
+                your subscription status. We do not receive your card details,
+                billing address, or any other payment information from Apple.
+              </p>
+              <p>
+                <strong>12.4 Refunds.</strong> Refund requests are handled by
+                Apple, not by us. To request a refund, visit{" "}
+                <a
+                  href="https://reportaproblem.apple.com"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  reportaproblem.apple.com
+                </a>{" "}
+                or use the &ldquo;Report a Problem&rdquo; feature in your
+                Apple ID settings. We do not have the ability to issue refunds
+                directly because we do not process payments.
+              </p>
+              <p>
+                <strong>12.5 Subscription changes.</strong> If we materially
+                change subscription pricing, plan features, or trial terms,
+                we will describe the change in the app, on this site, or by
+                email before it takes effect, consistent with App Store
+                guidelines and applicable law. Apple may also notify you of
+                material price changes and require your consent before
+                continuing your subscription at a new price.
               </p>
 
               <H2>13. Apple App Tracking Transparency (ATT) and advertising</H2>
@@ -293,8 +409,9 @@ export default function PrivacyPage() {
               <p>
                 We&apos;ll update this page if our practices change. The
                 effective date at the top reflects the latest version.
-                Material changes will be communicated via the app or via email
-                before they take effect.
+                Material changes, including changes to subscription billing,
+                pricing, or data handling, will be communicated via the app
+                or via email before they take effect.
               </p>
 
               <H2>15. Contact</H2>

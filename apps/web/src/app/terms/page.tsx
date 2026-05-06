@@ -40,7 +40,7 @@ export default function TermsPage() {
               the service, you agree to them.
             </p>
             <p className="mt-3 text-[12px] text-[var(--text-muted)]">
-              Effective date: April 30, 2026
+              Effective date: May 6, 2026
             </p>
           </div>
         </section>
@@ -120,16 +120,117 @@ export default function TermsPage() {
 
               <H2>6. Subscriptions, billing, and refunds</H2>
               <p>
-                Paid plans (if offered) are billed through Apple&apos;s In-App
-                Purchase system. Pricing, free trials, and renewal terms are
-                shown in the app and on the App Store at purchase.{" "}
-                <strong>
-                  Cancellation and refunds are handled through Apple
-                </strong>{" "}
-                (for example via your Apple ID subscriptions settings or
-                Apple&apos;s &ldquo;Report a Problem&rdquo; flow), except where
-                law requires otherwise. We do not store your full payment card
-                details.
+                <strong>6.1 Subscription plans.</strong> Fitfo offers
+                auto-renewable subscriptions that provide full access to the
+                app&apos;s features. Current subscription options are:
+              </p>
+              <ul>
+                <li>
+                  <strong>Fitfo Monthly:</strong> $5.99 USD per month
+                </li>
+                <li>
+                  <strong>Fitfo Annual:</strong> $39.99 USD per year
+                  (equivalent to $3.33 per month)
+                </li>
+              </ul>
+              <p>
+                Prices may vary by region and are displayed in your local
+                currency on the App Store before purchase. Pricing in regions
+                outside the United States is set by Apple&apos;s regional
+                pricing tiers.
+              </p>
+
+              <p>
+                <strong>6.2 Free trial.</strong> New subscribers may be
+                eligible for a 7-day free trial. To start a trial, you will
+                be required to provide payment information through
+                Apple&apos;s In-App Purchase system at the time of sign-up.
+                No charge will be made during the 7-day trial period. The
+                free trial is available only to new subscribers; users who
+                have previously subscribed or trialed Fitfo are not eligible
+                for an additional free trial.
+              </p>
+
+              <p>
+                <strong>6.3 Automatic renewal.</strong> Your subscription
+                will automatically renew at the end of each billing period
+                (monthly or annual) at the then-current price unless you
+                cancel at least 24 hours before the end of the current
+                period. Your Apple ID account will be charged for renewal
+                within 24 hours prior to the end of the current period.
+              </p>
+
+              <p>
+                <strong>6.4 Conversion from free trial to paid
+                subscription.</strong> If you do not cancel before the end of
+                the 7-day free trial, your subscription will automatically
+                convert to a paid subscription at the price shown at sign-up.
+                You will receive a notification from Apple before your trial
+                ends and before any charge is made.
+              </p>
+
+              <p>
+                <strong>6.5 Managing and canceling your subscription.</strong>{" "}
+                You can manage your subscription, turn off auto-renewal, or
+                cancel at any time through your Apple ID subscription
+                settings:
+              </p>
+              <ul>
+                <li>
+                  <strong>On iPhone or iPad:</strong> Settings → [Your Name]
+                  → Subscriptions → Fitfo
+                </li>
+              </ul>
+              <p>
+                You may also visit{" "}
+                <a
+                  href="https://apps.apple.com/account/subscriptions"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  apps.apple.com/account/subscriptions
+                </a>{" "}
+                on any device signed in with your Apple ID. Cancellation will
+                take effect at the end of your current billing period, and
+                you will retain access to paid features until that date.
+                Deleting the Fitfo app does not cancel your subscription.
+              </p>
+
+              <p>
+                <strong>6.6 Refunds.</strong> All subscription payments are
+                processed by Apple. Refunds are handled by Apple in
+                accordance with Apple&apos;s refund policies. To request a
+                refund, visit{" "}
+                <a
+                  href="https://reportaproblem.apple.com"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  reportaproblem.apple.com
+                </a>{" "}
+                and follow the instructions. Vaayu Athletics LLC does not
+                directly issue refunds for subscription payments, except
+                where required by law. We do not store your full payment
+                card details.
+              </p>
+
+              <p>
+                <strong>6.7 Price changes.</strong> We may change subscription
+                prices from time to time. Price changes will not affect your
+                current billing period. If the price of your subscription
+                increases at renewal, Apple will notify you of the change in
+                advance and may require you to consent to the new price
+                before continuing your subscription, in accordance with
+                Apple&apos;s policies. If you do not consent, your
+                subscription will not renew at the new price.
+              </p>
+
+              <p>
+                <strong>6.8 Taxes.</strong> Subscription prices are exclusive
+                of applicable taxes unless otherwise stated. Apple is
+                responsible for collecting and remitting any applicable
+                sales tax, VAT, GST, or similar taxes based on your billing
+                location.
               </p>
 
               <H2>7. Intellectual property</H2>
@@ -204,9 +305,10 @@ export default function TermsPage() {
               <p>
                 We may update these Terms from time to time. We will post the
                 revised version on this page and update the effective date.
-                Material changes may also be communicated through the app. If
-                you continue to use Fitfo after changes take effect, you accept
-                the updated Terms.
+                Material changes, including changes to subscription pricing
+                or billing terms, will also be communicated through the app
+                or by email. If you continue to use Fitfo after changes take
+                effect, you accept the updated Terms.
               </p>
 
               <H2>14. Contact</H2>
