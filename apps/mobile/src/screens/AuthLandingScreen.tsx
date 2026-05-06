@@ -183,7 +183,7 @@ export function AuthLandingScreen({
   const isNicoletteDemo = sex === "female";
   const tryDemoVideoPlayer = isNicoletteDemo ? nicoletteVideoPlayer : nunoVideoPlayer;
   const demoCreatorName = isNicoletteDemo ? "Nicolette" : "Nuno";
-  const demoCreatorHandle = isNicoletteDemo ? "@nicolettepian" : "@nunoliftz";
+  const demoCreatorHandle = isNicoletteDemo ? "@npfit2" : "@nunoliftz";
   const demoWorkoutTitle = isNicoletteDemo
     ? "Nicolette leg day"
     : "Nuno push workout";

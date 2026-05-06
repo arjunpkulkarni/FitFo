@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StatusBar } from "expo-status-bar";
+import * as StoreReview from "expo-store-review";
 import {
   ActivityIndicator,
   Alert,
@@ -185,6 +186,28 @@ interface ScheduledConfirmationState {
 
 const AUTH_LANDING_AUTH_INDEX = 8;
 const POST_SIGNUP_HUB_GUIDANCE_ENABLED = false;
+const STORE_REVIEW_COMPLETION_RATIO_THRESHOLD = 0.7;
+
+function getStoreReviewPromptStorageKey(userId: string) {
+  return `@fitfo/store-review-prompted/${userId}`;
+}
+
+function getWorkoutCompletionRatio(session: ActiveSessionPreview) {
+  const totalSetCount = session.exercises.reduce(
+    (count, exercise) => count + exercise.sets.length,
+    0,
+  );
+  if (totalSetCount === 0) {
+    return 0;
+  }
+
+  const completedSetCount = session.exercises.reduce(
+    (count, exercise) =>
+      count + exercise.sets.filter((set) => set.completed).length,
+    0,
+  );
+  return completedSetCount / totalSetCount;
+}
 
 export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
@@ -293,6 +316,7 @@ export default function App() {
     [],
   );
   const [completedWorkoutsLoading, setCompletedWorkoutsLoading] = useState(false);
+  const [completedWorkoutsLoaded, setCompletedWorkoutsLoaded] = useState(false);
   const [completedWorkoutsError, setCompletedWorkoutsError] = useState<string | null>(
     null,
   );
@@ -324,6 +348,7 @@ export default function App() {
   const handledImportedWorkoutId = useRef<string | null>(null);
   const handledNativeShareUrls = useRef(new Set<string>());
   const handledImportLaunchNotificationRef = useRef(false);
+  const storeReviewPromptQueuedUserIdsRef = useRef(new Set<string>());
   // Tracks any pending post-close cleanup of AddWorkoutModal so we can cancel
   // it if the user re-opens the modal before the cleanup fires (otherwise a
   // late reset would wipe out freshly re-populated state).
@@ -811,6 +836,7 @@ export default function App() {
       // Completed workout history is account-backed and should survive logout/login and device switches.
       const rows = await listCompletedWorkouts(token);
       setCompletedWorkouts(rows);
+      setCompletedWorkoutsLoaded(true);
     } catch (error) {
       setCompletedWorkoutsError(
         error instanceof Error ? error.message : "Unable to load workout history.",
@@ -863,6 +889,7 @@ export default function App() {
       setScheduledWorkouts([]);
       setScheduledWorkoutsError(null);
       setCompletedWorkouts([]);
+      setCompletedWorkoutsLoaded(false);
       setCompletedWorkoutsError(null);
       setBodyWeightEntries([]);
       setBodyWeightEntriesError(null);
@@ -1819,71 +1846,154 @@ export default function App() {
     })();
   }, [accessToken, resetImportFlow]);
 
-  const handleFinishWorkout = useCallback(async () => {
-    const session = activeSession;
-    const scheduledWorkoutIdToComplete = session?.scheduledWorkoutId ?? null;
-    const finishedCoachKey = session ? String(session.startedAt) : null;
-    const shouldCompleteHubTour = hubTourStepRef.current === "finish_workout";
-
-    if (shouldCompleteHubTour) {
-      void markHubTourComplete();
-    }
-
-    setActiveSession(null);
-    setIsActiveWorkoutVisible(false);
-    setActiveTab("logs");
-
-    if (finishedCoachKey) {
-      setCoachMessagesByStartedAt((prev) => {
-        if (!(finishedCoachKey in prev)) {
-          return prev;
-        }
-        const { [finishedCoachKey]: _removed, ...rest } = prev;
-        return rest;
-      });
-    }
-
-    if (!session || !accessToken) {
-      return;
-    }
-
-    try {
-      // Persist the finished session to the current authenticated account before showing it in history.
-      const completed = await createCompletedWorkout(
-        accessToken,
-        buildCompletedWorkoutRequest(session),
-      );
-      setCompletedWorkouts((current) => [completed, ...current]);
-      setCompletedWorkoutsError(null);
-      posthog.capture("workout_completed", {
-        workout_id: completed.id,
-        title: completed.title ?? null,
-        duration_seconds: session
-          ? Math.round((Date.now() - session.startedAt) / 1000)
-          : null,
-        exercise_count: completed.exercises?.length ?? null,
-      });
-
-      if (scheduledWorkoutIdToComplete) {
-        void cancelWorkoutReminder(scheduledWorkoutIdToComplete);
-        try {
-          await updateScheduledWorkout(accessToken, scheduledWorkoutIdToComplete, {
-            status: "completed",
-          });
-          setScheduledWorkouts((prev) =>
-            prev.filter((item) => item.id !== scheduledWorkoutIdToComplete),
-          );
-        } catch {
-          // Row may still appear until the next hub refresh patches state.
-          void loadScheduledWorkouts(accessToken);
-        }
+  const maybeRequestStoreReviewAfterFirstWorkout = useCallback(
+    async (userId: string) => {
+      if (storeReviewPromptQueuedUserIdsRef.current.has(userId)) {
+        return;
       }
-    } catch (error) {
-      setCompletedWorkoutsError(
-        error instanceof Error ? error.message : "Unable to save your workout log.",
-      );
-    }
-  }, [accessToken, activeSession, loadScheduledWorkouts, markHubTourComplete]);
+
+      try {
+        const storageKey = getStoreReviewPromptStorageKey(userId);
+        const alreadyPrompted = await AsyncStorage.getItem(storageKey);
+        if (alreadyPrompted === "1") {
+          return;
+        }
+
+        const canRequestReview = await StoreReview.hasAction();
+        if (!canRequestReview) {
+          return;
+        }
+
+        storeReviewPromptQueuedUserIdsRef.current.add(userId);
+        await AsyncStorage.setItem(storageKey, "1");
+        posthog.capture("store_review_prompt_shown", {
+          trigger: "first_workout_completed",
+        });
+
+        setTimeout(() => {
+          InteractionManager.runAfterInteractions(() => {
+            Alert.alert("Loving Fitfo?", "Leave a review.", [
+              {
+                text: "Maybe Later",
+                style: "cancel",
+                onPress: () =>
+                  posthog.capture("store_review_prompt_dismissed", {
+                    trigger: "first_workout_completed",
+                  }),
+              },
+              {
+                text: "Leave Review",
+                onPress: () => {
+                  posthog.capture("store_review_requested", {
+                    trigger: "first_workout_completed",
+                  });
+                  void StoreReview.requestReview().catch((error) => {
+                    posthog.capture("store_review_request_failed", {
+                      message:
+                        error instanceof Error
+                          ? error.message
+                          : "Unknown store review error",
+                    });
+                  });
+                },
+              },
+            ]);
+          });
+        }, 1200);
+      } catch {
+        // Review prompts are opportunistic; never block workout completion.
+      }
+    },
+    [],
+  );
+
+  const handleFinishWorkout = useCallback(
+    async (finishedSession?: ActiveSessionPreview) => {
+      const session = finishedSession ?? activeSession;
+      const scheduledWorkoutIdToComplete = session?.scheduledWorkoutId ?? null;
+      const finishedCoachKey = session ? String(session.startedAt) : null;
+      const shouldCompleteHubTour = hubTourStepRef.current === "finish_workout";
+      const shouldPromptForReview =
+        Boolean(currentUser?.id) &&
+        completedWorkoutsLoaded &&
+        completedWorkouts.length === 0 &&
+        session != null &&
+        getWorkoutCompletionRatio(session) >= STORE_REVIEW_COMPLETION_RATIO_THRESHOLD;
+
+      if (shouldCompleteHubTour) {
+        void markHubTourComplete();
+      }
+
+      setActiveSession(null);
+      setIsActiveWorkoutVisible(false);
+      setActiveTab("logs");
+
+      if (finishedCoachKey) {
+        setCoachMessagesByStartedAt((prev) => {
+          if (!(finishedCoachKey in prev)) {
+            return prev;
+          }
+          const { [finishedCoachKey]: _removed, ...rest } = prev;
+          return rest;
+        });
+      }
+
+      if (!session || !accessToken) {
+        return;
+      }
+
+      try {
+        // Persist the finished session to the current authenticated account before showing it in history.
+        const completed = await createCompletedWorkout(
+          accessToken,
+          buildCompletedWorkoutRequest(session),
+        );
+        setCompletedWorkouts((current) => [completed, ...current]);
+        setCompletedWorkoutsLoaded(true);
+        setCompletedWorkoutsError(null);
+        posthog.capture("workout_completed", {
+          workout_id: completed.id,
+          title: completed.title ?? null,
+          duration_seconds: session
+            ? Math.round((Date.now() - session.startedAt) / 1000)
+            : null,
+          exercise_count: completed.exercises?.length ?? null,
+        });
+        if (shouldPromptForReview && currentUser?.id) {
+          void maybeRequestStoreReviewAfterFirstWorkout(currentUser.id);
+        }
+
+        if (scheduledWorkoutIdToComplete) {
+          void cancelWorkoutReminder(scheduledWorkoutIdToComplete);
+          try {
+            await updateScheduledWorkout(accessToken, scheduledWorkoutIdToComplete, {
+              status: "completed",
+            });
+            setScheduledWorkouts((prev) =>
+              prev.filter((item) => item.id !== scheduledWorkoutIdToComplete),
+            );
+          } catch {
+            // Row may still appear until the next hub refresh patches state.
+            void loadScheduledWorkouts(accessToken);
+          }
+        }
+      } catch (error) {
+        setCompletedWorkoutsError(
+          error instanceof Error ? error.message : "Unable to save your workout log.",
+        );
+      }
+    },
+    [
+      accessToken,
+      activeSession,
+      completedWorkouts.length,
+      completedWorkoutsLoaded,
+      currentUser?.id,
+      loadScheduledWorkouts,
+      markHubTourComplete,
+      maybeRequestStoreReviewAfterFirstWorkout,
+    ],
+  );
 
   const applyAuthenticatedSession = useCallback(
     (profile: UserProfile, token: string) => {

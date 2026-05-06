@@ -38,7 +38,7 @@ import type {
 interface ActiveWorkoutScreenProps {
   session: ActiveSessionPreview;
   onBack: () => void;
-  onFinish: () => void;
+  onFinish: (session: ActiveSessionPreview) => void;
   /** Lifted coach transcript so reopening from the Logs tab retains memory. */
   coachMessages: CoachChatMessage[];
   setCoachMessages: Dispatch<SetStateAction<CoachChatMessage[]>>;
@@ -1676,7 +1676,10 @@ export function ActiveWorkoutScreen({
                 }
               }}
             >
-              <Pressable onPress={onFinish} style={styles.finishButton}>
+              <Pressable
+                onPress={() => onFinish({ ...session, exercises })}
+                style={styles.finishButton}
+              >
                 <Text style={styles.finishButtonText}>Finish Workout</Text>
                 <Ionicons color={theme.colors.surface} name="flag" size={16} />
               </Pressable>
