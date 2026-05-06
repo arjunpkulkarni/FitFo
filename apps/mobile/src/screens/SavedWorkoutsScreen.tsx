@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   LayoutAnimation,
   type LayoutChangeEvent,
@@ -49,6 +56,9 @@ interface SavedWorkoutsScreenProps {
   onUnschedule: (scheduledWorkoutId: string) => void;
   scheduledError: string | null;
   scheduledWorkouts: SavedRoutinePreview[];
+  onSavedWorkoutsCardMeasured?: (rect: { x: number; y: number; width: number; height: number } | null) => void;
+  /** When true, re-measures the Saved Workouts bento for hub tour (layout already ran before the step existed). */
+  tourSpotlightsSavedWorkoutsCard?: boolean;
   themeMode?: ThemeMode;
 }
 
@@ -107,19 +117,84 @@ function formatReadableDate(date: Date): string {
 }
 
 function SavedLibraryBento({
+  onMeasured,
   onPress,
   theme,
+  tourSpotlightsCard = false,
 }: {
+  onMeasured?: (rect: { x: number; y: number; width: number; height: number } | null) => void;
   onPress: () => void;
   theme: ReturnType<typeof getTheme>;
+  tourSpotlightsCard?: boolean;
 }) {
   const styles = createStyles(theme);
   const accent = getBrandAccent(theme);
+  const ref = useRef<View | null>(null);
+
+  const reportMeasure = useCallback(() => {
+    if (!onMeasured) {
+      return;
+    }
+    ref.current?.measureInWindow?.((x, y, width, height) => {
+      if (
+        !Number.isFinite(x) ||
+        !Number.isFinite(y) ||
+        !Number.isFinite(width) ||
+        !Number.isFinite(height)
+      ) {
+        onMeasured(null);
+        return;
+      }
+      onMeasured({ x, y, width, height });
+    });
+  }, [onMeasured]);
+
+  useLayoutEffect(() => {
+    if (!tourSpotlightsCard || !onMeasured) {
+      return;
+    }
+    let cancelled = false;
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    const frames: number[] = [];
+
+    const measureAfterFrame = (delay: number) => {
+      const timer = setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+        const frame = requestAnimationFrame(() => {
+          if (!cancelled) {
+            reportMeasure();
+          }
+        });
+        frames.push(frame);
+      }, delay);
+      timers.push(timer);
+    };
+
+    measureAfterFrame(0);
+    measureAfterFrame(80);
+    measureAfterFrame(220);
+
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      frames.forEach(cancelAnimationFrame);
+    };
+  }, [tourSpotlightsCard, onMeasured, reportMeasure]);
+
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Open saved workouts library"
+      collapsable={false}
       onPress={onPress}
+      onLayout={() => {
+        reportMeasure();
+      }}
+      ref={(node) => {
+        ref.current = node;
+      }}
       style={({ pressed }) => [
         styles.libraryBento,
         pressed ? styles.bentoPressed : null,
@@ -354,8 +429,10 @@ export function SavedWorkoutsScreen({
   onScheduleWorkout,
   onStartSession,
   onUnschedule,
+  onSavedWorkoutsCardMeasured,
   scheduledError,
   scheduledWorkouts,
+  tourSpotlightsSavedWorkoutsCard = false,
   themeMode = "light",
 }: SavedWorkoutsScreenProps) {
   const theme = getTheme(themeMode);
@@ -591,7 +668,12 @@ export function SavedWorkoutsScreen({
         </Pressable>
       </View>
 
-      <SavedLibraryBento onPress={onOpenSavedList} theme={theme} />
+      <SavedLibraryBento
+        onMeasured={onSavedWorkoutsCardMeasured}
+        onPress={onOpenSavedList}
+        theme={theme}
+        tourSpotlightsCard={tourSpotlightsSavedWorkoutsCard}
+      />
 
       {completedWorkoutsError ? (
         <FeedbackCard

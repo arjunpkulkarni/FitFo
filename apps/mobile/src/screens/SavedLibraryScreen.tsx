@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Image,
   Linking,
@@ -31,6 +31,13 @@ import type {
   SavedRoutinePreview,
 } from "../types";
 
+export type SavedLibraryMeasureRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 interface SavedLibraryScreenProps {
   error: string | null;
   importedWorkouts: SavedRoutinePreview[];
@@ -42,11 +49,53 @@ interface SavedLibraryScreenProps {
   onRetry: () => void;
   onScheduleWorkout: (routine: SavedRoutinePreview) => void;
   onStartSession: (routine?: SavedRoutinePreview) => void;
+  /** When set, the matching saved row is measured for hub tour coachmarks. */
+  onStarterDemoCardMeasured?: (rect: SavedLibraryMeasureRect | null) => void;
   scheduledWorkouts: SavedRoutinePreview[];
+  /** Normalized against saved row titles for demo highlight measurement. */
+  starterDemoTitle?: string | null;
   themeMode?: ThemeMode;
 }
 
 type MuscleGroupFilter = "all" | MuscleGroup;
+
+function MeasuredTarget({
+  children,
+  onMeasured,
+}: {
+  children: ReactNode;
+  onMeasured?: (rect: SavedLibraryMeasureRect | null) => void;
+}) {
+  const ref = useRef<View | null>(null);
+  const report = () => {
+    if (!onMeasured) {
+      return;
+    }
+    ref.current?.measureInWindow?.((x, y, width, height) => {
+      if (
+        !Number.isFinite(x) ||
+        !Number.isFinite(y) ||
+        !Number.isFinite(width) ||
+        !Number.isFinite(height)
+      ) {
+        onMeasured(null);
+        return;
+      }
+      onMeasured({ x, y, width, height });
+    });
+  };
+  return (
+    <View
+      collapsable={false}
+      ref={(node) => {
+        ref.current = node;
+      }}
+      onLayout={report}
+    >
+      {children}
+    </View>
+  );
+}
 
 function formatMuscleGroupLabel(group: MuscleGroupFilter): string {
   if (group === "all") {
@@ -172,6 +221,7 @@ function LibraryWorkoutCard({
   onOpen,
   onRemove,
   onStart,
+  onStartButtonMeasured,
   routine,
   scheduleLabel,
   theme,
@@ -182,6 +232,7 @@ function LibraryWorkoutCard({
   onOpen: () => void;
   onRemove?: () => void;
   onStart: () => void;
+  onStartButtonMeasured?: (rect: SavedLibraryMeasureRect | null) => void;
   routine: SavedRoutinePreview;
   scheduleLabel: string | null;
   theme: ReturnType<typeof getTheme>;
@@ -334,19 +385,21 @@ function LibraryWorkoutCard({
               </Text>
             </Pressable>
           ) : (
-            <Pressable
-              onPress={onStart}
-              style={({ pressed }) => [
-                styles.startButton,
-                { backgroundColor: accent },
-                pressed ? styles.actionPressed : null,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Start session"
-            >
-              <Text style={styles.startButtonText}>Start Session</Text>
-              <Ionicons color="#FFFFFF" name="play" size={12} />
-            </Pressable>
+            <MeasuredTarget onMeasured={onStartButtonMeasured}>
+              <Pressable
+                onPress={onStart}
+                style={({ pressed }) => [
+                  styles.startButton,
+                  { backgroundColor: accent },
+                  pressed ? styles.actionPressed : null,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Start session"
+              >
+                <Text style={styles.startButtonText}>Start Session</Text>
+                <Ionicons color="#FFFFFF" name="play" size={12} />
+              </Pressable>
+            </MeasuredTarget>
           )}
           <Pressable
             onPress={onEdit}
@@ -399,12 +452,15 @@ export function SavedLibraryScreen({
   onRetry,
   onScheduleWorkout,
   onStartSession,
+  onStarterDemoCardMeasured,
   scheduledWorkouts,
+  starterDemoTitle,
   themeMode = "light",
 }: SavedLibraryScreenProps) {
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
   const accent = getBrandAccent(theme);
+  const starterKey = starterDemoTitle?.trim().toLowerCase() ?? "";
 
   const [selectedMuscleFilter, setSelectedMuscleFilter] =
     useState<MuscleGroupFilter>("all");
@@ -650,23 +706,30 @@ export function SavedLibraryScreen({
           const scheduleLabel = key
             ? getScheduleLabelForSaved(routine, scheduledWorkouts)
             : null;
+          const isStarterRow =
+            starterKey.length > 0 &&
+            routine.title.trim().toLowerCase() === starterKey;
           return (
-            <LibraryWorkoutCard
-              key={routine.id}
-              onEdit={() => onOpenWorkout(routine)}
-              onMore={() => onScheduleWorkout(routine)}
-              onOpen={() => onOpenWorkout(routine)}
-              onRemove={
-                routine.savedWorkoutId
-                  ? () =>
-                      onRemoveWorkout(routine.savedWorkoutId || routine.id)
-                  : undefined
-              }
-              onStart={() => onStartSession(routine)}
-              routine={routine}
-              scheduleLabel={scheduleLabel}
-              theme={theme}
-            />
+            <View key={routine.id} style={{ width: "100%" }}>
+              <LibraryWorkoutCard
+                onEdit={() => onOpenWorkout(routine)}
+                onMore={() => onScheduleWorkout(routine)}
+                onOpen={() => onOpenWorkout(routine)}
+                onRemove={
+                  routine.savedWorkoutId
+                    ? () =>
+                        onRemoveWorkout(routine.savedWorkoutId || routine.id)
+                    : undefined
+                }
+                onStart={() => onStartSession(routine)}
+                onStartButtonMeasured={
+                  isStarterRow ? onStarterDemoCardMeasured : undefined
+                }
+                routine={routine}
+                scheduleLabel={scheduleLabel}
+                theme={theme}
+              />
+            </View>
           );
         })
       )}

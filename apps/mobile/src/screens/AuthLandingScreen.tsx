@@ -32,7 +32,7 @@ const AGE_SNAP_INTERVAL = AGE_ITEM_WIDTH + AGE_ITEM_GAP;
 const TRY_DEMO_SLIDE_INDEX = 5;
 const WORKOUT_VIDEO = require("../../assets/my-workout.mp4");
 const NUNO_VIDEO = require("../../assets/nuno.mov");
-const SAMANTHA_VIDEO = require("../../assets/samantha2.mov");
+const NICOLETTE_VIDEO = require("../../assets/nicolette.mp4");
 const FITFO_APP_ICON = require("../../assets/icon.png");
 const COACH_AVATAR = require("../../assets/coach.png");
 
@@ -157,6 +157,7 @@ export function AuthLandingScreen({
   const workoutVideoPlayer = useVideoPlayer(WORKOUT_VIDEO, (player) => {
     player.loop = true;
     player.muted = true;
+    player.playbackRate = 1.5;
     player.play();
   });
   const nunoVideoPlayer = useVideoPlayer(NUNO_VIDEO, (player) => {
@@ -164,7 +165,7 @@ export function AuthLandingScreen({
     player.muted = true;
     player.play();
   });
-  const samanthaVideoPlayer = useVideoPlayer(SAMANTHA_VIDEO, (player) => {
+  const nicoletteVideoPlayer = useVideoPlayer(NICOLETTE_VIDEO, (player) => {
     player.loop = true;
     player.muted = true;
     player.play();
@@ -175,28 +176,28 @@ export function AuthLandingScreen({
   const [age, setAge] = useState(22);
   const [sex, setSex] = useState<OnboardingSex | null>(null);
   const [selectedGoals, setSelectedGoals] = useState<OnboardingGoal[]>([]);
-  const [weightLbs, setWeightLbs] = useState("165");
-  const [heightFeet, setHeightFeet] = useState("5");
-  const [heightInches, setHeightInches] = useState("9");
+  const [weightLbs, setWeightLbs] = useState("");
+  const [heightFeet, setHeightFeet] = useState("");
+  const [heightInches, setHeightInches] = useState("");
   const [tryStage, setTryStage] = useState<"tiktok" | "share" | "import" | "workout">("tiktok");
-  const tryDemoVideoPlayer = sex === "female" ? samanthaVideoPlayer : nunoVideoPlayer;
-  const isSamanthaDemo = sex === "female";
-  const demoCreatorName = isSamanthaDemo ? "Samantha" : "Nuno";
-  const demoCreatorHandle = isSamanthaDemo ? "@samantha.baio" : "@nunoliftz";
-  const demoWorkoutTitle = isSamanthaDemo
-    ? "Samantha glutes and abs day"
-    : "Jacob 6 day push workout";
-  const demoCaption = isSamanthaDemo
-    ? "Glutes and abs day from a saved reel. Share it into Fitfo."
+  const isNicoletteDemo = sex === "female";
+  const tryDemoVideoPlayer = isNicoletteDemo ? nicoletteVideoPlayer : nunoVideoPlayer;
+  const demoCreatorName = isNicoletteDemo ? "Nicolette" : "Nuno";
+  const demoCreatorHandle = isNicoletteDemo ? "@nicolettepian" : "@nunoliftz";
+  const demoWorkoutTitle = isNicoletteDemo
+    ? "Nicolette leg day"
+    : "Nuno push workout";
+  const demoCaption = isNicoletteDemo
+    ? "Leg day from a saved reel. Share it into Fitfo."
     : "Push workout from a saved reel. Share it into Fitfo.";
-  const demoWorkoutTag = isSamanthaDemo ? "glutes and abs day" : "push workout";
-  const demoExerciseNames = isSamanthaDemo
+  const demoWorkoutTag = isNicoletteDemo ? "leg day" : "push workout";
+  const demoExerciseNames = isNicoletteDemo
     ? [
-        { name: "Hip thrust", sets: 3, reps: 10 },
-        { name: "Step ups", sets: 3, reps: 8 },
-        { name: "Kick backs", sets: 3, reps: 10 },
-        { name: "Hip abductors", sets: 3, reps: 8 },
-        { name: "Leg raises", sets: 3, reps: 10 },
+        { name: "Hip thrust", sets: 4, reps: 8 },
+        { name: "Plate-loaded RDLs", sets: 4, reps: 8 },
+        { name: "DB sumo squats", sets: 3, reps: 10 },
+        { name: "Hamstring curls", sets: 3, reps: 12 },
+        { name: "Hip abductors", sets: 3, reps: 12 },
       ]
     : [
         { name: "Single arm lateral raise", sets: 3, reps: 8 },
@@ -208,7 +209,7 @@ export function AuthLandingScreen({
       ];
   const demoTotalSets = demoExerciseNames.reduce((total, exercise) => total + exercise.sets, 0);
   // Viral-range mock counts (20k–40k), TikTok-style abbreviations.
-  const demoLikeCountLabel = isSamanthaDemo ? "27.4K" : "34.8K";
+  const demoLikeCountLabel = isNicoletteDemo ? "29.2K" : "34.8K";
 
   useEffect(() => { setFullName(initialFullName ?? ""); }, [initialFullName]);
   useEffect(() => { setPhoneNumber(initialPhoneNumber ?? ""); }, [initialPhoneNumber]);
@@ -729,7 +730,7 @@ export function AuthLandingScreen({
                           <View style={styles.importedExerciseIcon}>
                             <Ionicons
                               color={colors.accent}
-                              name={isSamanthaDemo ? "body-outline" : "barbell-outline"}
+                              name={isNicoletteDemo ? "body-outline" : "barbell-outline"}
                               size={18}
                             />
                           </View>

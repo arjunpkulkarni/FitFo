@@ -22,6 +22,11 @@ import { applyDefaultFont } from "./src/lib/fonts";
 import { AddWorkoutModal } from "./src/components/AddWorkoutModal";
 import type { CoachChatMessage } from "./src/components/CoachSheet";
 import { FirstHubTipModal } from "./src/components/FirstHubTipModal";
+import {
+  SavedWorkoutsCoachmark,
+  type CoachmarkPlacement,
+  type CoachmarkRect,
+} from "./src/components/SavedWorkoutsCoachmark";
 import { FitfoLoadingAnimation } from "./src/components/FitfoLoadingAnimation";
 import { BottomNav } from "./src/components/BottomNav";
 import { ScheduleAgainModal } from "./src/components/ScheduleAgainModal";
@@ -89,6 +94,21 @@ import {
   getFirstHubTipModalBody,
   getFirstHubTipModalTitle,
   getFirstHubTipStorageKey,
+  getHubTourDoneStorageKey,
+  getHubTourFinishCoachmarkBody,
+  getHubTourFinishCoachmarkTitle,
+  getHubTourLibraryCoachmarkBody,
+  getHubTourLibraryCoachmarkTitle,
+  getHubTourScrollCoachmarkBody,
+  getHubTourScrollCoachmarkTitle,
+  getHubTourStartSessionCoachmarkBody,
+  getHubTourStartSessionCoachmarkTitle,
+  getHubTourStepStorageKey,
+  getSavedWorkoutsCoachmarkBody,
+  getSavedWorkoutsCoachmarkTitle,
+  getStarterDemoTitleForSex,
+  type HubTourStep,
+  isStarterDemoWorkoutTitle,
 } from "./src/lib/starterHubWelcome";
 import * as Notifications from "expo-notifications";
 import {
@@ -105,9 +125,9 @@ import {
 import { ActiveWorkoutScreen } from "./src/screens/ActiveWorkoutScreen";
 import { AuthLandingScreen } from "./src/screens/AuthLandingScreen";
 import { LogsScreen } from "./src/screens/LogsScreen";
-import { OnboardingScreen } from "./src/screens/OnboardingScreen";
 import { OtpVerificationScreen } from "./src/screens/OtpVerificationScreen";
 import { PaywallScreen } from "./src/screens/PaywallScreen";
+import { TrialExplainerScreen } from "./src/screens/TrialExplainerScreen";
 import { ProfileScreen } from "./src/screens/ProfileScreen";
 import { ProgressChartsScreen } from "./src/screens/ProgressChartsScreen";
 import {
@@ -164,25 +184,7 @@ interface ScheduledConfirmationState {
 }
 
 const AUTH_LANDING_AUTH_INDEX = 8;
-const TRIAL_LENGTH_MS = 7 * 24 * 60 * 60 * 1000;
-
-/** When true, skip the 7-day post-signup access window so the paywall shows unless Pro/bypass. */
-const FORCE_PAYWALL_IGNORE_INITIAL_TRIAL =
-  process.env.EXPO_PUBLIC_FORCE_PAYWALL === "1" ||
-  process.env.EXPO_PUBLIC_FORCE_PAYWALL === "true";
-
-function isWithinInitialTrial(createdAt: string | null | undefined) {
-  if (!createdAt) {
-    return false;
-  }
-
-  const createdAtMs = new Date(createdAt).getTime();
-  if (!Number.isFinite(createdAtMs)) {
-    return false;
-  }
-
-  return Date.now() < createdAtMs + TRIAL_LENGTH_MS;
-}
+const POST_SIGNUP_HUB_GUIDANCE_ENABLED = false;
 
 export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
@@ -237,11 +239,6 @@ export default function App() {
     void storeThemeMode(mode);
   }, []);
   const [isResendingOtp, setIsResendingOtp] = useState(false);
-  const [activeOnboardingUserId, setActiveOnboardingUserId] = useState<string | null>(
-    null,
-  );
-  const [isOnboardingSubmitting, setIsOnboardingSubmitting] = useState(false);
-  const [onboardingError, setOnboardingError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AppTab>("saved");
   const hubPreviousTabRef = useRef<AppTab>("saved");
   const [isProfileVisible, setIsProfileVisible] = useState(false);
@@ -313,8 +310,10 @@ export default function App() {
   const [scheduledConfirmation, setScheduledConfirmation] = useState<
     ScheduledConfirmationState | null
   >(null);
-  const [isDevPaywallBypassed, setIsDevPaywallBypassed] = useState(false);
   const [isFirstHubTipVisible, setIsFirstHubTipVisible] = useState(false);
+  const [hubTourStep, setHubTourStep] = useState<HubTourStep | null>(null);
+  const [hubTourCoachRect, setHubTourCoachRect] = useState<CoachmarkRect | null>(null);
+  const hubTourStepRef = useRef<HubTourStep | null>(null);
 
   /** Calendar + upcoming only show rows still waiting to be trained. */
   const upcomingScheduledRows = useMemo(
@@ -423,22 +422,21 @@ export default function App() {
   const revenueCat = useRevenueCat(currentUser);
   const isAccountBillingBypass = hasBillingBypassForUser(currentUser);
   const isServerProBypass = currentUser?.fitfo_pro_bypass === true;
-  const isInitialTrialActive = FORCE_PAYWALL_IGNORE_INITIAL_TRIAL
-    ? false
-    : isWithinInitialTrial(currentUser?.created_at);
   const hasBillingAccess =
     isAccountBillingBypass ||
     isServerProBypass ||
-    isInitialTrialActive ||
-    revenueCat.hasPro ||
-    (__DEV__ && isDevPaywallBypassed);
+    revenueCat.hasPro;
 
-  const userPastOnboarding =
-    Boolean(currentUser?.onboarding) &&
-    activeOnboardingUserId !== currentUser?.id;
+  const userPastOnboarding = Boolean(currentUser?.onboarding);
 
   const [billingCheckGiveUp, setBillingCheckGiveUp] = useState(false);
   const [billingCheckShowBuyNow, setBillingCheckShowBuyNow] = useState(false);
+  /**
+   * Two-step paywall flow: post-onboarding users first see the trial explainer,
+   * then the paywall. Persisted per-user so subsequent launches skip the
+   * explainer (the paywall itself still gates access until purchase).
+   */
+  const [hasSeenTrialExplainer, setHasSeenTrialExplainer] = useState(false);
 
   const needsBillingVerification =
     Boolean(currentUser && userPastOnboarding) &&
@@ -467,6 +465,43 @@ export default function App() {
     const id = setTimeout(() => setBillingCheckShowBuyNow(true), 10_000);
     return () => clearTimeout(id);
   }, [isBillingCheckPending]);
+
+  const trialExplainerStorageKey = currentUser?.id
+    ? `@fitfo:trial-explainer-seen:v1:${currentUser.id}`
+    : null;
+
+  // Hydrate "saw explainer" from disk so we don't replay it on every relaunch.
+  // Reset to false when the user signs out so the next signup sees it again.
+  useEffect(() => {
+    if (!trialExplainerStorageKey) {
+      setHasSeenTrialExplainer(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const flag = await AsyncStorage.getItem(trialExplainerStorageKey);
+        if (!cancelled) {
+          setHasSeenTrialExplainer(flag === "1");
+        }
+      } catch {
+        if (!cancelled) {
+          setHasSeenTrialExplainer(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [trialExplainerStorageKey]);
+
+  const handleAcceptTrialExplainer = useCallback(() => {
+    setHasSeenTrialExplainer(true);
+    if (!trialExplainerStorageKey) {
+      return;
+    }
+    void AsyncStorage.setItem(trialExplainerStorageKey, "1").catch(() => undefined);
+  }, [trialExplainerStorageKey]);
 
   const resetPostLoginState = useCallback(() => {
     setActiveTab("saved");
@@ -876,6 +911,24 @@ export default function App() {
     loadScheduledWorkouts,
   ]);
 
+  const onboardingSex = currentUser?.onboarding?.sex ?? null;
+  const starterDemoTitle = getStarterDemoTitleForSex(onboardingSex);
+
+  const markHubTourComplete = useCallback(async () => {
+    const userId = currentUser?.id;
+    setHubTourStep(null);
+    setHubTourCoachRect(null);
+    if (!userId) {
+      return;
+    }
+    try {
+      await AsyncStorage.setItem(getHubTourDoneStorageKey(userId), "1");
+      await AsyncStorage.removeItem(getHubTourStepStorageKey(userId));
+    } catch {
+      // Best-effort persistence.
+    }
+  }, [currentUser?.id]);
+
   const handleDismissFirstHubTip = useCallback(async () => {
     const userId = currentUser?.id;
     if (!userId) {
@@ -888,8 +941,119 @@ export default function App() {
       // Still close the sheet so onboarding never traps the hub.
     } finally {
       setIsFirstHubTipVisible(false);
+      try {
+        const tourDone = await AsyncStorage.getItem(getHubTourDoneStorageKey(userId));
+        if (tourDone === "1") {
+          return;
+        }
+        const savedStep = await AsyncStorage.getItem(getHubTourStepStorageKey(userId));
+        const nextStep = (savedStep as HubTourStep) || "saved_card";
+        setHubTourStep(nextStep);
+      } catch {
+        setHubTourStep("saved_card");
+      }
     }
   }, [currentUser?.id]);
+
+  useEffect(() => {
+    hubTourStepRef.current = hubTourStep;
+  }, [hubTourStep]);
+
+  useEffect(() => {
+    if (!currentUser?.id || !hubTourStep) {
+      return;
+    }
+    void AsyncStorage.setItem(
+      getHubTourStepStorageKey(currentUser.id),
+      hubTourStep,
+    ).catch(() => undefined);
+  }, [hubTourStep, currentUser?.id]);
+
+  useEffect(() => {
+    if (
+      !POST_SIGNUP_HUB_GUIDANCE_ENABLED ||
+      !currentUser?.id ||
+      !hasBillingAccess ||
+      isBillingCheckPending
+    ) {
+      return undefined;
+    }
+    let alive = true;
+    void (async () => {
+      try {
+        const tourDone = await AsyncStorage.getItem(
+          getHubTourDoneStorageKey(currentUser.id),
+        );
+        if (!alive || tourDone === "1") {
+          return;
+        }
+        const tipDone = await AsyncStorage.getItem(
+          getFirstHubTipStorageKey(currentUser.id),
+        );
+        if (tipDone !== "1") {
+          return;
+        }
+        const savedStep = await AsyncStorage.getItem(
+          getHubTourStepStorageKey(currentUser.id),
+        );
+        if (
+          savedStep === "saved_card" ||
+          savedStep === "library_demo" ||
+          savedStep === "start_session" ||
+          savedStep === "active_scroll" ||
+          savedStep === "finish_workout"
+        ) {
+          setHubTourStep((current) => current ?? (savedStep as HubTourStep));
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [currentUser?.id, hasBillingAccess, isBillingCheckPending]);
+
+  useEffect(() => {
+    if (hubTourStep !== "saved_card") {
+      return;
+    }
+    if (isSavedLibraryVisible) {
+      setHubTourStep("library_demo");
+      setHubTourCoachRect(null);
+    }
+  }, [hubTourStep, isSavedLibraryVisible]);
+
+  useEffect(() => {
+    if (hubTourStep !== "library_demo" || !selectedSavedRoutine) {
+      return;
+    }
+    if (isStarterDemoWorkoutTitle(selectedSavedRoutine.title, onboardingSex)) {
+      setHubTourStep("start_session");
+      setHubTourCoachRect(null);
+    }
+  }, [hubTourStep, selectedSavedRoutine, onboardingSex]);
+
+  useEffect(() => {
+    if (hubTourStep !== "library_demo") {
+      return;
+    }
+    if (!isSavedLibraryVisible && !selectedSavedRoutine) {
+      setHubTourStep("saved_card");
+      setHubTourCoachRect(null);
+    }
+  }, [hubTourStep, isSavedLibraryVisible, selectedSavedRoutine]);
+
+  const handleHubTourFinishButtonVisible = useCallback(
+    () => {
+      if (hubTourStep !== "active_scroll") {
+        return;
+      }
+      setHubTourStep("finish_workout");
+      setHubTourCoachRect(null);
+    },
+    [hubTourStep],
+  );
 
   useEffect(() => {
     if (!currentUser) {
@@ -921,18 +1085,21 @@ export default function App() {
         if (!alive) {
           return;
         }
+        if (!POST_SIGNUP_HUB_GUIDANCE_ENABLED) {
+          setIsFirstHubTipVisible(false);
+          setHubTourStep(null);
+          setHubTourCoachRect(null);
+          return;
+        }
         const tipKey = getFirstHubTipStorageKey(currentUser.id);
         const tipDone = await AsyncStorage.getItem(tipKey);
         if (tipDone === "1") {
           return;
         }
 
-        InteractionManager.runAfterInteractions(() => {
-          if (!alive) {
-            return;
-          }
-          setIsFirstHubTipVisible(true);
-        });
+        // Show the nudge immediately after seed completes so users see it
+        // right when they land in the hub.
+        setIsFirstHubTipVisible(true);
       } catch {
         // Starter rows + deferred hub tip remain best-effort.
       }
@@ -1044,6 +1211,14 @@ export default function App() {
   const handleStartSession = useCallback(
     (routine?: SavedRoutinePreview) => {
       const sourceRoutine = routine || latestImportedRoutine;
+      const tourStepNow = hubTourStepRef.current;
+      const advanceTourToActiveScroll =
+        POST_SIGNUP_HUB_GUIDANCE_ENABLED &&
+        (tourStepNow === "start_session" || tourStepNow === "library_demo") &&
+        Boolean(
+          sourceRoutine &&
+            isStarterDemoWorkoutTitle(sourceRoutine.title, onboardingSex),
+        );
 
       if (sourceRoutine?.workoutPlan) {
         setActiveSession(
@@ -1084,8 +1259,13 @@ export default function App() {
       setSharedIngestUrl(null);
       setIsShareDrivenIngest(false);
       resetImportFlow();
+
+      if (advanceTourToActiveScroll) {
+        setHubTourStep("active_scroll");
+        setHubTourCoachRect(null);
+      }
     },
-    [latestImportedRoutine, resetImportFlow],
+    [latestImportedRoutine, onboardingSex, resetImportFlow],
   );
 
   const handleScheduleImportedWorkout = useCallback(
@@ -1643,6 +1823,11 @@ export default function App() {
     const session = activeSession;
     const scheduledWorkoutIdToComplete = session?.scheduledWorkoutId ?? null;
     const finishedCoachKey = session ? String(session.startedAt) : null;
+    const shouldCompleteHubTour = hubTourStepRef.current === "finish_workout";
+
+    if (shouldCompleteHubTour) {
+      void markHubTourComplete();
+    }
 
     setActiveSession(null);
     setIsActiveWorkoutVisible(false);
@@ -1698,7 +1883,7 @@ export default function App() {
         error instanceof Error ? error.message : "Unable to save your workout log.",
       );
     }
-  }, [accessToken, activeSession, loadScheduledWorkouts]);
+  }, [accessToken, activeSession, loadScheduledWorkouts, markHubTourComplete]);
 
   const applyAuthenticatedSession = useCallback(
     (profile: UserProfile, token: string) => {
@@ -1708,30 +1893,13 @@ export default function App() {
       setAuthPrefillFullName(profile.full_name);
       setAuthError(null);
       setAuthNotice(null);
-      setOnboardingError(null);
       setPendingOtpChallenge(null);
       setAuthLandingIndex(0);
       setAuthMode("signup");
       resetPostLoginState();
-      if (profile.onboarding) {
-        setActiveOnboardingUserId(null);
-      }
     },
     [resetPostLoginState],
   );
-
-  useEffect(() => {
-    if (!currentUser) {
-      setActiveOnboardingUserId(null);
-      setOnboardingError(null);
-      return;
-    }
-
-    if (!currentUser.onboarding && activeOnboardingUserId !== currentUser.id) {
-      setActiveOnboardingUserId(currentUser.id);
-      setOnboardingError(null);
-    }
-  }, [activeOnboardingUserId, currentUser]);
 
   useEffect(() => {
     let isMounted = true;
@@ -2052,9 +2220,6 @@ export default function App() {
     setBodyWeightEntries([]);
     setBodyWeightEntriesError(null);
     setIsBodyWeightSubmitting(false);
-    setActiveOnboardingUserId(null);
-    setIsOnboardingSubmitting(false);
-    setOnboardingError(null);
     setPendingOtpChallenge(null);
     setAuthLandingIndex(0);
     setAuthMode("signup");
@@ -2062,7 +2227,6 @@ export default function App() {
     setAuthPrefillPhone("");
     setAuthPrefillFullName("");
     setAuthSubmittingMode(null);
-    setIsDevPaywallBypassed(false);
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -2145,37 +2309,6 @@ export default function App() {
   }, [activeSession]);
 
 
-  const handleSaveOnboarding = useCallback(
-    async (payload: SaveOnboardingRequest) => {
-      if (!accessToken) {
-        const message = "You need to be logged in to save onboarding.";
-        setOnboardingError(message);
-        throw new Error(message);
-      }
-
-      setIsOnboardingSubmitting(true);
-      setOnboardingError(null);
-
-      try {
-        const response = await saveOnboarding(accessToken, payload);
-        setCurrentUser(response.profile);
-        setAuthPrefillPhone(response.profile.phone ?? "");
-        setAuthPrefillFullName(response.profile.full_name);
-        setActiveOnboardingUserId(null);
-        await storeAuthSession(accessToken, response.profile);
-        await loadBodyWeightEntries(accessToken);
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unable to save onboarding.";
-        setOnboardingError(message);
-        throw error instanceof Error ? error : new Error(message);
-      } finally {
-        setIsOnboardingSubmitting(false);
-      }
-    },
-    [accessToken, loadBodyWeightEntries],
-  );
-
   const handleUpdateFullName = useCallback(
     async (fullName: string) => {
       const trimmed = fullName.trim();
@@ -2224,11 +2357,6 @@ export default function App() {
     },
     [accessToken],
   );
-
-  const handleDismissOnboarding = useCallback(() => {
-    setActiveOnboardingUserId(null);
-    setOnboardingError(null);
-  }, []);
 
   const handleRemoveSavedWorkout = useCallback(
     (savedWorkoutId: string, options?: { afterConfirm?: () => void }) => {
@@ -2318,12 +2446,29 @@ export default function App() {
               return { ...prev, [activeCoachKey]: next };
             })
           }
+          hubTourStep={
+            POST_SIGNUP_HUB_GUIDANCE_ENABLED &&
+            (hubTourStep === "active_scroll" || hubTourStep === "finish_workout")
+              ? hubTourStep
+              : null
+          }
           onBack={() => {
             // Keep the session alive so the user can resume from the Logs tab.
             setIsActiveWorkoutVisible(false);
             setActiveTab("logs");
           }}
           onFinish={handleFinishWorkout}
+          onHubTourFinishButtonMeasured={(rect) => {
+            if (hubTourStep === "finish_workout") {
+              setHubTourCoachRect(rect);
+            }
+          }}
+          onHubTourListViewportMeasured={(rect) => {
+            if (hubTourStep === "active_scroll") {
+              setHubTourCoachRect(rect);
+            }
+          }}
+          onHubTourFinishButtonVisible={handleHubTourFinishButtonVisible}
           onScheduleAgain={() =>
             handleRequestScheduleAgainForActiveSession(activeSession)
           }
@@ -2365,10 +2510,21 @@ export default function App() {
       return (
         <SavedWorkoutDetailScreen
           routine={routine}
-          onBack={() => setSelectedSavedRoutine(null)}
+          onBack={() => {
+            setSelectedSavedRoutine(null);
+            if (hubTourStep === "start_session") {
+              setHubTourStep("library_demo");
+              setHubTourCoachRect(null);
+            }
+          }}
           onStart={() => {
             setSelectedSavedRoutine(null);
             handleStartSession(routine);
+          }}
+          onStartSessionMeasured={(rect) => {
+            if (hubTourStep === "start_session") {
+              setHubTourCoachRect(rect);
+            }
           }}
           onRemove={
             removeTargetId
@@ -2401,10 +2557,6 @@ export default function App() {
       return (
         <ProfileScreen
           onClose={() => setIsProfileVisible(false)}
-          onEditOnboarding={() => {
-            setIsProfileVisible(false);
-            setActiveOnboardingUserId(currentUser.id);
-          }}
           onLogout={handleLogout}
           onDeleteAccount={handleDeleteAccount}
           onManageSubscription={revenueCat.openCustomerCenter}
@@ -2425,7 +2577,13 @@ export default function App() {
             importedWorkouts={savedWorkouts}
             isLoading={savedWorkoutsLoading}
             onAddWorkout={handleOpenAddWorkout}
-            onBack={() => setIsSavedLibraryVisible(false)}
+            onBack={() => {
+              setIsSavedLibraryVisible(false);
+              if (hubTourStep === "library_demo") {
+                setHubTourStep("saved_card");
+                setHubTourCoachRect(null);
+              }
+            }}
             onOpenWorkout={(routine) => setSelectedSavedRoutine(routine)}
             onRemoveWorkout={handleRemoveSavedWorkout}
             onRetry={() => {
@@ -2436,9 +2594,15 @@ export default function App() {
             }}
             onScheduleWorkout={handleRequestScheduleSavedWorkout}
             onStartSession={handleStartSession}
+            onStarterDemoCardMeasured={(rect) => {
+              if (hubTourStep === "library_demo") {
+                setHubTourCoachRect(rect);
+              }
+            }}
             scheduledWorkouts={upcomingScheduledRows.map(
               createScheduledRoutinePreview,
             )}
+            starterDemoTitle={starterDemoTitle}
             themeMode={themeMode}
           />
         );
@@ -2453,6 +2617,14 @@ export default function App() {
           onAddWorkout={handleOpenAddWorkout}
           onOpenProfile={() => setIsProfileVisible(true)}
           onOpenSavedList={() => setIsSavedLibraryVisible(true)}
+          onSavedWorkoutsCardMeasured={(rect) => {
+            if (hubTourStep === "saved_card") {
+              setHubTourCoachRect(rect);
+            }
+          }}
+          tourSpotlightsSavedWorkoutsCard={
+            POST_SIGNUP_HUB_GUIDANCE_ENABLED && hubTourStep === "saved_card"
+          }
           onOpenWorkout={(routine) => setSelectedSavedRoutine(routine)}
           onPullToRefresh={refreshHubWorkoutData}
           onRemoveWorkout={handleRemoveSavedWorkout}
@@ -2525,6 +2697,130 @@ export default function App() {
 
   const importError = submitError || pollError;
 
+  const hubTourCoachmarkPlacement = useMemo<CoachmarkPlacement>(() => {
+    return hubTourStep === "active_scroll" ? "topBanner" : "auto";
+  }, [hubTourStep]);
+
+  const hubTourCoachmarkCopy = useMemo(() => {
+    switch (hubTourStep) {
+      case "saved_card":
+        return {
+          title: getSavedWorkoutsCoachmarkTitle(onboardingSex),
+          body: getSavedWorkoutsCoachmarkBody(onboardingSex),
+        };
+      case "library_demo":
+        return {
+          title: getHubTourLibraryCoachmarkTitle(onboardingSex),
+          body: getHubTourLibraryCoachmarkBody(onboardingSex),
+        };
+      case "start_session":
+        return {
+          title: getHubTourStartSessionCoachmarkTitle(onboardingSex),
+          body: getHubTourStartSessionCoachmarkBody(onboardingSex),
+        };
+      case "active_scroll":
+        return {
+          title: getHubTourScrollCoachmarkTitle(onboardingSex),
+          body: getHubTourScrollCoachmarkBody(onboardingSex),
+        };
+      case "finish_workout":
+        return {
+          title: getHubTourFinishCoachmarkTitle(onboardingSex),
+          body: getHubTourFinishCoachmarkBody(onboardingSex),
+        };
+      default:
+        return { title: "", body: "" };
+    }
+  }, [hubTourStep, onboardingSex]);
+
+  const hubTourCoachmarkShows = useMemo(() => {
+    if (
+      !POST_SIGNUP_HUB_GUIDANCE_ENABLED ||
+      hubTourStep == null ||
+      !hasBillingAccess ||
+      isFirstHubTipVisible ||
+      isAddWorkoutVisible
+    ) {
+      return false;
+    }
+    switch (hubTourStep) {
+      case "saved_card":
+        return (
+          activeTab === "saved" &&
+          !isSavedLibraryVisible &&
+          !selectedSavedRoutine &&
+          !selectedCompletedWorkout &&
+          !isProfileVisible &&
+          !(activeSession && isActiveWorkoutVisible) &&
+          hubTourCoachRect != null
+        );
+      case "library_demo":
+        return isSavedLibraryVisible && !selectedSavedRoutine;
+      case "start_session":
+        return (
+          selectedSavedRoutine != null &&
+          isStarterDemoWorkoutTitle(selectedSavedRoutine.title, onboardingSex)
+        );
+      case "active_scroll":
+      case "finish_workout":
+        return Boolean(activeSession && isActiveWorkoutVisible);
+      default:
+        return false;
+    }
+  }, [
+    activeSession,
+    activeTab,
+    hasBillingAccess,
+    hubTourCoachRect,
+    hubTourStep,
+    isActiveWorkoutVisible,
+    isAddWorkoutVisible,
+    isFirstHubTipVisible,
+    isProfileVisible,
+    isSavedLibraryVisible,
+    onboardingSex,
+    selectedCompletedWorkout,
+    selectedSavedRoutine,
+  ]);
+
+  const handleHubTourTargetPress = useCallback(() => {
+    switch (hubTourStep) {
+      case "saved_card":
+        setIsSavedLibraryVisible(true);
+        return;
+      case "library_demo": {
+        const starterRoutine = savedWorkouts.find((routine) =>
+          isStarterDemoWorkoutTitle(routine.title, onboardingSex),
+        );
+        if (starterRoutine) {
+          handleStartSession(starterRoutine);
+        }
+        return;
+      }
+      case "start_session":
+        if (selectedSavedRoutine) {
+          setSelectedSavedRoutine(null);
+          handleStartSession(selectedSavedRoutine);
+        }
+        return;
+      default:
+        return;
+    }
+  }, [
+    handleStartSession,
+    hubTourStep,
+    onboardingSex,
+    savedWorkouts,
+    selectedSavedRoutine,
+  ]);
+
+  const hubTourCoachmarkTargetPress =
+    hubTourStep === "saved_card" ||
+    hubTourStep === "library_demo" ||
+    hubTourStep === "start_session"
+      ? handleHubTourTargetPress
+      : undefined;
+
   return (
     <PostHogProvider client={posthog} debug={__DEV__} autocapture={{ captureTouches: true, captureScreens: false }}>
     <GestureHandlerRootView style={styles.flexRoot}>
@@ -2541,17 +2837,7 @@ export default function App() {
             />
           </View>
         ) : currentUser ? (
-          !currentUser.onboarding || activeOnboardingUserId === currentUser.id ? (
-            <OnboardingScreen
-              error={onboardingError}
-              isSubmitting={isOnboardingSubmitting}
-              mode={currentUser.onboarding ? "edit" : "required"}
-              onDismiss={handleDismissOnboarding}
-              onSubmit={handleSaveOnboarding}
-              profile={currentUser}
-              themeMode={themeMode}
-            />
-          ) : isBillingCheckPending ? (
+          isBillingCheckPending ? (
             <View style={styles.loadingScreen}>
               <FitfoLoadingAnimation
                 caption="checking access"
@@ -2584,27 +2870,40 @@ export default function App() {
               ) : null}
             </View>
           ) : !hasBillingAccess ? (
-            <PaywallScreen
-              error={revenueCat.error}
-              isLoading={revenueCat.isLoading}
-              onManageSubscription={revenueCat.openCustomerCenter}
-              onPurchaseProduct={revenueCat.purchaseProduct}
-              onRestorePurchases={revenueCat.restorePurchases}
-              onDevBypass={
-                __DEV__
-                  ? () => {
-                      setIsDevPaywallBypassed(true);
-                    }
-                  : undefined
-              }
-              onUnlocked={() => {
-                void revenueCat.refreshCustomerInfo();
-              }}
-              themeMode={themeMode}
-            />
+            !hasSeenTrialExplainer ? (
+              <TrialExplainerScreen
+                onContinue={handleAcceptTrialExplainer}
+                themeMode={themeMode}
+              />
+            ) : (
+              <PaywallScreen
+                error={revenueCat.error}
+                isLoading={revenueCat.isLoading}
+                onManageSubscription={revenueCat.openCustomerCenter}
+                onPurchasePackage={revenueCat.purchasePackage}
+                onRestorePurchases={revenueCat.restorePurchases}
+                onUnlocked={() => {
+                  void revenueCat.refreshCustomerInfo();
+                }}
+                themeMode={themeMode}
+              />
+            )
           ) : (
             <>
-              <View style={styles.screenArea}>{renderAuthenticatedScreen()}</View>
+              <View style={styles.screenArea}>
+                {renderAuthenticatedScreen()}
+                <SavedWorkoutsCoachmark
+                  body={hubTourCoachmarkCopy.body}
+                  onTargetPress={hubTourCoachmarkTargetPress}
+                  placement={hubTourCoachmarkPlacement}
+                  rect={hubTourCoachRect}
+                  themeMode={themeMode}
+                  title={hubTourCoachmarkCopy.title}
+                  visible={
+                    POST_SIGNUP_HUB_GUIDANCE_ENABLED && hubTourCoachmarkShows
+                  }
+                />
+              </View>
               <BottomNav
                 activeTab={activeTab}
                 onChangeTab={(tab) => {
@@ -2707,7 +3006,11 @@ export default function App() {
         body={getFirstHubTipModalBody(currentUser?.onboarding?.sex ?? null)}
         title={getFirstHubTipModalTitle(currentUser?.onboarding?.sex ?? null)}
         themeMode={themeMode}
-        visible={isFirstHubTipVisible && hasBillingAccess}
+        visible={
+          POST_SIGNUP_HUB_GUIDANCE_ENABLED &&
+          isFirstHubTipVisible &&
+          hasBillingAccess
+        }
         onDismiss={handleDismissFirstHubTip}
       />
 

@@ -23,7 +23,6 @@ import type { UserProfile } from "../types";
 
 interface ProfileScreenProps {
   onClose?: () => void;
-  onEditOnboarding: () => void;
   onLogout: () => void;
   onDeleteAccount: () => Promise<void>;
   onManageSubscription?: () => Promise<boolean>;
@@ -37,7 +36,6 @@ interface ProfileScreenProps {
 
 export function ProfileScreen({
   onClose,
-  onEditOnboarding,
   onLogout,
   onDeleteAccount,
   onManageSubscription,
@@ -235,18 +233,6 @@ export function ProfileScreen({
             />
           </View>
         ) : null}
-        <Pressable onPress={onEditOnboarding} style={styles.infoCard}>
-          <View style={styles.infoIcon}>
-            <Ionicons color={theme.colors.primary} name="create-outline" size={18} />
-          </View>
-          <View style={styles.infoCopy}>
-            <Text style={styles.infoTitle}>Edit training setup</Text>
-            <Text style={styles.infoBody}>
-              Update your goals, split, body stats, and experience whenever you need.
-            </Text>
-          </View>
-          <Ionicons color={theme.colors.textMuted} name="chevron-forward" size={18} />
-        </Pressable>
         <Pressable onPress={handleSuggestFeatures} style={styles.infoCard}>
           <View style={styles.infoIcon}>
             <Ionicons color={theme.colors.primary} name="mail-outline" size={18} />

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import {
   Alert,
   Image,
@@ -45,6 +45,13 @@ interface SavedWorkoutDetailScreenProps {
    * is handled via unschedule + schedule from the saved row).
    */
   onSchedule?: () => void;
+  /** Window rect for hub tour coachmark around Start Session. */
+  onStartSessionMeasured?: (rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null) => void;
   onStart: () => void;
   /**
    * Fired whenever the user commits an inline edit (on blur / submit). The
@@ -242,6 +249,7 @@ export function SavedWorkoutDetailScreen({
   onRemove,
   onSchedule,
   onStart,
+  onStartSessionMeasured,
   onUpdate,
   removeLabel = "Unsave",
   routine,
@@ -249,6 +257,7 @@ export function SavedWorkoutDetailScreen({
 }: SavedWorkoutDetailScreenProps) {
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
+  const startSessionMeasureRef = useRef<View | null>(null);
 
   const plan = routine.workoutPlan;
   const creatorHandle = getCreatorDisplayLabel(routine.sourceUrl, routine.title);
@@ -414,10 +423,34 @@ export function SavedWorkoutDetailScreen({
       </View>
 
       <View style={styles.primaryActionRow}>
-        <Pressable onPress={onStart} style={styles.primaryButton}>
-          <Ionicons color={theme.colors.surface} name="play" size={16} />
-          <Text style={styles.primaryButtonText}>Start Session</Text>
-        </Pressable>
+        <View
+          collapsable={false}
+          ref={(node) => {
+            startSessionMeasureRef.current = node;
+          }}
+          onLayout={() => {
+            if (!onStartSessionMeasured) {
+              return;
+            }
+            startSessionMeasureRef.current?.measureInWindow?.((x, y, width, height) => {
+              if (
+                !Number.isFinite(x) ||
+                !Number.isFinite(y) ||
+                !Number.isFinite(width) ||
+                !Number.isFinite(height)
+              ) {
+                onStartSessionMeasured(null);
+                return;
+              }
+              onStartSessionMeasured({ x, y, width, height });
+            });
+          }}
+        >
+          <Pressable onPress={onStart} style={styles.primaryButton}>
+            <Ionicons color={theme.colors.surface} name="play" size={16} />
+            <Text style={styles.primaryButtonText}>Start Session</Text>
+          </Pressable>
+        </View>
         {onSchedule ? (
           <Pressable
             onPress={onSchedule}

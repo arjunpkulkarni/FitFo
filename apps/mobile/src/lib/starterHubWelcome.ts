@@ -1,15 +1,23 @@
 import { listSavedWorkouts, saveWorkoutForLater } from "./api";
 import type { OnboardingSex, SavedWorkoutRecord, WorkoutPlan } from "../types";
 
+/** Ordered steps for the post-onboarding hub tour (demo workout → session → finish). */
+export type HubTourStep =
+  | "saved_card"
+  | "library_demo"
+  | "start_session"
+  | "active_scroll"
+  | "finish_workout";
+
 /** Saved-row titles double as de-dupe keys for demo imports. */
-export const STARTER_JACOB_TITLE = "Jacob 6 day push workout";
-export const STARTER_SAMANTHA_TITLE = "Samantha glutes and abs day";
+export const STARTER_NUNO_TITLE = "Nuno push workout";
+export const STARTER_NICOLETTE_TITLE = "Nicolette leg day";
 
 const HUB_TIP_INTRO =
   "We saved the workouts from your onboarding demos into your Fitfo library from the reels you walked through during setup, so you can schedule or start whenever you want.";
 
 /** Default body when parent does not pass explicit `body` (e.g. story / tests). */
-export const FIRST_HUB_TIP_MODAL_BODY = `${HUB_TIP_INTRO}\n\nTwo starter routines from the onboarding demos are in your Saved tab.`;
+export const FIRST_HUB_TIP_MODAL_BODY = `${HUB_TIP_INTRO}\n\nTap Saved Workouts to find your demo import.`;
 
 /** Shown once in-app after onboarding; copy used by `FirstHubTipModal`. */
 export const FIRST_HUB_TIP_MODAL_TITLE = "Demo workouts loaded";
@@ -20,22 +28,104 @@ export function getFirstHubTipModalTitle(_sex: OnboardingSex | null): string {
 
 export function getFirstHubTipModalBody(sex: OnboardingSex | null): string {
   if (sex === "female") {
-    return `${HUB_TIP_INTRO}\n\nYou'll find Samantha's routine and Jacob's push day in Saved.`;
+    return `${HUB_TIP_INTRO}\n\nTap the Saved Workouts card to see Nicolette's leg day.`;
   }
   if (sex === "male") {
-    return `${HUB_TIP_INTRO}\n\nThe push workout from the demo reel you tried is in Saved.`;
+    return `${HUB_TIP_INTRO}\n\nTap the Saved Workouts card to see Nuno's push workout.`;
   }
-  return `${HUB_TIP_INTRO}\n\nTwo starter routines from the onboarding demos are in your Saved tab.`;
+  return `${HUB_TIP_INTRO}\n\nTap the Saved Workouts card to see your demo import.`;
+}
+
+export function getSavedWorkoutsCoachmarkTitle(sex: OnboardingSex | null): string {
+  if (sex === "female") {
+    return "Tap Saved Workouts";
+  }
+  if (sex === "male") {
+    return "Tap Saved Workouts";
+  }
+  return "Tap Saved Workouts";
+}
+
+export function getSavedWorkoutsCoachmarkBody(sex: OnboardingSex | null): string {
+  if (sex === "female") {
+    return "Your Nicolette leg day is already saved—tap here to open it.";
+  }
+  if (sex === "male") {
+    return "Your Nuno push workout is already saved—tap here to open it.";
+  }
+  return "Your demo workout is already saved—tap here to open it.";
 }
 
 export function getFirstHubTipStorageKey(profileId: string): string {
   return `@fitfo:first-hub-tip:${profileId}`;
 }
 
+export function getHubTourDoneStorageKey(profileId: string): string {
+  return `@fitfo:starter-hub-tour-done:v2:${profileId}`;
+}
+
+export function getHubTourStepStorageKey(profileId: string): string {
+  return `@fitfo:starter-hub-tour-step:v2:${profileId}`;
+}
+
+/** Title of the single seeded demo row for this user (matches saved workout title). */
+export function getStarterDemoTitleForSex(sex: OnboardingSex | null): string {
+  if (sex === "female") {
+    return STARTER_NICOLETTE_TITLE;
+  }
+  return STARTER_NUNO_TITLE;
+}
+
+export function isStarterDemoWorkoutTitle(
+  title: string,
+  sex: OnboardingSex | null,
+): boolean {
+  const normalized = title.trim().toLowerCase();
+  return normalized === getStarterDemoTitleForSex(sex).trim().toLowerCase();
+}
+
+export function getHubTourLibraryCoachmarkTitle(_sex: OnboardingSex | null): string {
+  return "Start your workout";
+}
+
+export function getHubTourLibraryCoachmarkBody(sex: OnboardingSex | null): string {
+  if (sex === "female") {
+    return "Tap Start Session to begin Nicolette leg day.";
+  }
+  if (sex === "male") {
+    return "Tap Start Session to begin Nuno push workout.";
+  }
+  return "Tap Start Session to begin your demo workout.";
+}
+
+export function getHubTourStartSessionCoachmarkTitle(_sex: OnboardingSex | null): string {
+  return "Start your workout";
+}
+
+export function getHubTourStartSessionCoachmarkBody(_sex: OnboardingSex | null): string {
+  return "Tap Start Session to begin.";
+}
+
+export function getHubTourScrollCoachmarkTitle(_sex: OnboardingSex | null): string {
+  return "Scroll down";
+}
+
+export function getHubTourScrollCoachmarkBody(_sex: OnboardingSex | null): string {
+  return "Scroll through your exercises until you see Finish Workout at the bottom.";
+}
+
+export function getHubTourFinishCoachmarkTitle(_sex: OnboardingSex | null): string {
+  return "Finish Workout";
+}
+
+export function getHubTourFinishCoachmarkBody(_sex: OnboardingSex | null): string {
+  return "Tap Finish Workout when you’re done to save this session to your log.";
+}
+
 const STARTER_META_LEFT = "Demo import";
 
-const JACOB_PLAN: WorkoutPlan = {
-  title: "Jacob 6 day push workout",
+const NUNO_PLAN: WorkoutPlan = {
+  title: "Nuno push workout",
   workout_type: "strength",
   muscle_groups: ["chest", "shoulders", "arms"],
   equipment: ["dumbbells", "machines", "cables"],
@@ -97,35 +187,43 @@ const JACOB_PLAN: WorkoutPlan = {
   notes: null,
 };
 
-const SAMANTHA_PLAN: WorkoutPlan = {
-  title: "Samantha glutes and abs day",
+const NICOLETTE_PLAN: WorkoutPlan = {
+  title: "Nicolette leg day",
   workout_type: "strength",
   muscle_groups: ["legs"],
   equipment: ["barbell", "dumbbells", "machines"],
   blocks: [
     {
-      name: "Glutes and abs",
+      name: "Leg day",
       exercises: [
         {
           name: "Hip thrust",
-          sets: 3,
-          reps: 10,
-          duration_sec: null,
-          rest_sec: 90,
-          notes: null,
-        },
-        {
-          name: "Step ups",
-          sets: 3,
+          sets: 4,
           reps: 8,
           duration_sec: null,
           rest_sec: 90,
           notes: null,
         },
         {
-          name: "Kick backs",
+          name: "Plate-loaded RDLs",
+          sets: 4,
+          reps: 8,
+          duration_sec: null,
+          rest_sec: 90,
+          notes: null,
+        },
+        {
+          name: "DB sumo squats",
           sets: 3,
           reps: 10,
+          duration_sec: null,
+          rest_sec: 60,
+          notes: null,
+        },
+        {
+          name: "Hamstring curls",
+          sets: 3,
+          reps: 12,
           duration_sec: null,
           rest_sec: 60,
           notes: null,
@@ -133,15 +231,7 @@ const SAMANTHA_PLAN: WorkoutPlan = {
         {
           name: "Hip abductors",
           sets: 3,
-          reps: 8,
-          duration_sec: null,
-          rest_sec: 60,
-          notes: null,
-        },
-        {
-          name: "Leg raises",
-          sets: 3,
-          reps: 10,
+          reps: 12,
           duration_sec: null,
           rest_sec: 60,
           notes: null,
@@ -159,28 +249,28 @@ type StarterTemplate = {
   badge_label: string;
 };
 
-/** Female gets both Samantha + Jacob demos; male includes both push + glutes; prefer_not includes both. */
+/** Seed exactly one starter demo workout based on onboarding sex. */
 function starterTemplatesForSex(sex: OnboardingSex | null): StarterTemplate[] {
-  const sam: StarterTemplate = {
-    title: STARTER_SAMANTHA_TITLE,
-    description: "Imported from the Samantha demo reel during onboarding.",
-    plan: SAMANTHA_PLAN,
+  const nicolette: StarterTemplate = {
+    title: STARTER_NICOLETTE_TITLE,
+    description: "Imported from the Nicolette demo reel during onboarding.",
+    plan: NICOLETTE_PLAN,
     badge_label: "Demo import",
   };
-  const jacob: StarterTemplate = {
-    title: STARTER_JACOB_TITLE,
-    description: "Imported from the push-day demo reel during onboarding.",
-    plan: JACOB_PLAN,
+  const nuno: StarterTemplate = {
+    title: STARTER_NUNO_TITLE,
+    description: "Imported from the Nuno demo reel during onboarding.",
+    plan: NUNO_PLAN,
     badge_label: "Demo import",
   };
 
   if (sex === "female") {
-    return [sam, jacob];
+    return [nicolette];
   }
   if (sex === "male") {
-    return [jacob];
+    return [nuno];
   }
-  return [sam, jacob];
+  return [nuno];
 }
 
 async function seedStartersIfNeeded(

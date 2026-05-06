@@ -8,7 +8,7 @@ import Purchases, {
 import RevenueCatUI, { PAYWALL_RESULT } from "react-native-purchases-ui";
 import { Platform } from "react-native";
 
-export const FITFO_PRO_ENTITLEMENT = "Fitfo Pro";
+export const FITFO_PRO_ENTITLEMENT = "premium";
 export const REVENUECAT_OFFERING_ID = "default";
 
 export const REVENUECAT_PRODUCT_IDS = {
@@ -146,6 +146,45 @@ export function getPackageByProductId(
         availablePackage.identifier === productId,
     ) ?? null
   );
+}
+
+export function getAnnualPackage(offering: PurchasesOffering): PurchasesPackage | null {
+  return (
+    offering.annual ??
+    offering.availablePackages.find(
+      (availablePackage) =>
+        availablePackage.packageType === Purchases.PACKAGE_TYPE.ANNUAL ||
+        availablePackage.identifier === "$rc_annual" ||
+        availablePackage.identifier === "annual" ||
+        availablePackage.product.subscriptionPeriod === "P1Y" ||
+        availablePackage.product.identifier === REVENUECAT_PRODUCT_IDS.yearly,
+    ) ??
+    null
+  );
+}
+
+export function getMonthlyPackage(offering: PurchasesOffering): PurchasesPackage | null {
+  return (
+    offering.monthly ??
+    offering.availablePackages.find(
+      (availablePackage) =>
+        availablePackage.packageType === Purchases.PACKAGE_TYPE.MONTHLY ||
+        availablePackage.identifier === "$rc_monthly" ||
+        availablePackage.identifier === "monthly" ||
+        availablePackage.product.subscriptionPeriod === "P1M" ||
+        availablePackage.product.identifier === REVENUECAT_PRODUCT_IDS.monthly,
+    ) ??
+    null
+  );
+}
+
+export async function getPaywallPackages() {
+  const offering = await getCurrentOffering();
+  return {
+    offering,
+    annualPackage: offering ? getAnnualPackage(offering) : null,
+    monthlyPackage: offering ? getMonthlyPackage(offering) : null,
+  };
 }
 
 export async function purchasePackage(packageToPurchase: PurchasesPackage) {

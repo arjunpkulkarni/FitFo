@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
@@ -34,6 +42,20 @@ interface ActiveWorkoutScreenProps {
   /** Lifted coach transcript so reopening from the Logs tab retains memory. */
   coachMessages: CoachChatMessage[];
   setCoachMessages: Dispatch<SetStateAction<CoachChatMessage[]>>;
+  hubTourStep?: "active_scroll" | "finish_workout" | null;
+  onHubTourFinishButtonMeasured?: (rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null) => void;
+  onHubTourListViewportMeasured?: (rect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null) => void;
+  onHubTourFinishButtonVisible?: () => void;
   onScheduleAgain?: () => void;
   isSchedulingAgain?: boolean;
   themeMode?: ThemeMode;
@@ -825,12 +847,18 @@ export function ActiveWorkoutScreen({
   onFinish,
   coachMessages,
   setCoachMessages,
+  hubTourStep = null,
+  onHubTourFinishButtonMeasured,
+  onHubTourListViewportMeasured,
+  onHubTourFinishButtonVisible,
   onScheduleAgain,
   isSchedulingAgain = false,
   themeMode = "light",
 }: ActiveWorkoutScreenProps) {
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
+  const listViewportRef = useRef<View | null>(null);
+  const finishButtonRef = useRef<View | null>(null);
   const previousCompletedSetCountRef = useRef(0);
   const lastElapsedTickRef = useRef(Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -856,6 +884,96 @@ export function ActiveWorkoutScreen({
     setIsTimerPaused(false);
     lastElapsedTickRef.current = Date.now();
   }, [session]);
+
+  const measureListViewport = useCallback(() => {
+    if (!onHubTourListViewportMeasured) {
+      return;
+    }
+    listViewportRef.current?.measureInWindow?.((x, y, width, height) => {
+      if (
+        !Number.isFinite(x) ||
+        !Number.isFinite(y) ||
+        !Number.isFinite(width) ||
+        !Number.isFinite(height)
+      ) {
+        onHubTourListViewportMeasured(null);
+        return;
+      }
+      onHubTourListViewportMeasured({ x, y, width, height });
+    });
+  }, [onHubTourListViewportMeasured]);
+
+  const measureFinishButton = useCallback(() => {
+    if (!onHubTourFinishButtonMeasured) {
+      return;
+    }
+    finishButtonRef.current?.measureInWindow?.((x, y, width, height) => {
+      if (
+        !Number.isFinite(x) ||
+        !Number.isFinite(y) ||
+        !Number.isFinite(width) ||
+        !Number.isFinite(height)
+      ) {
+        onHubTourFinishButtonMeasured(null);
+        return;
+      }
+      onHubTourFinishButtonMeasured({ x, y, width, height });
+    });
+  }, [onHubTourFinishButtonMeasured]);
+
+  const checkFinishButtonVisibility = useCallback(() => {
+    if (!onHubTourFinishButtonVisible) {
+      return;
+    }
+    listViewportRef.current?.measureInWindow?.((viewportX, viewportY, viewportWidth, viewportHeight) => {
+      finishButtonRef.current?.measureInWindow?.((buttonX, buttonY, buttonWidth, buttonHeight) => {
+        if (
+          !Number.isFinite(viewportX) ||
+          !Number.isFinite(viewportY) ||
+          !Number.isFinite(viewportWidth) ||
+          !Number.isFinite(viewportHeight) ||
+          !Number.isFinite(buttonX) ||
+          !Number.isFinite(buttonY) ||
+          !Number.isFinite(buttonWidth) ||
+          !Number.isFinite(buttonHeight)
+        ) {
+          return;
+        }
+
+        const viewportTop = viewportY;
+        const viewportBottom = viewportY + viewportHeight;
+        const buttonTop = buttonY;
+        const buttonBottom = buttonY + buttonHeight;
+        const visibleHeight =
+          Math.min(buttonBottom, viewportBottom) - Math.max(buttonTop, viewportTop);
+
+        if (visibleHeight >= Math.min(buttonHeight * 0.6, 44)) {
+          onHubTourFinishButtonVisible();
+        }
+      });
+    });
+  }, [onHubTourFinishButtonVisible]);
+
+  useEffect(() => {
+    if (hubTourStep !== "active_scroll") {
+      return;
+    }
+    const id = requestAnimationFrame(() => {
+      measureListViewport();
+      checkFinishButtonVisibility();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [checkFinishButtonVisibility, hubTourStep, measureListViewport, session.startedAt]);
+
+  useEffect(() => {
+    if (hubTourStep !== "finish_workout") {
+      return;
+    }
+    const id = requestAnimationFrame(() => {
+      measureFinishButton();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [hubTourStep, measureFinishButton, session.startedAt, exercises.length]);
 
   useEffect(() => {
     if (isTimerPaused) {
@@ -1543,32 +1661,79 @@ export function ActiveWorkoutScreen({
               </Pressable>
             ) : null}
       
-            <Pressable onPress={onFinish} style={styles.finishButton}>
-              <Text style={styles.finishButtonText}>Finish Workout</Text>
-              <Ionicons color={theme.colors.surface} name="flag" size={16} />
-            </Pressable>
+            <View
+              collapsable={false}
+              ref={(node) => {
+                finishButtonRef.current = node;
+              }}
+              onLayout={() => {
+                if (hubTourStep === "finish_workout") {
+                  measureFinishButton();
+                  return;
+                }
+                if (hubTourStep === "active_scroll") {
+                  checkFinishButtonVisibility();
+                }
+              }}
+            >
+              <Pressable onPress={onFinish} style={styles.finishButton}>
+                <Text style={styles.finishButtonText}>Finish Workout</Text>
+                <Ionicons color={theme.colors.surface} name="flag" size={16} />
+              </Pressable>
+            </View>
     </View>
+  );
+
+  const handleHubTourScroll = useCallback(
+    () => {
+      if (hubTourStep === "active_scroll") {
+        requestAnimationFrame(() => {
+          checkFinishButtonVisibility();
+        });
+      }
+      if (hubTourStep === "finish_workout") {
+        requestAnimationFrame(() => {
+          measureFinishButton();
+        });
+      }
+    },
+    [checkFinishButtonVisibility, hubTourStep, measureFinishButton],
   );
 
   return (
     <>
+    <View
+      style={styles.listViewportShell}
+      collapsable={false}
+      ref={(node) => {
+        listViewportRef.current = node;
+      }}
+      onLayout={() => {
+        if (hubTourStep === "active_scroll") {
+          measureListViewport();
+        }
+      }}
+    >
     <DraggableFlatList
       data={exercises}
       keyExtractor={(item) => item.id}
       activationDistance={12}
       onDragEnd={({ data }) => setExercises(data)}
-      extraData={[expandedExerciseId, selectedSet, autoFocusExerciseId]}
+      extraData={[expandedExerciseId, selectedSet, autoFocusExerciseId, hubTourStep]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
       style={styles.container}
       containerStyle={{ flex: 1 }}
       contentContainerStyle={styles.content}
       ItemSeparatorComponent={() => <View style={styles.exerciseSeparator} />}
+      onScroll={handleHubTourScroll}
       renderItem={renderExerciseItem}
       ListHeaderComponent={listHeader}
       ListEmptyComponent={listEmpty}
       ListFooterComponent={listFooter}
+      scrollEventThrottle={16}
     />
+    </View>
     <CoachSheet
       messages={coachMessages}
       setMessages={setCoachMessages}
@@ -1583,6 +1748,9 @@ export function ActiveWorkoutScreen({
 
 const createStyles = (theme: ActiveWorkoutTheme) =>
   StyleSheet.create({
+    listViewportShell: {
+      flex: 1,
+    },
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,

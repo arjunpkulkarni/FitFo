@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import Purchases, { type CustomerInfo } from "react-native-purchases";
+import Purchases, {
+  type CustomerInfo,
+  type PurchasesPackage,
+} from "react-native-purchases";
 
 import { hasBillingBypassForUser } from "../lib/billingBypass";
 import {
@@ -11,6 +14,7 @@ import {
   logOutRevenueCat,
   presentFitfoPaywallIfNeeded,
   presentRevenueCatCustomerCenter,
+  purchasePackage,
   purchaseProductId,
   restoreRevenueCatPurchases,
 } from "../lib/revenueCat";
@@ -167,6 +171,35 @@ export function useRevenueCat(profile: UserProfile | null) {
     }
   }, [accountBypass]);
 
+  const purchaseRevenueCatPackage = useCallback(async (packageToPurchase: PurchasesPackage) => {
+    if (REVENUECAT_SDK_DISABLED || accountBypass) {
+      return true;
+    }
+    if (!isRevenueCatSdkAvailable()) {
+      return false;
+    }
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const result = await purchasePackage(packageToPurchase);
+      if (result.customerInfo) {
+        setCustomerInfo(result.customerInfo);
+      }
+      return result.hasAccess;
+    } catch (purchaseError) {
+      setError(
+        getRevenueCatErrorMessage(
+          purchaseError,
+          "Unable to complete purchase. Please try again.",
+        ),
+      );
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [accountBypass]);
+
   const presentPaywall = useCallback(async () => {
     if (REVENUECAT_SDK_DISABLED || accountBypass) {
       return true;
@@ -260,6 +293,7 @@ export function useRevenueCat(profile: UserProfile | null) {
     error,
     refreshCustomerInfo,
     purchaseProduct,
+    purchasePackage: purchaseRevenueCatPackage,
     presentPaywall,
     restorePurchases,
     openCustomerCenter,
