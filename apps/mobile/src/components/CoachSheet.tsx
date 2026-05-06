@@ -145,7 +145,6 @@ export default function CoachSheet({
       }
       if (inline.kind === "citation") {
         const cite = citationLookup(citations, inline.index);
-        const label = `[${inline.index}]`;
         const url = cite?.source_url?.trim();
         const canOpen = Boolean(url?.startsWith("http"));
         if (canOpen && url) {
@@ -159,15 +158,16 @@ export default function CoachSheet({
               }}
               style={styles.citationBadge}
             >
-              {label}
+              <Ionicons
+                name="link"
+                size={12}
+                color={theme.colors.primaryBright}
+              />
+              <Text> view here</Text>
             </Text>
           );
         }
-        return (
-          <Text key={key} style={styles.citationMuted}>
-            {label}
-          </Text>
-        );
+        return null;
       }
       return <Text key={key}>{inline.value}</Text>;
     });
@@ -521,15 +521,15 @@ function createStyles(theme: ReturnType<typeof getTheme>) {
     },
     citationBadge: {
       color: colors.primaryBright,
-      fontFamily: F.bold,
-      fontSize: 11,
+      fontFamily: F.semiBold,
+      fontSize: 13,
       lineHeight: 21,
       textDecorationLine: "underline",
     },
     citationMuted: {
       color: colors.textMuted,
       fontFamily: F.medium,
-      fontSize: 11,
+      fontSize: 13,
       lineHeight: 21,
     },
     thinking: {

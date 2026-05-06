@@ -514,7 +514,7 @@ export function AuthLandingScreen({
           canContinue={Number.isFinite(numericWeight) && Number.isFinite(totalHeightInches)}
           index={4}
           next={next}
-          title="How tall and heavy?"
+          title="Height and weight"
           subtitle="This gives progress charts a baseline. You can edit it any time."
           width={width}
         >
@@ -1263,7 +1263,7 @@ function createAuthStyles(colors: AuthColors) {
     fontFamily: F.medium,
     fontSize: 15,
     lineHeight: 22,
-    textAlign: "center",
+    textAlign: "left",
   },
   bottomStack: {
     gap: 8,
@@ -1333,6 +1333,7 @@ function createAuthStyles(colors: AuthColors) {
     fontSize: 36,
     letterSpacing: -1,
     lineHeight: 39,
+    textAlign: "left",
   },
   stepBody: {
     flex: 1,

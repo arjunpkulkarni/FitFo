@@ -106,6 +106,7 @@ export function PaywallScreen({
 
   const [selectedPlan, setSelectedPlan] = useState<PlanKey>("annual");
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
+  const [purchaseSucceeded, setPurchaseSucceeded] = useState(false);
   const [offeringLoading, setOfferingLoading] = useState(false);
   const [annualPriceString, setAnnualPriceString] = useState<string | null>(null);
   const [monthlyPriceString, setMonthlyPriceString] = useState<string | null>(null);
@@ -244,7 +245,7 @@ export function PaywallScreen({
           package_id: selectedPackage.identifier,
           product_id: selectedPackage.product.identifier,
         });
-        onUnlocked();
+        setPurchaseSucceeded(true);
       }
     } catch {
       Alert.alert(
@@ -265,7 +266,7 @@ export function PaywallScreen({
       const unlocked = await onRestorePurchases();
       if (unlocked) {
         posthog.capture("subscription_restored");
-        onUnlocked();
+        setPurchaseSucceeded(true);
         return;
       }
       Alert.alert(
@@ -308,6 +309,44 @@ export function PaywallScreen({
     selectedPlan === "annual"
       ? `Then ${annualLine}/year on ${trialEndLabel}`
       : "Renews monthly until cancelled";
+
+  if (purchaseSucceeded) {
+    return (
+      <View style={styles.successRoot}>
+        <View style={styles.successIconWrap}>
+          <Ionicons
+            color={theme.colors.primary}
+            name="checkmark-circle"
+            size={88}
+          />
+        </View>
+        <Text style={styles.successEyebrow}>You&apos;re in</Text>
+        <Text style={styles.successTitle}>Welcome to Fitfo.</Text>
+        <Text style={styles.successBody}>
+          {selectedPlan === "annual"
+            ? `Your 7-day free trial is active. Cancel anytime before ${trialEndLabel} and you won't be charged.`
+            : "Your subscription is active. Let's get to work."}
+        </Text>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Get started with Fitfo"
+          onPress={() => {
+            posthog.capture("paywall_welcome_continue");
+            onUnlocked();
+          }}
+          style={({ pressed }) => [
+            styles.cta,
+            styles.successCta,
+            pressed ? styles.ctaPressed : null,
+          ]}
+        >
+          <Text style={styles.ctaText}>Get started</Text>
+          <Ionicons color={theme.colors.surface} name="arrow-forward" size={18} />
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -855,5 +894,57 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       lineHeight: 16,
       textAlign: "center",
       marginTop: 4,
+    },
+    successRoot: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+      paddingHorizontal: 28,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 14,
+    },
+    successIconWrap: {
+      width: 112,
+      height: 112,
+      borderRadius: 999,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor:
+        theme.mode === "dark"
+          ? "rgba(255, 111, 34, 0.14)"
+          : "rgba(71, 88, 240, 0.10)",
+      marginBottom: 4,
+    },
+    successEyebrow: {
+      color: theme.colors.primary,
+      fontSize: 12,
+      fontFamily: "Satoshi-Black",
+      fontWeight: "900",
+      letterSpacing: 2,
+      textTransform: "uppercase",
+    },
+    successTitle: {
+      color: theme.colors.textPrimary,
+      fontSize: 34,
+      lineHeight: 38,
+      fontFamily: "Satoshi-Black",
+      fontWeight: "900",
+      letterSpacing: -1.2,
+      textAlign: "center",
+      maxWidth: 340,
+    },
+    successBody: {
+      color: theme.colors.textSecondary,
+      fontSize: 15,
+      lineHeight: 22,
+      fontFamily: "Satoshi-Medium",
+      fontWeight: "500",
+      textAlign: "center",
+      maxWidth: 340,
+    },
+    successCta: {
+      alignSelf: "stretch",
+      maxWidth: 360,
+      marginTop: 18,
     },
   });

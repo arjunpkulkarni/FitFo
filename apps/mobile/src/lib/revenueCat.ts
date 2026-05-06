@@ -8,12 +8,12 @@ import Purchases, {
 import RevenueCatUI, { PAYWALL_RESULT } from "react-native-purchases-ui";
 import { Platform } from "react-native";
 
-export const FITFO_PRO_ENTITLEMENT = "premium";
+export const FITFO_PRO_ENTITLEMENT = "pro";
 export const REVENUECAT_OFFERING_ID = "default";
 
 export const REVENUECAT_PRODUCT_IDS = {
-  monthly: "monthly",
-  yearly: "yearly",
+  monthly: "fitfo_premium_monthly",
+  yearly: "fitfo_premium_annual",
 } as const;
 
 let configuredUserId: string | null = null;
@@ -50,7 +50,8 @@ export function getRevenueCatSdkApiKey(): string {
   }
   return (
     readExtraKey("revenueCatAppleApiKey") ||
-    (process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY ?? "").trim()
+    (process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY ?? "").trim() ||
+    (process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ?? "").trim()
   );
 }
 
@@ -271,9 +272,27 @@ export async function presentFitfoPaywallIfNeeded() {
   };
 }
 
-export async function presentRevenueCatCustomerCenter() {
+/**
+ * Present the RevenueCat-native customer center (manage / restore / cancel).
+ * Returns `true` when the sheet was actually shown, so callers can fall back
+ * to Apple's subscription management URL in Expo Go / dev builds without the
+ * SDK linked.
+ */
+export async function presentRevenueCatCustomerCenter(): Promise<boolean> {
   if (!isRevenueCatNativePaywallSupported() || !isRevenueCatSdkAvailable()) {
-    return;
+    return false;
   }
   await RevenueCatUI.presentCustomerCenter();
+  return true;
 }
+
+/**
+ * Apple's native subscription management page. Opens Settings → Apple ID →
+ * Subscriptions on iOS. Always available, no native modules required.
+ */
+export const APPLE_MANAGE_SUBSCRIPTIONS_URL =
+  "https://apps.apple.com/account/subscriptions";
+
+/** Android equivalent — Play Store subscription management. */
+export const PLAY_MANAGE_SUBSCRIPTIONS_URL =
+  "https://play.google.com/store/account/subscriptions";

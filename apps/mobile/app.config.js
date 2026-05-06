@@ -55,7 +55,9 @@ export default {
     extra: {
       posthogProjectToken: process.env.POSTHOG_PROJECT_TOKEN,
       posthogHost: process.env.POSTHOG_HOST,
-      revenueCatAppleApiKey: process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY,
+      revenueCatAppleApiKey:
+        process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY ||
+        process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY,
       revenueCatGoogleApiKey: process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY,
       eas: {
         projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,

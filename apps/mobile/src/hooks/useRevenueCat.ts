@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Linking, Platform } from "react-native";
 import Purchases, {
   type CustomerInfo,
   type PurchasesPackage,
@@ -6,12 +7,14 @@ import Purchases, {
 
 import { hasBillingBypassForUser } from "../lib/billingBypass";
 import {
+  APPLE_MANAGE_SUBSCRIPTIONS_URL,
   configureRevenueCat,
   getCustomerInfo,
   getRevenueCatErrorMessage,
   hasFitfoPro,
   isRevenueCatSdkAvailable,
   logOutRevenueCat,
+  PLAY_MANAGE_SUBSCRIPTIONS_URL,
   presentFitfoPaywallIfNeeded,
   presentRevenueCatCustomerCenter,
   purchasePackage,
@@ -252,16 +255,34 @@ export function useRevenueCat(profile: UserProfile | null) {
   }, [accountBypass]);
 
   const openCustomerCenter = useCallback(async () => {
-    if (REVENUECAT_SDK_DISABLED || accountBypass) {
-      return true;
-    }
-    if (!isRevenueCatSdkAvailable()) {
-      return false;
-    }
     setError(null);
 
+    const fallbackUrl =
+      Platform.OS === "android"
+        ? PLAY_MANAGE_SUBSCRIPTIONS_URL
+        : APPLE_MANAGE_SUBSCRIPTIONS_URL;
+
+    const openStoreFallback = async () => {
+      try {
+        await Linking.openURL(fallbackUrl);
+        return true;
+      } catch {
+        setError(
+          "Unable to open subscription management. Open Settings → Apple ID → Subscriptions to cancel.",
+        );
+        return false;
+      }
+    };
+
+    if (REVENUECAT_SDK_DISABLED || accountBypass || !isRevenueCatSdkAvailable()) {
+      return openStoreFallback();
+    }
+
     try {
-      await presentRevenueCatCustomerCenter();
+      const presented = await presentRevenueCatCustomerCenter();
+      if (!presented) {
+        return openStoreFallback();
+      }
       await refreshCustomerInfo();
       return true;
     } catch (customerCenterError) {
@@ -271,7 +292,7 @@ export function useRevenueCat(profile: UserProfile | null) {
           "Unable to open subscription management.",
         ),
       );
-      return false;
+      return openStoreFallback();
     }
   }, [refreshCustomerInfo, accountBypass]);
 

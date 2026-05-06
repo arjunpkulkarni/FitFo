@@ -11,13 +11,30 @@ interface TrialExplainerScreenProps {
   themeMode?: ThemeMode;
 }
 
-const TRIAL_HIGHLIGHTS: Array<{
+const TRIAL_TIMELINE: Array<{
   icon: keyof typeof Ionicons.glyphMap;
-  label: string;
+  marker: string;
+  title: string;
+  body: string;
 }> = [
-  { icon: "barbell-outline", label: "Unlimited workouts imported from TikTok & IG" },
-  { icon: "sparkles-outline", label: "AI coach that guides every session" },
-  { icon: "trending-up-outline", label: "Track every set, rep, and PR over time" },
+  {
+    icon: "lock-open-outline",
+    marker: "Today",
+    title: "Full access to Fitfo Pro, free.",
+    body: "Add your payment method to unlock the app. You won't be charged today.",
+  },
+  {
+    icon: "notifications-outline",
+    marker: "Day 5",
+    title: "We'll remind you before you're charged.",
+    body: "Apple sends a heads-up so the trial never sneaks up on you.",
+  },
+  {
+    icon: "card-outline",
+    marker: "Day 7",
+    title: "Trial ends. Subscription begins.",
+    body: "Cancel anytime in the first 7 days from Settings → Apple ID → Subscriptions and you won't be charged.",
+  },
 ];
 
 export function TrialExplainerScreen({
@@ -48,27 +65,31 @@ export function TrialExplainerScreen({
         />
       </View>
 
-      <Text style={styles.eyebrow}>Fitfo Pro</Text>
-      <Text style={styles.title}>Start your 7-day free trial</Text>
+      <Text style={styles.eyebrow}>Fitfo Pro · Required</Text>
+      <Text style={styles.title}>7 days free, then it&apos;s yours.</Text>
       <Text style={styles.body}>
-        Use Fitfo completely free for the next 7 days. Cancel anytime before
-        your trial ends and you won&apos;t be charged.
+        Fitfo is a paid app. Try every feature free for 7 days — payment method
+        required upfront so your access is uninterrupted when the trial ends.
       </Text>
 
       <View style={styles.benefits}>
-        {TRIAL_HIGHLIGHTS.map(({ icon, label }) => (
-          <View key={label} style={styles.benefitRow}>
-            <View style={styles.benefitIconWrap}>
+        {TRIAL_TIMELINE.map(({ icon, marker, title, body }) => (
+          <View key={marker} style={styles.timelineRow}>
+            <View style={styles.timelineIconWrap}>
               <Ionicons color={theme.colors.primary} name={icon} size={18} />
             </View>
-            <Text style={styles.benefitText}>{label}</Text>
+            <View style={styles.timelineTextWrap}>
+              <Text style={styles.timelineMarker}>{marker}</Text>
+              <Text style={styles.timelineTitle}>{title}</Text>
+              <Text style={styles.timelineBody}>{body}</Text>
+            </View>
           </View>
         ))}
       </View>
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Continue to subscription options"
+        accessibilityLabel="See plans and start your free trial"
         onPress={() => {
           posthog.capture("trial_explainer_continue");
           onContinue();
@@ -78,13 +99,14 @@ export function TrialExplainerScreen({
           pressed ? styles.primaryButtonPressed : null,
         ]}
       >
-        <Text style={styles.primaryButtonText}>Continue</Text>
+        <Text style={styles.primaryButtonText}>See plans</Text>
         <Ionicons color={theme.colors.surface} name="arrow-forward" size={18} />
       </Pressable>
 
       <Text style={styles.finePrint}>
-        Payments are processed by Apple. You can cancel or manage your
-        subscription any time from Settings → Apple ID → Subscriptions.
+        Payment is collected by Apple. Subscriptions auto-renew until cancelled
+        at least 24 hours before the end of the current period. Manage anytime
+        in Settings → Apple ID → Subscriptions.
       </Text>
     </View>
   );
@@ -142,37 +164,56 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       width: "100%",
       maxWidth: 360,
       marginTop: 6,
-      gap: 12,
+      gap: 10,
     },
-    benefitRow: {
+    timelineRow: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       gap: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
       borderRadius: 16,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.borderSoft,
     },
-    benefitIconWrap: {
-      width: 32,
-      height: 32,
+    timelineIconWrap: {
+      width: 34,
+      height: 34,
       alignItems: "center",
       justifyContent: "center",
       borderRadius: 12,
+      marginTop: 2,
       backgroundColor:
         theme.mode === "dark"
           ? "rgba(255, 111, 34, 0.16)"
           : "rgba(71, 88, 240, 0.12)",
     },
-    benefitText: {
+    timelineTextWrap: {
       flex: 1,
+      gap: 2,
+    },
+    timelineMarker: {
+      color: theme.colors.primary,
+      fontSize: 10.5,
+      fontFamily: "Satoshi-Black",
+      fontWeight: "900",
+      letterSpacing: 1.4,
+      textTransform: "uppercase",
+    },
+    timelineTitle: {
       color: theme.colors.textPrimary,
       fontSize: 14,
-      lineHeight: 20,
+      lineHeight: 19,
       fontFamily: "Satoshi-Bold",
-      fontWeight: "700",
+      fontWeight: "800",
+    },
+    timelineBody: {
+      color: theme.colors.textSecondary,
+      fontSize: 12.5,
+      lineHeight: 17,
+      fontFamily: "Satoshi-Medium",
+      fontWeight: "500",
     },
     primaryButton: {
       marginTop: 8,
