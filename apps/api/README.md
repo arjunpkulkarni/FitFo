@@ -37,7 +37,7 @@ Optional:
 - `OPENAI_PARSE_MODEL` to override the workout parser model, default `gpt-4.1-mini`
 - `OPENAI_VISION_MODEL` to override the OCR vision model, default `gpt-4.1-mini`
 - `ENABLE_FRAME_OCR` to disable frame OCR by setting it to `0`
-- `FITFO_PRO_BYPASS_USER_IDS`, `FITFO_PRO_BYPASS_EMAILS`, `FITFO_PRO_BYPASS_PHONES` (comma-, newline-, or semicolon-separated lists) so multiple team accounts get `fitfo_pro_bypass: true` in API responses. `support@fitfo.app` is allowlisted in code by default.
+- `FITFO_PRO_BYPASS_USER_IDS`, `FITFO_PRO_BYPASS_EMAILS`, `FITFO_PRO_BYPASS_PHONES` (comma-, newline-, or semicolon-separated lists) so listed team accounts get `fitfo_pro_bypass: true` in API responses. There is no in-code allowlist — if none of these env vars are set, every account is gated by the normal RevenueCat paywall.
 
 ## Database setup
 

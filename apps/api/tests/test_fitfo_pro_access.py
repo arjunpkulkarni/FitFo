@@ -1,8 +1,7 @@
-"""Tests for server-side Fitfo Pro bypass allowlist."""
+"""Tests for server-side Fitfo Pro bypass allowlist (env-driven only)."""
 
 import os
 import unittest
-from unittest.mock import patch
 
 from app.services import fitfo_pro_access
 
@@ -16,17 +15,22 @@ class FitfoProBypassTests(unittest.TestCase):
         ):
             os.environ.pop(key, None)
 
-    def test_default_support_email(self) -> None:
+    def test_no_env_no_bypass(self) -> None:
         profile = {
-            "id": "u1",
+            "id": "any-uuid",
             "email": "support@fitfo.app",
-            "phone": None,
+            "phone": "+19146597022",
         }
-        self.assertTrue(fitfo_pro_access.profile_has_fitfo_pro_bypass(profile))
+        self.assertFalse(fitfo_pro_access.profile_has_fitfo_pro_bypass(profile))
 
     def test_env_user_id(self) -> None:
         os.environ["FITFO_PRO_BYPASS_USER_IDS"] = "abc, def"
         profile = {"id": "def", "email": None, "phone": None}
+        self.assertTrue(fitfo_pro_access.profile_has_fitfo_pro_bypass(profile))
+
+    def test_env_email_case_insensitive(self) -> None:
+        os.environ["FITFO_PRO_BYPASS_EMAILS"] = "Person@Example.com"
+        profile = {"id": "x", "email": "person@example.com", "phone": None}
         self.assertTrue(fitfo_pro_access.profile_has_fitfo_pro_bypass(profile))
 
     def test_env_phone_normalized(self) -> None:
@@ -34,7 +38,7 @@ class FitfoProBypassTests(unittest.TestCase):
         profile = {"id": "x", "email": None, "phone": "+15550001111"}
         self.assertTrue(fitfo_pro_access.profile_has_fitfo_pro_bypass(profile))
 
-    def test_env_multiple_emails_newline(self) -> None:
+    def test_env_multiple_emails_newline_and_semicolon(self) -> None:
         os.environ["FITFO_PRO_BYPASS_EMAILS"] = "a@b.com\nc@d.com;e@f.com"
         for email in ("a@b.com", "c@d.com", "e@f.com"):
             profile = {"id": "x", "email": email, "phone": None}
@@ -44,36 +48,21 @@ class FitfoProBypassTests(unittest.TestCase):
             )
 
     def test_no_match(self) -> None:
+        os.environ["FITFO_PRO_BYPASS_EMAILS"] = "allowed@x.com"
         profile = {"id": "other", "email": "a@b.com", "phone": "+1999"}
         self.assertFalse(fitfo_pro_access.profile_has_fitfo_pro_bypass(profile))
 
-    def test_hardcoded_arjun_email(self) -> None:
-        profile = {
-            "id": "not-in-list",
-            "email": "arjunpkulkarni@gmail.com",
-            "phone": None,
-        }
-        self.assertTrue(fitfo_pro_access.profile_has_fitfo_pro_bypass(profile))
-
-    def test_hardcoded_founder_phone(self) -> None:
-        profile = {"id": "x", "email": None, "phone": "+19146597022"}
-        self.assertTrue(fitfo_pro_access.profile_has_fitfo_pro_bypass(profile))
-
-    def test_hardcoded_user_id(self) -> None:
-        profile = {"id": "hardcoded-uuid", "email": None, "phone": None}
-        with patch.object(
-            fitfo_pro_access,
-            "_HARDCODED_BYPASS_USER_IDS",
-            frozenset({"hardcoded-uuid"}),
-        ):
-            self.assertTrue(fitfo_pro_access.profile_has_fitfo_pro_bypass(profile))
-        self.assertFalse(fitfo_pro_access.profile_has_fitfo_pro_bypass(profile))
-
     def test_embed_adds_flag(self) -> None:
-        profile = {"id": "u", "email": "support@fitfo.app"}
+        os.environ["FITFO_PRO_BYPASS_EMAILS"] = "u@x.com"
+        profile = {"id": "u", "email": "u@x.com"}
         out = fitfo_pro_access.embed_fitfo_pro_bypass(profile)
         self.assertTrue(out["fitfo_pro_bypass"])
         self.assertNotIn("fitfo_pro_bypass", profile)
+
+    def test_embed_adds_false_when_not_listed(self) -> None:
+        profile = {"id": "u", "email": "u@x.com"}
+        out = fitfo_pro_access.embed_fitfo_pro_bypass(profile)
+        self.assertFalse(out["fitfo_pro_bypass"])
 
 
 if __name__ == "__main__":
