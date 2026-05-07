@@ -459,6 +459,10 @@ Notifications.setNotificationHandler({
 // scheduled-workout reminders.
 
 export const INGESTION_READY_NOTIFICATION_KIND = "ingestion-ready";
+// Lifecycle pushes from the server. App.tsx routes the pre-charge tap into
+// the RC Customer Center; the converted push is informational only.
+export const TRIAL_PRE_CHARGE_NOTIFICATION_KIND = "trial-pre-charge-48h";
+export const TRIAL_CONVERTED_NOTIFICATION_KIND = "trial-converted";
 
 export interface NotifyWorkoutReadyArgs {
   title: string;

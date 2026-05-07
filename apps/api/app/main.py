@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -19,9 +20,24 @@ from app.routers import (
     jobs,
     saved_workouts,
     scheduled_workouts,
+    webhooks,
 )
+from app.services import notification_scheduler
 
-app = FastAPI(title="LiftSync API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Trial / conversion push notifications run in-process via APScheduler.
+    # Single API instance today; if you scale to >1 worker, add a DB-backed
+    # advisory lock around fire_* or move to Celery beat — schema unchanged.
+    notification_scheduler.start_scheduler()
+    try:
+        yield
+    finally:
+        notification_scheduler.shutdown_scheduler()
+
+
+app = FastAPI(title="LiftSync API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,6 +63,7 @@ app.include_router(body_weight.router)
 app.include_router(scheduled_workouts.router)
 app.include_router(admin_corpus.router)
 app.include_router(chat.router)
+app.include_router(webhooks.router)
 
 
 @app.get("/health")

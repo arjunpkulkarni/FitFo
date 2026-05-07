@@ -114,6 +114,7 @@ import {
 import * as Notifications from "expo-notifications";
 import {
   INGESTION_READY_NOTIFICATION_KIND,
+  TRIAL_PRE_CHARGE_NOTIFICATION_KIND,
   cancelWorkoutReminder,
   getAutoNotifyImportsPreference,
   notifyWorkoutReady,
@@ -719,7 +720,9 @@ export default function App() {
     [cancelPendingAddWorkoutCleanup],
   );
 
-  // Cold start: user opened the app by tapping an import-ready push.
+  // Cold start: user opened the app by tapping an import-ready or trial
+  // lifecycle push. Each `kind` routes to its own handler — the import case
+  // pops the AddWorkoutModal, the 48h pre-charge case opens Manage Subscription.
   useEffect(() => {
     if (
       !isAuthReady ||
@@ -743,12 +746,23 @@ export default function App() {
       ) {
         handledImportLaunchNotificationRef.current = true;
         handleReopenImportFromNotification(raw.jobId.trim());
+        return;
+      }
+      if (raw?.kind === TRIAL_PRE_CHARGE_NOTIFICATION_KIND) {
+        handledImportLaunchNotificationRef.current = true;
+        void revenueCat.openCustomerCenter();
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [isAuthReady, accessToken, currentUser?.id, handleReopenImportFromNotification]);
+  }, [
+    isAuthReady,
+    accessToken,
+    currentUser?.id,
+    handleReopenImportFromNotification,
+    revenueCat,
+  ]);
 
   // Load the persisted auto-notify preference once on mount.
   useEffect(() => {
@@ -763,10 +777,9 @@ export default function App() {
     };
   }, []);
 
-  // One-shot listener: when the user taps the import-ready notification, hop
-  // back into the AddWorkoutModal preview card. Other notification kinds
-  // (scheduled-workout reminders) just open the app and rely on the existing
-  // saved/scheduled flows so nothing else needs to fan out from here.
+  // Foreground tap routing. Import-ready → AddWorkoutModal preview card.
+  // Trial 48h pre-charge → RC Customer Center (Apple subscription page on
+  // fallback). Scheduled-workout reminders fall through to the no-op default.
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
@@ -776,11 +789,15 @@ export default function App() {
         if (data?.kind === INGESTION_READY_NOTIFICATION_KIND) {
           const jid = typeof data.jobId === "string" ? data.jobId : null;
           handleReopenImportFromNotification(jid);
+          return;
+        }
+        if (data?.kind === TRIAL_PRE_CHARGE_NOTIFICATION_KIND) {
+          void revenueCat.openCustomerCenter();
         }
       },
     );
     return () => subscription.remove();
-  }, [handleReopenImportFromNotification]);
+  }, [handleReopenImportFromNotification, revenueCat]);
 
   useEffect(
     () => () => {
