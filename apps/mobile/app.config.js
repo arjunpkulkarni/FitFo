@@ -57,7 +57,8 @@ export default {
       posthogHost: process.env.POSTHOG_HOST,
       revenueCatAppleApiKey:
         process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY ||
-        process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY,
+        process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ||
+        process.env.EXPO_PUBLIC_RC_API_KEY,
       revenueCatGoogleApiKey: process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY,
       eas: {
         projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,

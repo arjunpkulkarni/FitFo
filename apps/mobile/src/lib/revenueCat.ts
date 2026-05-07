@@ -50,6 +50,7 @@ export function getRevenueCatSdkApiKey(): string {
   }
   return (
     readExtraKey("revenueCatAppleApiKey") ||
+    (process.env.EXPO_PUBLIC_RC_API_KEY ?? "").trim() ||
     (process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY ?? "").trim() ||
     (process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ?? "").trim()
   );
