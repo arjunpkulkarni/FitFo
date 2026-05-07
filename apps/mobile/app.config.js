@@ -16,7 +16,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.fitfo.mobile",
-      buildNumber: "20",
+      buildNumber: "21",
       icon: "./assets/icon.png",
       usesAppleSignIn: true,
     },

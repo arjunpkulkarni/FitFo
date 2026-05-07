@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -26,12 +26,6 @@ const TERMS_URL = "https://www.fitfo.app/terms";
 const PRIVACY_URL = "https://www.fitfo.app/privacy";
 
 const TRIAL_DAYS = 7;
-
-/** Marketing fallbacks shown only until App Store pricing is loaded. */
-const MARKETING_ANNUAL_USD = 39.99;
-const MARKETING_ANNUAL_PRICE_LINE = "$39.99";
-const MARKETING_MONTHLY_USD = 5.99;
-const MARKETING_MONTHLY_PRICE_LINE = "$5.99";
 
 const BENEFITS: ReadonlyArray<string> = [
   "Import workouts from TikTok & Instagram in seconds",
@@ -127,84 +121,86 @@ export function PaywallScreen({
     posthog.capture("paywall_viewed");
   }, [posthog]);
 
-  // Fetch live App Store pricing via RevenueCat. Marketing fallbacks shown until this resolves.
-  useEffect(() => {
+  // Fetch live App Store pricing via RevenueCat. Extracted so the "Retry"
+  // button below can re-run it without remounting the screen.
+  const loadPackages = useCallback(async () => {
     if (!sdkOk) {
       return;
     }
-
-    let cancelled = false;
     setOfferingLoading(true);
+    try {
+      const {
+        annualPackage: nextAnnualPackage,
+        monthlyPackage: nextMonthlyPackage,
+      } = await getPaywallPackages();
 
-    void (async () => {
-      try {
-        const {
-          annualPackage: nextAnnualPackage,
-          monthlyPackage: nextMonthlyPackage,
-        } = await getPaywallPackages();
-        if (cancelled || (!nextAnnualPackage && !nextMonthlyPackage)) {
-          return;
-        }
+      const aProduct = nextAnnualPackage?.product as
+        | { priceString?: string; price?: unknown; currencyCode?: string }
+        | undefined;
+      const mProduct = nextMonthlyPackage?.product as
+        | { priceString?: string; price?: unknown; currencyCode?: string }
+        | undefined;
 
-        const aProduct = nextAnnualPackage?.product as
-          | { priceString?: string; price?: unknown; currencyCode?: string }
-          | undefined;
-        const mProduct = nextMonthlyPackage?.product as
-          | { priceString?: string; price?: unknown; currencyCode?: string }
-          | undefined;
-
-        if (cancelled) {
-          return;
-        }
-
-        setAnnualPackage(nextAnnualPackage);
-        setMonthlyPackage(nextMonthlyPackage);
-        setAnnualPriceString(aProduct?.priceString ?? null);
-        setMonthlyPriceString(mProduct?.priceString ?? null);
-        setAnnualAmount(toPriceNumber(aProduct?.price));
-        setMonthlyAmount(toPriceNumber(mProduct?.price));
-        const cc = aProduct?.currencyCode ?? mProduct?.currencyCode ?? "USD";
-        setCurrencyCode(cc);
-      } catch {
-        if (!cancelled) {
-          setAnnualPackage(null);
-          setMonthlyPackage(null);
-          setAnnualPriceString(null);
-          setMonthlyPriceString(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setOfferingLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+      setAnnualPackage(nextAnnualPackage);
+      setMonthlyPackage(nextMonthlyPackage);
+      setAnnualPriceString(aProduct?.priceString ?? null);
+      setMonthlyPriceString(mProduct?.priceString ?? null);
+      setAnnualAmount(toPriceNumber(aProduct?.price));
+      setMonthlyAmount(toPriceNumber(mProduct?.price));
+      const cc = aProduct?.currencyCode ?? mProduct?.currencyCode ?? "USD";
+      setCurrencyCode(cc);
+    } catch {
+      setAnnualPackage(null);
+      setMonthlyPackage(null);
+      setAnnualPriceString(null);
+      setMonthlyPriceString(null);
+      setAnnualAmount(null);
+      setMonthlyAmount(null);
+    } finally {
+      setOfferingLoading(false);
+    }
   }, [sdkOk]);
 
-  // Use App Store amounts when available so the per-month math + savings reflect the
-  // user's real localized price; otherwise fall back to the spec'd marketing prices.
-  const annualNumeric = annualAmount ?? MARKETING_ANNUAL_USD;
-  const monthlyNumeric = monthlyAmount ?? MARKETING_MONTHLY_USD;
-  const annualLine = annualPriceString ?? MARKETING_ANNUAL_PRICE_LINE;
-  const monthlyLine = monthlyPriceString ?? MARKETING_MONTHLY_PRICE_LINE;
+  useEffect(() => {
+    void loadPackages().catch(() => undefined);
+  }, [loadPackages]);
 
   const annualMonthlyEquiv = useMemo(() => {
-    return formatMoney(annualNumeric / 12, currencyCode);
-  }, [annualNumeric, currencyCode]);
+    if (annualAmount == null) {
+      return null;
+    }
+    return formatMoney(annualAmount / 12, currencyCode);
+  }, [annualAmount, currencyCode]);
 
   const savingsPercent = useMemo(() => {
-    if (annualNumeric <= 0 || monthlyNumeric <= 0) {
+    if (annualAmount == null || monthlyAmount == null) {
       return null;
     }
-    const annualIfMonthly = monthlyNumeric * 12;
-    if (annualIfMonthly <= annualNumeric) {
+    if (annualAmount <= 0 || monthlyAmount <= 0) {
       return null;
     }
-    return Math.max(0, Math.min(99, Math.round((1 - annualNumeric / annualIfMonthly) * 100)));
-  }, [annualNumeric, monthlyNumeric]);
+    const annualIfMonthly = monthlyAmount * 12;
+    if (annualIfMonthly <= annualAmount) {
+      return null;
+    }
+    return Math.max(0, Math.min(99, Math.round((1 - annualAmount / annualIfMonthly) * 100)));
+  }, [annualAmount, monthlyAmount]);
+
+  // After the fetch settles, true when neither plan resolved to a real package.
+  // Drives the "Pricing unavailable" copy + Retry affordance so users (and
+  // future-us debugging this screen) immediately know the App Store offering
+  // didn't load, instead of staring at marketing fallback numbers.
+  const pricingFailedToLoad =
+    sdkOk && !offeringLoading && !annualPackage && !monthlyPackage;
+
+  const pricingUnavailableTracked = useRef(false);
+  useEffect(() => {
+    if (!pricingFailedToLoad || pricingUnavailableTracked.current) {
+      return;
+    }
+    pricingUnavailableTracked.current = true;
+    posthog.capture("paywall_pricing_unavailable");
+  }, [pricingFailedToLoad, posthog]);
 
   const trialEndLabel = useMemo(() => formatTrialEndDate(TRIAL_DAYS), []);
 
@@ -301,14 +297,32 @@ export function PaywallScreen({
     }
   };
 
-  const ctaLabel =
-    selectedPlan === "annual"
-      ? "Start 7-day free trial"
-      : `Subscribe · ${monthlyLine}/month`;
-  const ctaSubLabel =
-    selectedPlan === "annual"
-      ? `Then ${annualLine}/year on ${trialEndLabel}`
-      : "Renews monthly until cancelled";
+  const ctaLabel = (() => {
+    if (!selectedPackage) {
+      if (offeringLoading) {
+        return "Loading App Store pricing…";
+      }
+      return "Pricing unavailable";
+    }
+    if (selectedPlan === "annual") {
+      return "Start 7-day free trial";
+    }
+    return monthlyPriceString
+      ? `Subscribe · ${monthlyPriceString}/month`
+      : "Subscribe";
+  })();
+
+  const ctaSubLabel = (() => {
+    if (!selectedPackage) {
+      return null;
+    }
+    if (selectedPlan === "annual") {
+      return annualPriceString
+        ? `Then ${annualPriceString}/year on ${trialEndLabel}`
+        : null;
+    }
+    return "Renews monthly until cancelled";
+  })();
 
   if (purchaseSucceeded) {
     return (
@@ -399,6 +413,40 @@ export function PaywallScreen({
         </View>
       ) : null}
 
+      {pricingFailedToLoad ? (
+        <View style={styles.pricingErrorBlock}>
+          <Ionicons
+            color={theme.colors.error}
+            name="alert-circle-outline"
+            size={16}
+          />
+          <Text style={styles.pricingErrorText}>
+            Pricing unavailable. The App Store didn&apos;t return your
+            subscription options. Try again, or contact support if this keeps
+            happening.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading App Store pricing"
+            disabled={offeringLoading}
+            onPress={() => {
+              void loadPackages();
+            }}
+            style={({ pressed }) => [
+              styles.pricingRetryButton,
+              pressed ? styles.pricingRetryButtonPressed : null,
+            ]}
+          >
+            <Ionicons
+              color={theme.colors.primary}
+              name="refresh"
+              size={14}
+            />
+            <Text style={styles.pricingRetryText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       <View style={styles.plans}>
@@ -435,13 +483,28 @@ export function PaywallScreen({
             </View>
             <View style={styles.planTextBlock}>
               <Text style={styles.planName}>Annual</Text>
-              <Text style={styles.planPriceLarge}>
-                {annualMonthlyEquiv}
-                <Text style={styles.planPricePeriod}>/month</Text>
-              </Text>
-              <Text style={styles.planSubLabel}>
-                {annualLine} billed annually
-              </Text>
+              {annualPackage && annualMonthlyEquiv && annualPriceString ? (
+                <>
+                  <Text style={styles.planPriceLarge}>
+                    {annualMonthlyEquiv}
+                    <Text style={styles.planPricePeriod}>/month</Text>
+                  </Text>
+                  <Text style={styles.planSubLabel}>
+                    {annualPriceString} billed annually
+                  </Text>
+                </>
+              ) : offeringLoading ? (
+                <Text style={styles.planSubLabel}>Loading App Store price…</Text>
+              ) : (
+                <>
+                  <Text style={[styles.planPriceLarge, styles.planPriceUnavailable]}>
+                    —
+                  </Text>
+                  <Text style={[styles.planSubLabel, styles.planSubLabelUnavailable]}>
+                    Pricing unavailable
+                  </Text>
+                </>
+              )}
             </View>
           </View>
         </Pressable>
@@ -465,52 +528,72 @@ export function PaywallScreen({
             </View>
             <View style={styles.planTextBlock}>
               <Text style={styles.planName}>Monthly</Text>
-              <Text style={styles.planPriceLarge}>
-                {monthlyLine}
-                <Text style={styles.planPricePeriod}>/month</Text>
-              </Text>
-              <Text style={styles.planSubLabel}>Billed every month</Text>
+              {monthlyPackage && monthlyPriceString ? (
+                <>
+                  <Text style={styles.planPriceLarge}>
+                    {monthlyPriceString}
+                    <Text style={styles.planPricePeriod}>/month</Text>
+                  </Text>
+                  <Text style={styles.planSubLabel}>Billed every month</Text>
+                </>
+              ) : offeringLoading ? (
+                <Text style={styles.planSubLabel}>Loading App Store price…</Text>
+              ) : (
+                <>
+                  <Text style={[styles.planPriceLarge, styles.planPriceUnavailable]}>
+                    —
+                  </Text>
+                  <Text style={[styles.planSubLabel, styles.planSubLabelUnavailable]}>
+                    Pricing unavailable
+                  </Text>
+                </>
+              )}
             </View>
           </View>
         </Pressable>
       </View>
 
       {/* Apple Guideline 3.1.2(a) trial disclosure: length, post-trial price, billing date. */}
-      <View style={styles.trialBlock}>
-        {selectedPlan === "annual" ? (
-          <>
-            <Text style={styles.trialPrimary}>
-              {TRIAL_DAYS} days free, then {annualLine}/year.
-            </Text>
-            <Text style={styles.trialSecondary}>
-              Cancel anytime in the first {TRIAL_DAYS} days and you won&apos;t
-              be charged.
-            </Text>
-            <Text style={styles.trialSecondary}>
-              Free trial ends {trialEndLabel} (your billing date).
-            </Text>
-          </>
-        ) : (
-          <>
-            <Text style={styles.trialPrimary}>
-              {monthlyLine}/month, billed by Apple. Cancel anytime.
-            </Text>
-            <Text style={styles.trialSecondary}>
-              Renews automatically until you cancel from Settings → Apple ID →
-              Subscriptions.
-            </Text>
-          </>
-        )}
-      </View>
+      {selectedPackage ? (
+        <View style={styles.trialBlock}>
+          {selectedPlan === "annual" ? (
+            <>
+              <Text style={styles.trialPrimary}>
+                {TRIAL_DAYS} days free
+                {annualPriceString ? `, then ${annualPriceString}/year.` : "."}
+              </Text>
+              <Text style={styles.trialSecondary}>
+                Cancel anytime in the first {TRIAL_DAYS} days and you won&apos;t
+                be charged.
+              </Text>
+              <Text style={styles.trialSecondary}>
+                Free trial ends {trialEndLabel} (your billing date).
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.trialPrimary}>
+                {monthlyPriceString
+                  ? `${monthlyPriceString}/month, billed by Apple. Cancel anytime.`
+                  : "Billed monthly by Apple. Cancel anytime."}
+              </Text>
+              <Text style={styles.trialSecondary}>
+                Renews automatically until you cancel from Settings → Apple ID →
+                Subscriptions.
+              </Text>
+            </>
+          )}
+        </View>
+      ) : null}
 
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={ctaLabel}
-        disabled={busy}
+        disabled={busy || !selectedPackage}
         onPress={handlePurchase}
         style={({ pressed }) => [
           styles.cta,
-          busy ? styles.ctaDisabled : null,
+          busy || !selectedPackage ? styles.ctaDisabled : null,
           pressed ? styles.ctaPressed : null,
         ]}
       >
@@ -519,11 +602,15 @@ export function PaywallScreen({
         ) : (
           <>
             <Text style={styles.ctaText}>{ctaLabel}</Text>
-            <Ionicons color={theme.colors.surface} name="arrow-forward" size={18} />
+            {selectedPackage ? (
+              <Ionicons color={theme.colors.surface} name="arrow-forward" size={18} />
+            ) : null}
           </>
         )}
       </Pressable>
-      <Text style={styles.ctaSubLabel}>{ctaSubLabel}</Text>
+      {ctaSubLabel ? (
+        <Text style={styles.ctaSubLabel}>{ctaSubLabel}</Text>
+      ) : null}
 
       <View style={styles.footerRow}>
         <Pressable
@@ -793,6 +880,57 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       lineHeight: 18,
       fontFamily: "Satoshi-Medium",
       fontWeight: "500",
+    },
+    planPriceUnavailable: {
+      color: theme.colors.textMuted,
+    },
+    planSubLabelUnavailable: {
+      color: theme.colors.textMuted,
+      fontStyle: "italic",
+    },
+    pricingErrorBlock: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 14,
+      backgroundColor:
+        theme.mode === "dark"
+          ? "rgba(255, 80, 60, 0.10)"
+          : "rgba(255, 80, 60, 0.08)",
+      borderWidth: 1,
+      borderColor:
+        theme.mode === "dark"
+          ? "rgba(255, 80, 60, 0.32)"
+          : "rgba(255, 80, 60, 0.24)",
+    },
+    pricingErrorText: {
+      flex: 1,
+      color: theme.colors.textPrimary,
+      fontSize: 12.5,
+      lineHeight: 17,
+      fontFamily: "Satoshi-Medium",
+      fontWeight: "500",
+    },
+    pricingRetryButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: theme.colors.primary,
+    },
+    pricingRetryButtonPressed: {
+      opacity: 0.8,
+    },
+    pricingRetryText: {
+      color: theme.colors.primary,
+      fontSize: 12.5,
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "800",
     },
     trialBlock: {
       gap: 4,

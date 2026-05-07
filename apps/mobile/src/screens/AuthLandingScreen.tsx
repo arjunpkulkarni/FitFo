@@ -2,6 +2,7 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef, 
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -289,11 +290,21 @@ export function AuthLandingScreen({
     }
     const next = Math.round(event.nativeEvent.contentOffset.x / width);
     if (next !== activeIndex) {
+      // Dismiss any keyboard left over from the previous slide's TextInput
+      // (e.g. step 4 number-pad, step 8 phone-pad). Without this, iOS keeps
+      // the keyboard up over slides that don't have focused inputs.
+      Keyboard.dismiss();
       onChangeIndex(next);
     }
   };
 
-  const goTo = (index: number) => onChangeIndex(Math.max(0, Math.min(index, AUTH_SLIDE_INDEX)));
+  const goTo = (index: number) => {
+    const clamped = Math.max(0, Math.min(index, AUTH_SLIDE_INDEX));
+    if (clamped !== activeIndex) {
+      Keyboard.dismiss();
+    }
+    onChangeIndex(clamped);
+  };
   const next = () => goTo(activeIndex + 1);
   const back = () => goTo(activeIndex - 1);
 
