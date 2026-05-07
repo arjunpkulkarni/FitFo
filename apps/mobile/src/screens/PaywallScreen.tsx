@@ -305,7 +305,7 @@ export function PaywallScreen({
       return "Pricing unavailable";
     }
     if (selectedPlan === "annual") {
-      return "Start 7-day free trial";
+      return "Try 7 days completely free";
     }
     return monthlyPriceString
       ? `Subscribe · ${monthlyPriceString}/month`
@@ -338,7 +338,7 @@ export function PaywallScreen({
         <Text style={styles.successTitle}>Welcome to Fitfo.</Text>
         <Text style={styles.successBody}>
           {selectedPlan === "annual"
-            ? `Your 7-day free trial is active. Cancel anytime before ${trialEndLabel} and you won't be charged.`
+            ? `Your 7 days completely free have started. Cancel anytime before ${trialEndLabel} and you won't be charged a cent.`
             : "Your subscription is active. Let's get to work."}
         </Text>
 
@@ -559,12 +559,12 @@ export function PaywallScreen({
           {selectedPlan === "annual" ? (
             <>
               <Text style={styles.trialPrimary}>
-                {TRIAL_DAYS} days free
+                {TRIAL_DAYS} days completely free
                 {annualPriceString ? `, then ${annualPriceString}/year.` : "."}
               </Text>
               <Text style={styles.trialSecondary}>
-                Cancel anytime in the first {TRIAL_DAYS} days and you won&apos;t
-                be charged.
+                You won&apos;t be charged a cent during your {TRIAL_DAYS}-day
+                free trial. Cancel anytime before it ends.
               </Text>
               <Text style={styles.trialSecondary}>
                 Free trial ends {trialEndLabel} (your billing date).

@@ -133,8 +133,29 @@ export async function getCustomerInfo() {
 }
 
 export async function getCurrentOffering(): Promise<PurchasesOffering | null> {
-  const offerings = await Purchases.getOfferings();
-  return offerings.current ?? offerings.all[REVENUECAT_OFFERING_ID] ?? null;
+  try {
+    const offerings = await Purchases.getOfferings();
+    // TEMP DEBUG — remove once paywall pricing is confirmed working in dev/sandbox.
+    // eslint-disable-next-line no-console
+    console.log("[RC DEBUG] getOfferings →", JSON.stringify({
+      currentIdentifier: offerings.current?.identifier ?? null,
+      currentPackageCount: offerings.current?.availablePackages.length ?? 0,
+      currentAnnualProduct: offerings.current?.annual?.product.identifier ?? null,
+      currentMonthlyProduct: offerings.current?.monthly?.product.identifier ?? null,
+      allOfferingIds: Object.keys(offerings.all),
+      defaultOfferingPackages:
+        offerings.all[REVENUECAT_OFFERING_ID]?.availablePackages.map((p) => ({
+          id: p.identifier,
+          productId: p.product.identifier,
+          priceString: p.product.priceString,
+        })) ?? null,
+    }, null, 2));
+    return offerings.current ?? offerings.all[REVENUECAT_OFFERING_ID] ?? null;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.log("[RC DEBUG] getOfferings threw →", error);
+    throw error;
+  }
 }
 
 export function getPackageByProductId(

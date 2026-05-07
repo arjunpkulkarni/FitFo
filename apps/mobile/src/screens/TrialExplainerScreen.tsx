@@ -20,8 +20,8 @@ const TRIAL_TIMELINE: Array<{
   {
     icon: "lock-open-outline",
     marker: "Today",
-    title: "Full access to Fitfo Pro, free.",
-    body: "Add your payment method to unlock the app. You won't be charged today.",
+    title: "Full access to Fitfo Pro, completely free.",
+    body: "Add your payment method to unlock the app. You won't be charged a cent for the next 7 days.",
   },
   {
     icon: "notifications-outline",
@@ -66,10 +66,11 @@ export function TrialExplainerScreen({
       </View>
 
       <Text style={styles.eyebrow}>Fitfo Pro · Required</Text>
-      <Text style={styles.title}>7 days free, then it&apos;s yours.</Text>
+      <Text style={styles.title}>7 days completely free.</Text>
       <Text style={styles.body}>
-        Fitfo is a paid app. Try every feature free for 7 days — payment method
-        required upfront so your access is uninterrupted when the trial ends.
+        Fitfo is a paid app. Try every feature completely free for 7 days —
+        payment method required upfront so your access is uninterrupted when
+        the trial ends.
       </Text>
 
       <View style={styles.benefits}>
