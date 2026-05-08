@@ -20,9 +20,33 @@ const AUTO_NOTIFY_IMPORTS_STORAGE_KEY = "@fitfo:auto-notify-imports";
 const DAY_BEFORE_REMINDER_HOUR_24H = 19;
 const DAY_OF_REMINDER_HOUR_24H = 7;
 
+// Expo local notifications on Android require a channel. Without one, scheduled
+// notifications can be created but never visibly delivered.
+// We intentionally use the built-in `default` channelId so we don't need to
+// thread channel IDs through the notification content types (our current
+// `expo-notifications` typings don't expose an `android` field).
+const REMINDER_NOTIFICATION_CHANNEL_ID = "default";
+const REMINDER_NOTIFICATION_CHANNEL_NAME = "Fitfo workout reminders";
+
 let permissionState: "unknown" | "granted" | "denied" = "unknown";
 
 type NotificationMap = Record<string, string[]>;
+
+async function ensureReminderNotificationChannel(): Promise<void> {
+  try {
+    // Only meaningful on Android; harmless on iOS.
+    await Notifications.setNotificationChannelAsync(REMINDER_NOTIFICATION_CHANNEL_ID, {
+      name: REMINDER_NOTIFICATION_CHANNEL_NAME,
+      importance: Notifications.AndroidImportance.MAX,
+      sound: "default",
+      // A simple vibration pattern for attention without being too aggressive.
+      vibrationPattern: [0, 250, 250, 250],
+    });
+  } catch {
+    // Best-effort: if channel setup fails, scheduled reminders may still work
+    // depending on platform/Expo defaults.
+  }
+}
 
 async function readNotificationMap(): Promise<NotificationMap> {
   try {
@@ -98,6 +122,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
     const existing = await Notifications.getPermissionsAsync();
     if (existing.granted) {
       permissionState = "granted";
+      void ensureReminderNotificationChannel();
       return true;
     }
     if (!existing.canAskAgain) {
@@ -118,6 +143,9 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
     const requested = await Notifications.requestPermissionsAsync();
     permissionState = requested.granted ? "granted" : "denied";
+    if (requested.granted) {
+      await ensureReminderNotificationChannel();
+    }
     return requested.granted;
   } catch {
     permissionState = "denied";

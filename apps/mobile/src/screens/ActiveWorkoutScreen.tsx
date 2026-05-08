@@ -42,6 +42,10 @@ interface ActiveWorkoutScreenProps {
   /** Lifted coach transcript so reopening from the Logs tab retains memory. */
   coachMessages: CoachChatMessage[];
   setCoachMessages: Dispatch<SetStateAction<CoachChatMessage[]>>;
+  /** One-time coach spotlight: measure the coach button so parent can highlight it. */
+  onCoachButtonMeasured?: (rect: { x: number; y: number; width: number; height: number } | null) => void;
+  /** When this increments, open the coach sheet programmatically. */
+  coachOpenRequestId?: number;
   hubTourStep?: "active_scroll" | "finish_workout" | null;
   onHubTourFinishButtonMeasured?: (rect: {
     x: number;
@@ -847,6 +851,8 @@ export function ActiveWorkoutScreen({
   onFinish,
   coachMessages,
   setCoachMessages,
+  onCoachButtonMeasured,
+  coachOpenRequestId = 0,
   hubTourStep = null,
   onHubTourFinishButtonMeasured,
   onHubTourListViewportMeasured,
@@ -859,6 +865,8 @@ export function ActiveWorkoutScreen({
   const styles = createStyles(theme);
   const listViewportRef = useRef<View | null>(null);
   const finishButtonRef = useRef<View | null>(null);
+  const coachButtonRef = useRef<View | null>(null);
+  const lastCoachOpenRequestIdRef = useRef(0);
   const previousCompletedSetCountRef = useRef(0);
   const lastElapsedTickRef = useRef(Date.now());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -875,6 +883,16 @@ export function ActiveWorkoutScreen({
   const [coachOpen, setCoachOpen] = useState(false);
 
   useEffect(() => {
+    if (coachOpenRequestId === lastCoachOpenRequestIdRef.current) {
+      return;
+    }
+    lastCoachOpenRequestIdRef.current = coachOpenRequestId;
+    if (coachOpenRequestId > 0) {
+      setCoachOpen(true);
+    }
+  }, [coachOpenRequestId]);
+
+  useEffect(() => {
     setExercises(session.exercises);
     setExpandedExerciseId(session.exercises[0]?.id || null);
     setSelectedSet(null);
@@ -884,6 +902,24 @@ export function ActiveWorkoutScreen({
     setIsTimerPaused(false);
     lastElapsedTickRef.current = Date.now();
   }, [session]);
+
+  const measureCoachButton = useCallback(() => {
+    if (!onCoachButtonMeasured) {
+      return;
+    }
+    coachButtonRef.current?.measureInWindow?.((x, y, width, height) => {
+      if (
+        !Number.isFinite(x) ||
+        !Number.isFinite(y) ||
+        !Number.isFinite(width) ||
+        !Number.isFinite(height)
+      ) {
+        onCoachButtonMeasured(null);
+        return;
+      }
+      onCoachButtonMeasured({ x, y, width, height });
+    });
+  }, [onCoachButtonMeasured]);
 
   const measureListViewport = useCallback(() => {
     if (!onHubTourListViewportMeasured) {
@@ -1559,6 +1595,12 @@ export function ActiveWorkoutScreen({
               />
               <Pressable
                 onPress={() => setCoachOpen(true)}
+                ref={(node) => {
+                  coachButtonRef.current = node;
+                }}
+                onLayout={() => {
+                  measureCoachButton();
+                }}
                 style={({ pressed }) => [
                   styles.coachButton,
                   pressed && styles.coachButtonPressed,

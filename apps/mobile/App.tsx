@@ -193,6 +193,10 @@ function getStoreReviewPromptStorageKey(userId: string) {
   return `@fitfo/store-review-prompted/${userId}`;
 }
 
+function getCoachCoachmarkStorageKey(userId: string) {
+  return `@fitfo:coach-coachmark-shown:${userId}`;
+}
+
 function getWorkoutCompletionRatio(session: ActiveSessionPreview) {
   const totalSetCount = session.exercises.reduce(
     (count, exercise) => count + exercise.sets.length,
@@ -339,6 +343,13 @@ export default function App() {
   const [hubTourStep, setHubTourStep] = useState<HubTourStep | null>(null);
   const [hubTourCoachRect, setHubTourCoachRect] = useState<CoachmarkRect | null>(null);
   const hubTourStepRef = useRef<HubTourStep | null>(null);
+
+  // One-time overlay teaching users where the AI Coach button lives.
+  const [coachCoachmarkVisible, setCoachCoachmarkVisible] = useState(false);
+  const [coachCoachmarkRect, setCoachCoachmarkRect] =
+    useState<CoachmarkRect | null>(null);
+  const [coachOpenRequestId, setCoachOpenRequestId] = useState(0);
+  const coachCoachmarkHydratedRef = useRef(false);
 
   /** Calendar + upcoming only show rows still waiting to be trained. */
   const upcomingScheduledRows = useMemo(
@@ -1004,6 +1015,33 @@ export default function App() {
   }, [hubTourStep]);
 
   useEffect(() => {
+    if (!currentUser?.id || !activeSession || !isActiveWorkoutVisible) {
+      coachCoachmarkHydratedRef.current = false;
+      setCoachCoachmarkVisible(false);
+      setCoachCoachmarkRect(null);
+      return;
+    }
+    if (coachCoachmarkHydratedRef.current) {
+      return;
+    }
+    coachCoachmarkHydratedRef.current = true;
+    void (async () => {
+      try {
+        const done = await AsyncStorage.getItem(
+          getCoachCoachmarkStorageKey(currentUser.id),
+        );
+        if (done === "1") {
+          setCoachCoachmarkVisible(false);
+          return;
+        }
+        setCoachCoachmarkVisible(true);
+      } catch {
+        setCoachCoachmarkVisible(true);
+      }
+    })();
+  }, [activeSession, currentUser?.id, isActiveWorkoutVisible]);
+
+  useEffect(() => {
     if (!currentUser?.id || !hubTourStep) {
       return;
     }
@@ -1109,9 +1147,6 @@ export default function App() {
     if (!accessToken || !currentUser?.onboarding) {
       return undefined;
     }
-    if (!hasBillingAccess || isBillingCheckPending) {
-      return undefined;
-    }
 
     let alive = true;
     void (async () => {
@@ -1129,7 +1164,14 @@ export default function App() {
         if (!alive) {
           return;
         }
-        if (!POST_SIGNUP_HUB_GUIDANCE_ENABLED) {
+        // Hub guidance (coachmarks + tip modal) remains opt-in and can be
+        // gated by billing access, but seeding starter workouts should happen
+        // for all onboarded users.
+        if (
+          !POST_SIGNUP_HUB_GUIDANCE_ENABLED ||
+          !hasBillingAccess ||
+          isBillingCheckPending
+        ) {
           setIsFirstHubTipVisible(false);
           setHubTourStep(null);
           setHubTourCoachRect(null);
@@ -2590,6 +2632,10 @@ export default function App() {
               return { ...prev, [activeCoachKey]: next };
             })
           }
+          coachOpenRequestId={coachOpenRequestId}
+          onCoachButtonMeasured={(rect) => {
+            setCoachCoachmarkRect(rect);
+          }}
           hubTourStep={
             POST_SIGNUP_HUB_GUIDANCE_ENABLED &&
             (hubTourStep === "active_scroll" || hubTourStep === "finish_workout")
@@ -3036,6 +3082,33 @@ export default function App() {
             <>
               <View style={styles.screenArea}>
                 {renderAuthenticatedScreen()}
+                <SavedWorkoutsCoachmark
+                  body="Tap here for cues, weight guidance, and substitutions during your workout."
+                  onTargetPress={() => {
+                    if (!currentUser?.id) {
+                      setCoachCoachmarkVisible(false);
+                      return;
+                    }
+                    setCoachCoachmarkVisible(false);
+                    void AsyncStorage.setItem(
+                      getCoachCoachmarkStorageKey(currentUser.id),
+                      "1",
+                    ).catch(() => undefined);
+                    setCoachOpenRequestId((value) => value + 1);
+                  }}
+                  rect={coachCoachmarkRect}
+                  themeMode={themeMode}
+                  title="AI Coach"
+                  visible={
+                    Boolean(
+                      currentUser?.id &&
+                        activeSession &&
+                        isActiveWorkoutVisible &&
+                        coachCoachmarkVisible &&
+                        coachCoachmarkRect,
+                    )
+                  }
+                />
                 <SavedWorkoutsCoachmark
                   body={hubTourCoachmarkCopy.body}
                   onTargetPress={hubTourCoachmarkTargetPress}

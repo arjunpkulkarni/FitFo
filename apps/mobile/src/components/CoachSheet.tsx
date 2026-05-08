@@ -118,7 +118,13 @@ export default function CoachSheet({
         },
       ]);
     } catch (exc) {
-      setError(exc instanceof ChatApiError ? exc.message : String(exc));
+      if (exc instanceof ChatApiError) {
+        setError(exc.message);
+      } else if (exc instanceof Error && exc.message) {
+        setError(exc.message);
+      } else {
+        setError("Coach is unavailable right now. Try again in a bit.");
+      }
     } finally {
       setPending(false);
     }
