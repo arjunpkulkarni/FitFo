@@ -428,6 +428,7 @@ async def _run_parsing(job_id: str, *, video_path: Path | None = None) -> None:
         on_screen_text=on_screen_text,
         caption=caption,
     )
+    plan = workout_parser.clean_plan_exercise_names(plan)
     user_id = str(job_row.get("user_id") or "").strip() if isinstance(job_row, dict) else ""
     if not user_id:
         raise IngestionPipelineError("Ingestion job is missing an owning user account")

@@ -416,11 +416,9 @@ export function AuthLandingScreen({
             </View>
             <View style={styles.bottomStack}>
               <PrimaryButton label="Build your first workout" onPress={next} />
+              <SecondaryButton label="Log in" onPress={() => onSelectMode("login")} />
               <Text style={styles.welcomeTrust}>Takes 10 seconds. Works with TikTok & Instagram.</Text>
               <Text style={styles.welcomeLegal}>By continuing you agree to our Terms & Privacy.</Text>
-              <Pressable onPress={() => onSelectMode("login")} style={styles.ghostTextButton}>
-                <Text style={styles.ghostText}>I already have an account</Text>
-              </Pressable>
             </View>
           </LinearGradient>
         </View>
@@ -971,6 +969,27 @@ function PrimaryButton({
   );
 }
 
+function SecondaryButton({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress: () => void;
+}) {
+  const { colors, styles } = useAuthTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Text style={styles.secondaryButtonText}>{label}</Text>
+      <Ionicons color={colors.text} name="log-in-outline" size={18} />
+    </Pressable>
+  );
+}
+
 function TikTokAction({
   icon,
   label,
@@ -1292,15 +1311,22 @@ function createAuthStyles(colors: AuthColors) {
     fontSize: 10,
     textAlign: "center",
   },
-  ghostTextButton: {
+  secondaryButton: {
+    flexDirection: "row",
     alignItems: "center",
-    minHeight: 38,
     justifyContent: "center",
+    gap: 10,
+    minHeight: 50,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "transparent",
+    paddingHorizontal: 16,
   },
-  ghostText: {
-    color: colors.textMuted,
+  secondaryButtonText: {
+    color: colors.text,
     fontFamily: F.bold,
-    fontSize: 14,
+    fontSize: 15,
   },
   stepSlide: {
     backgroundColor: colors.stepBackground,

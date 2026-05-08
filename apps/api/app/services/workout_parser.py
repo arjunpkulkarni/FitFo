@@ -35,12 +35,12 @@ Return a single JSON object with this exact shape:
       "name": "<block or round name if explicitly stated, else null>",
       "exercises": [
         {
-          "name": "<exercise name, as literally stated in any source>",
+          "name": "<exercise name only (no cues/tempo/setup); keep it short and canonical>",
           "sets": <integer, or null if not stated>,
           "reps": <integer, or null if not stated>,
           "duration_sec": <integer, or null if not stated>,
           "rest_sec": <integer, or null if not stated>,
-          "notes": "<verbatim cue from the sources, or null>"
+          "notes": "<verbatim cue from the sources (tempo/setup/modifiers like 'do weighted'), or null>"
         }
       ]
     }
@@ -68,6 +68,9 @@ mentioned, return [].
 on-screen text order for anything not already mentioned).
 - Do not combine, split, or rephrase exercises beyond minor capitalization and \
 trimming whitespace.
+- Exercise names must contain ONLY the exercise name. If sources include extra
+  cues/modifiers (tempo, pauses, setup, "do weighted", "each side", etc.),
+  put that information in the exercise "notes" field instead of the name.
 - workout_type should be chosen conservatively: use "other" if the sources do \
 not clearly indicate a category.
 - **Title:** When the **caption** (or another source) names the session, day, \
@@ -120,6 +123,135 @@ def _openai_api_key() -> str:
     if not key:
         raise WorkoutParserError("OPENAI_API_KEY is not set")
     return key
+
+
+_CUE_KEYWORDS = (
+    "tempo",
+    "pause",
+    "slow",
+    "controlled",
+    "strict",
+    "eccentric",
+    "concentric",
+    "isometric",
+    "hold",
+    "amrap",
+    "to failure",
+    "failure",
+    "weighted",
+    "bodyweight",
+    "bw",
+    "banded",
+    "superset",
+    "drop set",
+    "dropset",
+    "each side",
+    "per side",
+    "rpe",
+    "rir",
+)
+
+
+def _looks_like_cue(text: str) -> bool:
+    lowered = (text or "").strip().lower()
+    if not lowered:
+        return False
+    if lowered.startswith(("do ", "with ", "no ", "slow ", "pause ")):
+        return True
+    return any(keyword in lowered for keyword in _CUE_KEYWORDS)
+
+
+def _append_notes(existing: object, extra: str) -> str:
+    extra_clean = (extra or "").strip()
+    if not extra_clean:
+        return str(existing).strip() if isinstance(existing, str) else ""
+    if isinstance(existing, str) and existing.strip():
+        return f"{existing.strip()} • {extra_clean}"
+    return extra_clean
+
+
+def _split_name_and_cue(name: str) -> tuple[str, str | None]:
+    """
+    Conservative import-time cleanup: move obvious cue/modifier text out of
+    exercise names and into notes.
+    Examples:
+      "Pull-ups (do weighted)" -> ("Pull-ups", "do weighted")
+      "Hip thrust - pause at top" -> ("Hip thrust", "pause at top")
+    """
+    raw = (name or "").strip()
+    if not raw:
+        return "", None
+
+    paren = re.match(r"^(?P<base>.+?)\s*\((?P<cue>[^)]{2,80})\)\s*$", raw)
+    if paren:
+        base = (paren.group("base") or "").strip()
+        cue = (paren.group("cue") or "").strip()
+        if base and cue and _looks_like_cue(cue):
+            return base, cue
+
+    for sep in (" — ", " - ", ": "):
+        if sep in raw:
+            left, right = raw.split(sep, 1)
+            base = left.strip()
+            cue = right.strip()
+            if base and cue and len(cue) <= 80 and _looks_like_cue(cue):
+                return base, cue
+            break
+
+    return raw, None
+
+
+def clean_plan_exercise_names(plan: dict[str, Any]) -> dict[str, Any]:
+    """
+    Ensure exercise.name contains only the exercise name.
+    Intended for imported plans only (LLM output can be inconsistent).
+    """
+    blocks = plan.get("blocks")
+    if not isinstance(blocks, list):
+        return plan
+
+    changed = False
+    cleaned_blocks: list[dict[str, Any]] = []
+    for block in blocks:
+        if not isinstance(block, dict):
+            cleaned_blocks.append(block)
+            continue
+        exercises = block.get("exercises")
+        if not isinstance(exercises, list):
+            cleaned_blocks.append(block)
+            continue
+
+        cleaned_exercises: list[dict[str, Any]] = []
+        for exercise in exercises:
+            if not isinstance(exercise, dict):
+                cleaned_exercises.append(exercise)
+                continue
+            name = exercise.get("name")
+            if not isinstance(name, str):
+                cleaned_exercises.append(exercise)
+                continue
+            base, cue = _split_name_and_cue(name)
+            if cue and base and base != name:
+                updated = dict(exercise)
+                updated["name"] = base
+                updated["notes"] = _append_notes(updated.get("notes"), cue) or None
+                cleaned_exercises.append(updated)
+                changed = True
+            else:
+                cleaned_exercises.append(exercise)
+
+        if changed:
+            updated_block = dict(block)
+            updated_block["exercises"] = cleaned_exercises
+            cleaned_blocks.append(updated_block)
+        else:
+            cleaned_blocks.append(block)
+
+    if not changed:
+        return plan
+    updated_plan = dict(plan)
+    updated_plan["blocks"] = cleaned_blocks
+    return updated_plan
 
 
 def _parse_model(model: str) -> str:

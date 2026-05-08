@@ -1951,8 +1951,6 @@ export default function App() {
       const shouldCompleteHubTour = hubTourStepRef.current === "finish_workout";
       const shouldPromptForReview =
         Boolean(currentUser?.id) &&
-        completedWorkoutsLoaded &&
-        completedWorkouts.length === 0 &&
         session != null &&
         getWorkoutCompletionRatio(session) >= STORE_REVIEW_COMPLETION_RATIO_THRESHOLD;
 
