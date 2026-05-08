@@ -15,8 +15,6 @@ interface ScheduledConfirmationScreenProps {
 const SHARE_LINES = [
   "Scheduled. Now get back to scrolling, king.",
   "Workout parked. Enjoy your brainrot.",
-  "Nuno saw the reel. He approves. Phone back up.",
-  "Jacob added it to the calendar. Dismiss this and watch more cats.",
   "Locked in. Back to the For You page with you.",
   "Saved for later. Your thumb earned this.",
   "Pipeline clean. Go watch 12 more reels, champ.",
@@ -25,8 +23,6 @@ const SHARE_LINES = [
 
 const MANUAL_LINES = [
   "You're locked in. Dismiss this and go touch grass.",
-  "Workout on the calendar. Nuno is watching.",
-  "Scheduled. Don't make Jacob come find you.",
   "Saved. No excuses when the reminder pops.",
   "It's in the books. Go hydrate or whatever.",
   "Done. Future-you is already mad at you.",

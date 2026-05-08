@@ -1554,6 +1554,8 @@ export default function App() {
         ...(updates.description !== undefined
           ? { description: updates.description }
           : {}),
+        ...(updates.metaLeft !== undefined ? { metaLeft: updates.metaLeft } : {}),
+        ...(updates.metaRight !== undefined ? { metaRight: updates.metaRight } : {}),
         ...(updates.workoutPlan !== undefined
           ? { workoutPlan: updates.workoutPlan }
           : {}),
@@ -1584,6 +1586,10 @@ export default function App() {
                 updates.description !== undefined
                   ? updates.description
                   : record.description,
+              meta_left:
+                updates.metaLeft !== undefined ? updates.metaLeft : record.meta_left,
+              meta_right:
+                updates.metaRight !== undefined ? updates.metaRight : record.meta_right,
               workout_plan:
                 updates.workoutPlan !== undefined
                   ? updates.workoutPlan
@@ -1598,6 +1604,8 @@ export default function App() {
       const payload: {
         title?: string;
         description?: string | null;
+        meta_left?: string | null;
+        meta_right?: string | null;
         workout_plan?: WorkoutPlan | null;
       } = {};
       if (updates.title !== undefined) {
@@ -1605,6 +1613,12 @@ export default function App() {
       }
       if (updates.description !== undefined) {
         payload.description = updates.description || null;
+      }
+      if (updates.metaLeft !== undefined) {
+        payload.meta_left = updates.metaLeft || null;
+      }
+      if (updates.metaRight !== undefined) {
+        payload.meta_right = updates.metaRight || null;
       }
       if (updates.workoutPlan !== undefined) {
         payload.workout_plan = updates.workoutPlan;
@@ -1851,6 +1865,11 @@ export default function App() {
           const withoutDuplicate = current.filter((item) => item.id !== preview.id);
           return [preview, ...withoutDuplicate];
         });
+        // Immediately open the manual draft editor so "Create manually" feels
+        // like a navigation action (not a silent save).
+        setSelectedSavedRoutine(preview);
+        setActiveTab("saved");
+        setIsSavedLibraryVisible(false);
         setSavedWorkoutsError(null);
       } catch (error) {
         const message =

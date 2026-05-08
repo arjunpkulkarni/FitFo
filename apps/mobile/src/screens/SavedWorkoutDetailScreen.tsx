@@ -33,6 +33,8 @@ import type {
 export interface SavedRoutineUpdate {
   title?: string;
   description?: string;
+  metaLeft?: string;
+  metaRight?: string;
   workoutPlan?: WorkoutPlan;
 }
 
@@ -363,7 +365,7 @@ export function SavedWorkoutDetailScreen({
         </Pressable>
         <Image
           resizeMode="contain"
-          source={require("../../assets/logo_no_bg.png")}
+          source={require("../../assets/icon.png")}
           style={styles.brandLogo}
         />
         <View style={styles.headerSpacer} />
@@ -413,11 +415,45 @@ export function SavedWorkoutDetailScreen({
         <View style={styles.heroStats}>
           <View style={styles.heroStatCard}>
             <Text style={styles.heroStatLabel}>Summary</Text>
-            <Text style={styles.heroStatValue}>{routine.metaLeft}</Text>
+            {canEdit ? (
+              <InlineEditableText
+                value={routine.metaLeft || ""}
+                onSave={(next) => {
+                  if (next === routine.metaLeft) {
+                    return;
+                  }
+                  onUpdate?.({ metaLeft: next });
+                }}
+                placeholder="Summary"
+                maxLength={120}
+                textStyle={styles.heroStatValue}
+                themeMode={themeMode}
+                hideHint
+              />
+            ) : (
+              <Text style={styles.heroStatValue}>{routine.metaLeft}</Text>
+            )}
           </View>
           <View style={styles.heroStatCard}>
             <Text style={styles.heroStatLabel}>Details</Text>
-            <Text style={styles.heroStatValue}>{routine.metaRight}</Text>
+            {canEdit ? (
+              <InlineEditableText
+                value={routine.metaRight || ""}
+                onSave={(next) => {
+                  if (next === routine.metaRight) {
+                    return;
+                  }
+                  onUpdate?.({ metaRight: next });
+                }}
+                placeholder="Details"
+                maxLength={120}
+                textStyle={styles.heroStatValue}
+                themeMode={themeMode}
+                hideHint
+              />
+            ) : (
+              <Text style={styles.heroStatValue}>{routine.metaRight}</Text>
+            )}
           </View>
         </View>
       </View>

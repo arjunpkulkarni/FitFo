@@ -23,7 +23,11 @@ def is_instagram_host(host: str) -> bool:
 
 # Only reel-style paths are accepted. Profile URLs like /natgeo are rejected
 # because the Apify scraper would otherwise pull the N newest reels.
-_REEL_PATH_PREFIXES = ("/reel/", "/reels/", "/p/", "/tv/")
+#
+# Note: `/p/` is Instagram's post permalink, which is often used for photo
+# carousels. Fitfo currently supports videos only, so we treat `/p/` as
+# unsupported (handled explicitly in `assert_valid_instagram_reel_url` below).
+_REEL_PATH_PREFIXES = ("/reel/", "/reels/", "/tv/")
 
 
 def _is_reel_path(path: str) -> bool:
@@ -49,6 +53,11 @@ def assert_valid_instagram_reel_url(raw: str) -> str:
     parsed = urlparse(normalized)
     if not is_instagram_host(parsed.netloc):
         raise ValueError("Not an Instagram URL (host not allowed)")
+    normalized_path = parsed.path if parsed.path.startswith("/") else f"/{parsed.path}"
+    if normalized_path.startswith("/p/"):
+        raise ValueError(
+            "Fitfo supports videos only (TikTok videos / Instagram reels). Photo posts aren’t supported yet — coming in the next update."
+        )
     if not _is_reel_path(parsed.path):
         raise ValueError(
             "Paste an Instagram reel URL (e.g. instagram.com/reel/...), not a profile"

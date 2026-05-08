@@ -386,19 +386,39 @@ function LibraryWorkoutCard({
             </Pressable>
           ) : (
             <MeasuredTarget onMeasured={onStartButtonMeasured}>
-              <Pressable
-                onPress={onStart}
-                style={({ pressed }) => [
-                  styles.startButton,
-                  { backgroundColor: accent },
-                  pressed ? styles.actionPressed : null,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Start session"
-              >
-                <Text style={styles.startButtonText}>Start Session</Text>
-                <Ionicons color="#FFFFFF" name="play" size={12} />
-              </Pressable>
+              <View style={styles.startActionRow}>
+                <Pressable
+                  onPress={onStart}
+                  style={({ pressed }) => [
+                    styles.startButton,
+                    { backgroundColor: accent },
+                    pressed ? styles.actionPressed : null,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Start session"
+                >
+                  <Text style={styles.startButtonText}>Start Session</Text>
+                  <Ionicons color="#FFFFFF" name="play" size={12} />
+                </Pressable>
+                {onMore ? (
+                  <Pressable
+                    onPress={onMore}
+                    hitSlop={4}
+                    style={({ pressed }) => [
+                      styles.smallIconButton,
+                      pressed ? styles.actionPressed : null,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={scheduleLabel ? "Reschedule" : "Schedule"}
+                  >
+                    <Ionicons
+                      color={theme.colors.textPrimary}
+                      name="calendar-outline"
+                      size={16}
+                    />
+                  </Pressable>
+                ) : null}
+              </View>
             </MeasuredTarget>
           )}
           <Pressable
@@ -1099,6 +1119,12 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
+    },
+    startActionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      flex: 1,
     },
     startButton: {
       flexDirection: "row",

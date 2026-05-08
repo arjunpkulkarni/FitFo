@@ -133,6 +133,39 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function normalizeLoggedField(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  return "";
+}
+
+function normalizeCompletedWorkoutRecord(
+  record: CompletedWorkoutRecord,
+): CompletedWorkoutRecord {
+  // Defensive normalization: older records or backend transforms may return
+  // `logged_weight` / `logged_reps` or numeric values.
+  const exercises = Array.isArray(record.exercises) ? record.exercises : [];
+
+  return {
+    ...record,
+    exercises: exercises.map((exercise: any) => {
+      const sets = Array.isArray(exercise?.sets) ? exercise.sets : [];
+      return {
+        ...exercise,
+        sets: sets.map((set: any) => ({
+          ...set,
+          loggedWeight: normalizeLoggedField(set?.loggedWeight ?? set?.logged_weight),
+          loggedReps: normalizeLoggedField(set?.loggedReps ?? set?.logged_reps),
+        })),
+      };
+    }),
+  };
+}
+
 export async function createIngestionJob(
   sourceUrl: string,
   accessToken: string,
@@ -310,31 +343,34 @@ export async function deleteSavedWorkout(
 export async function listCompletedWorkouts(
   accessToken: string,
 ): Promise<CompletedWorkoutRecord[]> {
-  return request<CompletedWorkoutRecord[]>("/completed-workouts", {
+  const rows = await request<CompletedWorkoutRecord[]>("/completed-workouts", {
     method: "GET",
     accessToken,
   });
+  return rows.map(normalizeCompletedWorkoutRecord);
 }
 
 export async function getCompletedWorkout(
   accessToken: string,
   completedWorkoutId: string,
 ): Promise<CompletedWorkoutRecord> {
-  return request<CompletedWorkoutRecord>(`/completed-workouts/${completedWorkoutId}`, {
+  const row = await request<CompletedWorkoutRecord>(`/completed-workouts/${completedWorkoutId}`, {
     method: "GET",
     accessToken,
   });
+  return normalizeCompletedWorkoutRecord(row);
 }
 
 export async function createCompletedWorkout(
   accessToken: string,
   body: CompletedWorkoutCreateRequest,
 ): Promise<CompletedWorkoutRecord> {
-  return request<CompletedWorkoutRecord>("/completed-workouts", {
+  const row = await request<CompletedWorkoutRecord>("/completed-workouts", {
     method: "POST",
     accessToken,
     body: JSON.stringify(body),
   });
+  return normalizeCompletedWorkoutRecord(row);
 }
 
 export async function listBodyWeightEntries(

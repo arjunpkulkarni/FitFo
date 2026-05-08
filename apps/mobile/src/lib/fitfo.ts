@@ -637,8 +637,11 @@ function exercisesFromCompletedLog(
       label: `Set ${setIndex + 1}`,
       targetReps: set.targetReps,
       targetDurationSec: set.targetDurationSec,
-      loggedWeight: "",
-      loggedReps: "",
+      // Preserve last session's log numbers as the default starting point for
+      // "Start" / "Schedule again" flows. These are still editable and the set
+      // is not auto-marked complete.
+      loggedWeight: set.loggedWeight ?? "",
+      loggedReps: set.loggedReps ?? "",
       completed: false,
     })),
   }));

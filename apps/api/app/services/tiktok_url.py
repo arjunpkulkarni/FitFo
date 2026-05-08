@@ -169,6 +169,14 @@ async def verify_video_via_oembed(
         return False, status, "TikTok oEmbed returned non-JSON body.", None
 
     if data.get("type") != "video":
+        kind = data.get("type")
+        if kind == "rich":
+            return (
+                False,
+                status,
+                "Fitfo supports videos only (TikTok videos / Instagram reels). Photo posts aren’t supported yet — coming in the next update.",
+                None,
+            )
         return False, status, "TikTok oEmbed did not return a video.", None
 
     preview = _oembed_preview_snapshot(data)

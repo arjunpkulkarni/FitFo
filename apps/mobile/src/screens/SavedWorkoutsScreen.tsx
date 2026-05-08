@@ -30,7 +30,6 @@ import {
   formatCompletedWorkoutDate,
   getRoutineDisplayTitle,
 } from "../lib/fitfo";
-import { getStreakDays, getThisWeekStats } from "../lib/stats";
 import { getTheme, type ThemeMode } from "../theme";
 import type {
   CompletedWorkoutRecord,
@@ -83,6 +82,15 @@ function toIsoDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function normalizeScheduledDateKey(raw: string): string {
+  // Backend should return `YYYY-MM-DD`, but we defensively accept full timestamps.
+  // Using a date key (vs Date parsing) avoids timezone quirks and keeps grouping consistent.
+  if (raw.length >= 10) {
+    return raw.slice(0, 10);
+  }
+  return raw;
 }
 
 const CALENDAR_PAGE_SIZE = 5;
@@ -478,62 +486,12 @@ export function SavedWorkoutsScreen({
     });
   };
 
-  const thisWeekStats = useMemo(
-    () => getThisWeekStats(completedWorkouts),
-    [completedWorkouts],
-  );
-  const streakDays = useMemo(
-    () => getStreakDays(completedWorkouts),
-    [completedWorkouts],
-  );
-
-  const thisWeekCaption = useMemo(() => {
-    if (historyLoadBlocked) {
-      return "Connect to refresh";
-    }
-    if (historyLoadingCold) {
-      return "Fetching from server…";
-    }
-    if (completedWorkouts.length === 0) {
-      return "Log your first session";
-    }
-    const delta = thisWeekStats.deltaFromLastWeek;
-    if (delta === 0) {
-      return "Same as last week";
-    }
-    const sign = delta > 0 ? "+" : "";
-    return `${sign}${delta} from last week`;
-  }, [
-    completedWorkouts.length,
-    historyLoadBlocked,
-    historyLoadingCold,
-    thisWeekStats.deltaFromLastWeek,
-  ]);
-
-  const streakCaption = useMemo(() => {
-    if (historyLoadBlocked) {
-      return "History unavailable";
-    }
-    if (historyLoadingCold) {
-      return "Just a moment";
-    }
-    if (streakDays === 0) {
-      return "Start a new streak";
-    }
-    if (streakDays >= 7) {
-      return "Keep it going!";
-    }
-    return "Stay consistent";
-  }, [historyLoadBlocked, historyLoadingCold, streakDays]);
-
-  const weekTileValue =
-    historyLoadBlocked ? "-" : historyLoadingCold ? "…" : `${thisWeekStats.count}`;
-  const streakTileValue =
-    historyLoadBlocked ? "-" : historyLoadingCold ? "…" : `${streakDays}`;
   const scheduledByDate = useMemo(() => {
     const map = new Map<string, SavedRoutinePreview[]>();
     for (const routine of scheduledWorkouts) {
-      const key = routine.scheduledFor;
+      const key = routine.scheduledFor
+        ? normalizeScheduledDateKey(routine.scheduledFor)
+        : null;
       if (!key) {
         continue;
       }
@@ -582,17 +540,17 @@ export function SavedWorkoutsScreen({
   const selectionHasLogs = completedForSelected.length > 0;
 
   const upcomingAfterSelected = useMemo(() => {
-    const selectedTime = selectedDateObject.getTime();
     const sorted = [...scheduledWorkouts]
       .filter((routine) => routine.scheduledFor)
       .map((routine) => ({
         routine,
-        time: new Date(routine.scheduledFor || "").getTime(),
+        key: normalizeScheduledDateKey(routine.scheduledFor || ""),
       }))
-      .filter((entry) => Number.isFinite(entry.time) && entry.time > selectedTime)
-      .sort((left, right) => left.time - right.time);
+      // Only show items strictly after the selected day (never duplicate the selected day).
+      .filter((entry) => entry.key > selectedDate)
+      .sort((left, right) => left.key.localeCompare(right.key));
     return sorted.map((entry) => entry.routine);
-  }, [scheduledWorkouts, selectedDateObject]);
+  }, [scheduledWorkouts, selectedDate]);
 
   const upcomingWorkouts = useMemo(
     () => upcomingAfterSelected.slice(0, UPCOMING_PREVIEW_LIMIT),
@@ -685,26 +643,6 @@ export function SavedWorkoutsScreen({
           title="Couldn't load workout history"
         />
       ) : null}
-
-      <View style={styles.statsRow}>
-        <StatTile
-          caption={thisWeekCaption}
-          iconColor={accent}
-          iconName="trending-up-outline"
-          label="This Week"
-          theme={theme}
-          value={weekTileValue}
-        />
-        <StatTile
-          caption={streakCaption}
-          iconColor={accent}
-          iconName="fire"
-          isMaterial
-          label="Streak"
-          theme={theme}
-          value={streakTileValue}
-        />
-      </View>
 
       <QuickAddRow onPress={onAddWorkout} theme={theme} />
 
