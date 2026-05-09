@@ -25,6 +25,8 @@ from typing import Literal
 
 import httpx
 
+from app.services import openai_retry
+
 
 class FrameOCRError(RuntimeError):
     pass
@@ -303,7 +305,14 @@ async def _request_vision_ocr(
     timeout = httpx.Timeout(60.0, connect=15.0)
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(OPENAI_CHAT_URL, headers=headers, json=payload)
+
+            async def _do_post() -> httpx.Response:
+                return await client.post(OPENAI_CHAT_URL, headers=headers, json=payload)
+
+            resp = await openai_retry.post_with_retries(
+                _do_post,
+                log_label=f"task=ocr model={model}",
+            )
     except httpx.RequestError as exc:
         raise FrameOCRError(str(exc)) from exc
 

@@ -8,6 +8,8 @@ from typing import Any
 
 import httpx
 
+from app.services import openai_retry
+
 OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_MODEL = "gpt-4.1-mini"
 
@@ -321,7 +323,17 @@ async def parse_transcript_to_workout(
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         _log.info("ai_provider=OpenAI task=parsing model=%s", resolved_model)
-        resp = await client.post(OPENAI_CHAT_URL, headers=headers, json=payload)
+
+        async def _do_post() -> httpx.Response:
+            return await client.post(OPENAI_CHAT_URL, headers=headers, json=payload)
+
+        try:
+            resp = await openai_retry.post_with_retries(
+                _do_post,
+                log_label=f"task=parsing model={resolved_model}",
+            )
+        except httpx.RequestError as exc:
+            raise WorkoutParserError(f"OpenAI chat network error: {exc}") from exc
 
     if resp.status_code != 200:
         body = resp.text[:500] if resp.text else "(empty)"
