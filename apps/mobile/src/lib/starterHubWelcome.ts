@@ -1,3 +1,5 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { listSavedWorkouts, saveWorkoutForLater } from "./api";
 import type { OnboardingSex, SavedWorkoutRecord, WorkoutPlan } from "../types";
 
@@ -66,6 +68,17 @@ export function getHubTourDoneStorageKey(profileId: string): string {
 
 export function getHubTourStepStorageKey(profileId: string): string {
   return `@fitfo:starter-hub-tour-step:v2:${profileId}`;
+}
+
+/**
+ * Records that we've already attempted to seed the starter demo workouts
+ * for this profile. Once set, `ensureStarterWorkoutsSeeded` becomes a no-op
+ * — even if the user has since deleted those demos. Without this, the
+ * seeder would re-create the demos on every cold start because it
+ * de-dupes purely on the saved-workout titles being present.
+ */
+export function getStartersSeededStorageKey(profileId: string): string {
+  return `@fitfo:starters-seeded:v1:${profileId}`;
 }
 
 /** Title of the single seeded demo row for this user (matches saved workout title). */
@@ -305,13 +318,40 @@ async function seedStartersIfNeeded(
   return added;
 }
 
-/** Seeds starter library rows once and refreshes saved workouts. Does not show UI. */
+/**
+ * Seeds starter library rows exactly once per profile and refreshes saved
+ * workouts. Does not show UI.
+ *
+ * The per-profile `getStartersSeededStorageKey` flag in AsyncStorage acts as
+ * the durable "we've already done this" marker. After the first successful
+ * pass we set the flag and short-circuit on every future call, even if the
+ * user has since deleted the demos — otherwise leaving and reopening the
+ * app re-creates the demos from scratch.
+ */
 export async function ensureStarterWorkoutsSeeded(
   accessToken: string,
   reloadSaved: () => Promise<void>,
   sex: OnboardingSex | null,
+  profileId: string | null,
 ): Promise<void> {
+  // Profile id is required to scope the "already seeded" flag. Without it
+  // we'd risk seeding the wrong account on shared devices, so bail rather
+  // than guess.
+  if (!profileId) {
+    return;
+  }
+
+  const seededKey = getStartersSeededStorageKey(profileId);
+  const alreadySeeded = await AsyncStorage.getItem(seededKey);
+  if (alreadySeeded === "1") {
+    return;
+  }
+
   const rows = await listSavedWorkouts(accessToken);
   await seedStartersIfNeeded(accessToken, rows, sex);
+  // Persist the flag *after* a successful seed pass. If the seed throws,
+  // we leave the flag unset so the next launch retries — which preserves
+  // the original "best effort" semantics for transient failures.
+  await AsyncStorage.setItem(seededKey, "1");
   await reloadSaved();
 }

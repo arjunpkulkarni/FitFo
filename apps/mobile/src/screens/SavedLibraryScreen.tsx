@@ -284,22 +284,6 @@ function LibraryWorkoutCard({
                 {badgeLabel}
               </Text>
             </View>
-            <Pressable
-              onPress={onMore}
-              hitSlop={6}
-              style={({ pressed }) => [
-                styles.cardMoreButton,
-                pressed ? styles.cardMoreButtonPressed : null,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="More actions"
-            >
-              <Ionicons
-                color={theme.colors.textMuted}
-                name="ellipsis-horizontal"
-                size={18}
-              />
-            </Pressable>
           </View>
 
           <Text numberOfLines={2} style={styles.cardTitle}>
@@ -310,11 +294,6 @@ function LibraryWorkoutCard({
             <View style={styles.cardChipsRow}>
               {creatorHandle ? (
                 <View style={styles.creatorChip}>
-                  <Ionicons
-                    color={theme.colors.textPrimary}
-                    name="person-circle-outline"
-                    size={12}
-                  />
                   <Text style={styles.creatorChipText}>{creatorHandle}</Text>
                 </View>
               ) : null}
@@ -351,24 +330,57 @@ function LibraryWorkoutCard({
       </View>
 
       <View style={styles.cardBottomRow}>
-        <View style={styles.cardScheduleBlock}>
-          <Ionicons
-            color={accent}
-            name="calendar-outline"
-            size={14}
-            style={styles.cardScheduleIcon}
-          />
-          <View style={styles.cardScheduleTextBlock}>
-            <Text style={styles.cardScheduleLabel}>
-              {scheduleLabel
-                ? "Scheduled"
-                : lastEditedLabel || "Not scheduled"}
-            </Text>
-            <Text style={styles.cardScheduleSubLabel} numberOfLines={1}>
-              {scheduleLabel || (isDraft ? "" : "Tap to schedule")}
-            </Text>
+        {scheduleLabel ? (
+          // Already scheduled — keep the two-line stack so the date is legible.
+          <View style={styles.cardScheduleBlock}>
+            <Ionicons
+              color={accent}
+              name="calendar-outline"
+              size={14}
+              style={styles.cardScheduleIcon}
+            />
+            <View style={styles.cardScheduleTextBlock}>
+              <Text style={styles.cardScheduleLabel} numberOfLines={1}>
+                Scheduled
+              </Text>
+              <Text style={styles.cardScheduleSubLabel} numberOfLines={1}>
+                {scheduleLabel}
+              </Text>
+            </View>
           </View>
-        </View>
+        ) : (
+          // Unscheduled / draft — collapse to one line so it doesn't wrap to
+          // "Not / schedule / d" on narrow cards. The chip is tappable when
+          // a schedule handler exists (mirrors the small calendar button
+          // in the action row, but gives the area a clearer affordance).
+          <Pressable
+            disabled={isDraft || !onMore}
+            onPress={onMore}
+            style={({ pressed }) => [
+              styles.cardScheduleBlock,
+              styles.cardScheduleChip,
+              pressed && onMore ? styles.actionPressed : null,
+            ]}
+            accessibilityRole={onMore ? "button" : undefined}
+            accessibilityLabel={onMore ? "Schedule this workout" : undefined}
+          >
+            <Ionicons
+              color={accent}
+              name="calendar-outline"
+              size={14}
+              style={styles.cardScheduleIcon}
+            />
+            <Text
+              style={styles.cardScheduleChipLabel}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {isDraft
+                ? lastEditedLabel || "Draft"
+                : "Tap to schedule"}
+            </Text>
+          </Pressable>
+        )}
 
         <View style={styles.cardActionRow}>
           {isDraft ? (
@@ -1114,6 +1126,22 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       fontFamily: "Satoshi-Medium",
       fontWeight: "500",
       marginTop: 1,
+    },
+    cardScheduleChip: {
+      flex: 0,
+      flexShrink: 1,
+      gap: 6,
+      borderRadius: 999,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      backgroundColor: theme.colors.surfaceMuted,
+    },
+    cardScheduleChipLabel: {
+      color: theme.colors.textPrimary,
+      fontSize: 12,
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "800",
+      flexShrink: 1,
     },
     cardActionRow: {
       flexDirection: "row",

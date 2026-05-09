@@ -1166,6 +1166,7 @@ export default function App() {
             await loadSavedWorkouts(accessToken);
           },
           currentUser.onboarding?.sex ?? null,
+          currentUser.id,
         );
         if (!alive) {
           return;

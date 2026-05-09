@@ -374,7 +374,12 @@ export function AddWorkoutModal({
                     />
                   </View>
                 </View>
-                {showSlowImportCard ? (
+                {/* v1: "Notify me" / slow-import escape hatch hidden.
+                    Re-enable by uncommenting this block. The supporting state
+                    (showSlowImportCard, handleNotifyMe, handleKeepWaiting,
+                    rememberAutoNotify, autoNotifyImports effect) is left
+                    intact so flipping it back on is a pure UI change. */}
+                {/* {showSlowImportCard ? (
                   <View style={styles.slowImportCard}>
                     <Text style={styles.slowImportTitle}>
                       {predictedSlow && effectiveJob?.video_duration_sec != null
@@ -434,7 +439,7 @@ export function AddWorkoutModal({
                       </Pressable>
                     </View>
                   </View>
-                ) : null}
+                ) : null} */}
               </View>
             ) : !hasImportedWorkout ? (
               <>
