@@ -8,9 +8,7 @@ import {
   getCompletedWorkoutDisplaySummary,
   getRoutineDisplayTitle,
   getCompletedWorkoutMeta,
-  getCompletedWorkoutSetCount,
 } from "../lib/fitfo";
-import { getStreakDays, getThisWeekStats } from "../lib/stats";
 import { getTheme, type ThemeMode } from "../theme";
 import type { ActiveSessionPreview, CompletedWorkoutRecord } from "../types";
 
@@ -63,12 +61,6 @@ export function LogsScreen({
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
 
-  const totalSets = workouts.reduce(
-    (count, workout) => count + getCompletedWorkoutSetCount(workout.exercises),
-    0,
-  );
-  const thisWeekStats = getThisWeekStats(workouts);
-  const streakDays = getStreakDays(workouts);
   const activeWorkoutSetCount = activeWorkout
     ? activeWorkout.exercises.reduce((count, exercise) => count + exercise.sets.length, 0)
     : 0;
@@ -78,51 +70,6 @@ export function LogsScreen({
         0,
       )
     : 0;
-  const thisMonthCount = workouts.filter((workout) => {
-    const completedAt = new Date(workout.completed_at);
-    const now = new Date();
-    return (
-      completedAt.getFullYear() === now.getFullYear() &&
-      completedAt.getMonth() === now.getMonth()
-    );
-  }).length;
-
-  const thisWeekCaption = (() => {
-    if (isLoading) {
-      return "Fetching from server…";
-    }
-    if (error) {
-      return "Connect to refresh";
-    }
-    if (workouts.length === 0) {
-      return "Log your first session";
-    }
-    const delta = thisWeekStats.deltaFromLastWeek;
-    if (delta === 0) {
-      return "Same as last week";
-    }
-    const sign = delta > 0 ? "+" : "";
-    return `${sign}${delta} from last week`;
-  })();
-
-  const streakCaption = (() => {
-    if (isLoading) {
-      return "Just a moment";
-    }
-    if (error) {
-      return "History unavailable";
-    }
-    if (streakDays === 0) {
-      return "Start a new streak";
-    }
-    if (streakDays >= 7) {
-      return "Keep it going!";
-    }
-    return "Stay consistent";
-  })();
-
-  const weekTileValue = isLoading || error ? "…" : `${thisWeekStats.count}`;
-  const streakTileValue = isLoading || error ? "…" : `${streakDays}`;
 
   useEffect(() => {
     if (!activeWorkout) {
@@ -169,146 +116,6 @@ export function LogsScreen({
           Your Training{"\n"}
           <Text style={styles.titleAccent}>Archive.</Text>
         </Text>
-      </View>
-
-      <View style={styles.analysisCard}>
-        <View style={styles.statTile}>
-          <View style={styles.statTileIcon}>
-            <Ionicons
-              color={theme.colors.primary}
-              name="albums-outline"
-              size={16}
-            />
-          </View>
-          <Text
-            adjustsFontSizeToFit
-            minimumFontScale={0.6}
-            numberOfLines={1}
-            style={styles.statTileValue}
-          >
-            {workouts.length}
-          </Text>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
-            style={styles.statTileLabel}
-          >
-            Completed
-          </Text>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
-            style={styles.statTileCaption}
-          >
-            Total sessions
-          </Text>
-        </View>
-
-        <View style={styles.statTile}>
-          <View style={styles.statTileIcon}>
-            <Ionicons
-              color={theme.colors.primary}
-              name="calendar-outline"
-              size={16}
-            />
-          </View>
-          <Text
-            adjustsFontSizeToFit
-            minimumFontScale={0.6}
-            numberOfLines={1}
-            style={styles.statTileValue}
-          >
-            {thisMonthCount}
-          </Text>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
-            style={styles.statTileLabel}
-          >
-            This Month
-          </Text>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
-            style={styles.statTileCaption}
-          >
-            {totalSets} sets logged
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.analysisCard}>
-        <View style={styles.statTile}>
-          <View style={styles.statTileIcon}>
-            <Ionicons
-              color={theme.colors.primary}
-              name="trending-up-outline"
-              size={16}
-            />
-          </View>
-          <Text
-            adjustsFontSizeToFit
-            minimumFontScale={0.6}
-            numberOfLines={1}
-            style={styles.statTileValue}
-          >
-            {weekTileValue}
-          </Text>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
-            style={styles.statTileLabel}
-          >
-            This Week
-          </Text>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
-            style={styles.statTileCaption}
-          >
-            {thisWeekCaption}
-          </Text>
-        </View>
-
-        <View style={styles.statTile}>
-          <View style={styles.statTileIcon}>
-            <Ionicons
-              color={theme.colors.primary}
-              name="flame-outline"
-              size={16}
-            />
-          </View>
-          <Text
-            adjustsFontSizeToFit
-            minimumFontScale={0.6}
-            numberOfLines={1}
-            style={styles.statTileValue}
-          >
-            {streakTileValue}
-          </Text>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
-            style={styles.statTileLabel}
-          >
-            Streak
-          </Text>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
-            style={styles.statTileCaption}
-          >
-            {streakCaption}
-          </Text>
-        </View>
       </View>
 
       {activeWorkout ? (

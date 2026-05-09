@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { usePostHog } from "posthog-react-native";
 
+import { PRIVACY_URL, TERMS_URL } from "../lib/legal";
 import { getTheme, type ThemeMode } from "../theme";
 
 interface TrialExplainerScreenProps {
@@ -105,10 +106,33 @@ export function TrialExplainerScreen({
       </Pressable>
 
       <Text style={styles.finePrint}>
-        Payment is collected by Apple. Subscriptions auto-renew until cancelled
-        at least 24 hours before the end of the current period. Manage anytime
-        in Settings → Apple ID → Subscriptions.
+        Fitfo Pro is an auto-renewing subscription billed monthly or annually
+        through your Apple ID. Subscriptions renew until cancelled at least 24
+        hours before the end of the current period. Manage anytime in Settings
+        → Apple ID → Subscriptions.
       </Text>
+
+      <View style={styles.legalRow}>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Open Terms of Use (EULA)"
+          hitSlop={6}
+          onPress={() => void Linking.openURL(TERMS_URL)}
+          style={styles.legalBtn}
+        >
+          <Text style={styles.legalLink}>Terms of Use (EULA)</Text>
+        </Pressable>
+        <Text style={styles.legalSep}>·</Text>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Open Privacy Policy"
+          hitSlop={6}
+          onPress={() => void Linking.openURL(PRIVACY_URL)}
+          style={styles.legalBtn}
+        >
+          <Text style={styles.legalLink}>Privacy Policy</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -245,5 +269,26 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       lineHeight: 16,
       textAlign: "center",
       marginTop: 4,
+    },
+    legalRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 2,
+    },
+    legalBtn: {
+      paddingVertical: 4,
+    },
+    legalLink: {
+      color: theme.colors.primary,
+      fontSize: 12,
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "800",
+    },
+    legalSep: {
+      color: theme.colors.textMuted,
+      fontSize: 12,
     },
   });

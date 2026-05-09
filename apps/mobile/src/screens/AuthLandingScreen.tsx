@@ -393,7 +393,8 @@ export function AuthLandingScreen({
             <View style={styles.centerCopy}>
               <Text style={styles.wordmark}>fit<Text style={styles.wordmarkAccent}>fo</Text></Text>
               <Text style={styles.welcomeTitle}>
-                Turn fitness videos into <Text style={styles.welcomeAccent}>real workouts.</Text>
+                Save a workout video.{"\n"}
+                <Text style={styles.welcomeAccent}>Train it tomorrow.</Text>
               </Text>
             </View>
             <View style={styles.welcomeVideoStage}>
@@ -415,10 +416,10 @@ export function AuthLandingScreen({
               </View>
             </View>
             <View style={styles.bottomStack}>
-              <PrimaryButton label="Build your first workout" onPress={next} />
+              <PrimaryButton label="Get started" onPress={next} />
               <SecondaryButton label="Log in" onPress={() => onSelectMode("login")} />
-              <Text style={styles.welcomeTrust}>Takes 10 seconds. Works with TikTok & Instagram.</Text>
-              <Text style={styles.welcomeLegal}>By continuing you agree to our Terms & Privacy.</Text>
+              <Text style={styles.welcomeTrust}>Works with TikTok and Instagram.</Text>
+              <Text style={styles.welcomeLegal}>By continuing you agree to the Terms and Privacy Policy.</Text>
             </View>
           </LinearGradient>
         </View>
@@ -1299,14 +1300,14 @@ function createAuthStyles(colors: AuthColors) {
     gap: 8,
   },
   welcomeTrust: {
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontFamily: F.medium,
     fontSize: 12,
     lineHeight: 17,
     textAlign: "center",
   },
   welcomeLegal: {
-    color: colors.textFaint,
+    color: colors.textMuted,
     fontFamily: F.medium,
     fontSize: 10,
     textAlign: "center",

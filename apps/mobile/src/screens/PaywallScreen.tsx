@@ -14,16 +14,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { usePostHog } from "posthog-react-native";
 import type { PurchasesPackage } from "react-native-purchases";
 
+import { PRIVACY_URL, TERMS_URL } from "../lib/legal";
 import {
   getPaywallPackages,
   isRevenueCatNativePaywallSupported,
   isRevenueCatSdkAvailable,
 } from "../lib/revenueCat";
 import { getTheme, type ThemeMode } from "../theme";
-
-/** App Store Guidelines 3.1.2(a) — public links to ToS + Privacy must be reachable from the paywall. */
-const TERMS_URL = "https://www.fitfo.app/terms";
-const PRIVACY_URL = "https://www.fitfo.app/privacy";
 
 const TRIAL_DAYS = 7;
 
