@@ -36,13 +36,36 @@ ProviderName = Literal["openai"]
 
 OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_OPENAI_VISION_MODEL = "gpt-4.1-mini"
-DEFAULT_FRAME_COUNT = 80
+# Hard cap on frames sent to the vision model. With detail=low each frame is a
+# flat 85 input tokens, so 20 frames ~= 1.7k image tokens — comfortably under
+# the per-call ceiling and small enough that one rate-limited org can't stall
+# a single import. Override with OCR_MAX_FRAMES.
+DEFAULT_MAX_FRAMES = 20
 DEFAULT_FRAME_INTERVAL_SECONDS = 1.0
-VISION_FRAME_BATCH_SIZE = 8
-SCENE_CHANGE_THRESHOLD = 0.35
+# detail=low images are cheap; send the whole sample in one HTTP call so a
+# single import is one round-trip on OpenAI rather than several.
+VISION_FRAME_BATCH_SIZE = 20
+# Tighter output cap — OCR transcripts of ~20 frames almost never need 1500
+# tokens of generated text. Cuts the worst-case TPM contribution by ~half.
+DEFAULT_VISION_MAX_TOKENS = 800
+SCENE_CHANGE_THRESHOLD = 0.30
 MAX_SCENE_FRAMES = 20
 
+# Backwards-compat alias: callers may still pass count=DEFAULT_FRAME_COUNT.
+DEFAULT_FRAME_COUNT = DEFAULT_MAX_FRAMES
+
 _log = logging.getLogger(__name__)
+
+
+def _max_frames_from_env() -> int:
+    raw = (os.environ.get("OCR_MAX_FRAMES") or "").strip()
+    if not raw:
+        return DEFAULT_MAX_FRAMES
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_MAX_FRAMES
+    return max(1, min(value, 80))
 
 
 @dataclass(frozen=True)
@@ -247,7 +270,13 @@ def _build_user_content(frames: list[bytes]) -> list[dict]:
         content.append(
             {
                 "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{encoded}"},
+                # detail=low pins each image to a flat 85 input tokens regardless
+                # of resolution. We're already feeding 512px JPEGs of slide-style
+                # workout text, so high detail buys ~no quality but ~5x the cost.
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{encoded}",
+                    "detail": "low",
+                },
             }
         )
     return content
@@ -295,7 +324,7 @@ async def _request_vision_ocr(
             {"role": "user", "content": _build_user_content(frames)},
         ],
         "temperature": 0,
-        "max_tokens": 1500,
+        "max_tokens": DEFAULT_VISION_MAX_TOKENS,
     }
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -392,10 +421,36 @@ async def extract_on_screen_text(frames: list[bytes]) -> OCRExtractionResult:
         return _failure("provider_error", frame_count, f"openai: {exc}")
 
 
+def collect_ocr_frames(
+    video_path: Path,
+    *,
+    max_frames: int | None = None,
+) -> list[bytes]:
+    """Pick a small set of frames to send to the vision model.
+
+    Workout videos are usually one of two shapes:
+    - Slide-style (cuts between exercise cards): ffmpeg's scene detector finds
+      exactly the frames worth OCR'ing.
+    - Continuous shot (talking head): scene detection finds nothing, so we
+      fall back to evenly-spaced sampling.
+
+    Either way the result is hard-capped so a long video can't drain the
+    organization's per-minute token budget.
+    """
+    cap = max_frames if max_frames is not None else _max_frames_from_env()
+    cap = max(1, min(cap, 80))
+
+    scene_frames = sample_frames_by_scene_change(video_path, max_frames=cap)
+    if scene_frames:
+        return scene_frames[:cap]
+
+    return sample_frames(video_path, count=cap)
+
+
 async def extract_on_screen_text_from_video(
     video_path: Path,
     *,
-    count: int = DEFAULT_FRAME_COUNT,
+    count: int | None = None,
 ) -> OCRExtractionResult:
     """Convenience wrapper: sample + extract in a single call."""
     if (os.environ.get("ENABLE_FRAME_OCR") or "1").strip() == "0":
@@ -404,5 +459,5 @@ async def extract_on_screen_text_from_video(
     if not _openai_api_key():
         return _failure("no_provider_configured")
 
-    frames = sample_frames(video_path, count=count)
+    frames = collect_ocr_frames(video_path, max_frames=count)
     return await extract_on_screen_text(frames)

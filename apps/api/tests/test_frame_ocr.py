@@ -99,3 +99,76 @@ class FrameOCRTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.ok)
         self.assertEqual(result.reason, "provider_error")
         self.assertIn("provider down", result.error or "")
+
+    def test_build_user_content_uses_low_detail(self) -> None:
+        content = frame_ocr._build_user_content([b"frame-bytes"])
+        self.assertEqual(content[0]["type"], "text")
+        image_entry = content[1]
+        self.assertEqual(image_entry["type"], "image_url")
+        self.assertEqual(image_entry["image_url"]["detail"], "low")
+        self.assertTrue(
+            image_entry["image_url"]["url"].startswith("data:image/jpeg;base64,")
+        )
+
+    def test_max_frames_from_env_clamps_invalid_values(self) -> None:
+        os.environ["OCR_MAX_FRAMES"] = "not-a-number"
+        self.assertEqual(frame_ocr._max_frames_from_env(), frame_ocr.DEFAULT_MAX_FRAMES)
+
+        os.environ["OCR_MAX_FRAMES"] = "0"
+        self.assertEqual(frame_ocr._max_frames_from_env(), 1)
+
+        os.environ["OCR_MAX_FRAMES"] = "9999"
+        self.assertEqual(frame_ocr._max_frames_from_env(), 80)
+
+        os.environ["OCR_MAX_FRAMES"] = "8"
+        self.assertEqual(frame_ocr._max_frames_from_env(), 8)
+
+    def test_collect_ocr_frames_prefers_scene_change(self) -> None:
+        scene_frames = [b"scene-1", b"scene-2", b"scene-3"]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            video_path = Path(tmp_dir) / "video.mp4"
+            video_path.write_bytes(b"video")
+            with patch(
+                "app.services.frame_ocr.sample_frames_by_scene_change",
+                return_value=scene_frames,
+            ) as scene_mock, patch(
+                "app.services.frame_ocr.sample_frames",
+            ) as even_mock:
+                frames = frame_ocr.collect_ocr_frames(video_path, max_frames=20)
+
+        self.assertEqual(frames, scene_frames)
+        scene_mock.assert_called_once()
+        even_mock.assert_not_called()
+
+    def test_collect_ocr_frames_falls_back_to_even_sampling(self) -> None:
+        even_frames = [b"even-1", b"even-2"]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            video_path = Path(tmp_dir) / "video.mp4"
+            video_path.write_bytes(b"video")
+            with patch(
+                "app.services.frame_ocr.sample_frames_by_scene_change",
+                return_value=[],
+            ), patch(
+                "app.services.frame_ocr.sample_frames",
+                return_value=even_frames,
+            ) as even_mock:
+                frames = frame_ocr.collect_ocr_frames(video_path, max_frames=15)
+
+        self.assertEqual(frames, even_frames)
+        even_mock.assert_called_once()
+        # propagates the requested cap into the fallback sampler
+        self.assertEqual(even_mock.call_args.kwargs.get("count"), 15)
+
+    def test_collect_ocr_frames_caps_scene_results(self) -> None:
+        scene_frames = [f"f{i}".encode() for i in range(40)]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            video_path = Path(tmp_dir) / "video.mp4"
+            video_path.write_bytes(b"video")
+            with patch(
+                "app.services.frame_ocr.sample_frames_by_scene_change",
+                return_value=scene_frames,
+            ):
+                frames = frame_ocr.collect_ocr_frames(video_path, max_frames=10)
+
+        self.assertEqual(len(frames), 10)
+        self.assertEqual(frames, scene_frames[:10])

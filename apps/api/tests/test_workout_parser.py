@@ -251,18 +251,25 @@ class WorkoutParserTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(plan["blocks"][0]["exercises"][0]["name"], "Goblet squat")
         self.assertEqual(fake_client.call_count, 2)
         self.assertEqual(len(sleeps), 1)
-        # body hint says 250ms; helper floors sub-second hints to 0.5s, plus jitter <= 0.25s.
-        self.assertGreaterEqual(sleeps[0], 0.5)
-        self.assertLessEqual(sleeps[0], 0.75 + 1e-9)
+        # Body hint of 250ms is floored to _MIN_SERVER_HINT_SECONDS by the helper.
+        from app.services import openai_retry as _retry
+
+        self.assertGreaterEqual(sleeps[0], _retry._MIN_SERVER_HINT_SECONDS)
+        self.assertLessEqual(
+            sleeps[0],
+            _retry._MIN_SERVER_HINT_SECONDS + _retry._JITTER_SECONDS + 1e-9,
+        )
 
     async def test_parse_raises_when_429_persists(self) -> None:
+        from app.services import openai_retry as _retry
+
         rate_limited = _FakeResponse(
             {"error": {"message": "Rate limit reached", "code": "rate_limit_exceeded"}},
             status_code=429,
             headers={"Retry-After": "0"},
         )
 
-        fake_client = _FakeAsyncClient([rate_limited] * 5)
+        fake_client = _FakeAsyncClient([rate_limited] * _retry.DEFAULT_MAX_ATTEMPTS)
 
         async def _fake_sleep(_seconds: float) -> None:
             return None
@@ -279,4 +286,4 @@ class WorkoutParserTests(unittest.IsolatedAsyncioTestCase):
                 )
 
         self.assertIn("HTTP 429", str(cm.exception))
-        self.assertEqual(fake_client.call_count, 5)
+        self.assertEqual(fake_client.call_count, _retry.DEFAULT_MAX_ATTEMPTS)

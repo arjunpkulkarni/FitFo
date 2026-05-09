@@ -64,21 +64,29 @@ class ParseRetryHintFromBodyTests(unittest.TestCase):
 
 
 class ComputeBackoffDelayTests(unittest.TestCase):
+    """Tests pass base/cap explicitly so they don't depend on tuning of the module defaults."""
+
     def test_uses_retry_after_header_with_floor(self) -> None:
         resp = _FakeResponse(429, headers={"Retry-After": "0.1"})
-        delay = openai_retry.compute_backoff_delay(1, resp)  # type: ignore[arg-type]
-        self.assertGreaterEqual(delay, 0.5)
-        self.assertLessEqual(delay, 0.75 + 1e-9)
+        # Helper floors server hints at openai_retry._MIN_SERVER_HINT_SECONDS,
+        # then adds up to openai_retry._JITTER_SECONDS of jitter.
+        delay = openai_retry.compute_backoff_delay(1, resp, base=1.0, cap=30.0)  # type: ignore[arg-type]
+        self.assertGreaterEqual(delay, openai_retry._MIN_SERVER_HINT_SECONDS)
+        self.assertLessEqual(
+            delay,
+            openai_retry._MIN_SERVER_HINT_SECONDS + openai_retry._JITTER_SECONDS + 1e-9,
+        )
 
     def test_falls_back_to_exponential(self) -> None:
-        delay = openai_retry.compute_backoff_delay(3, None)
+        delay = openai_retry.compute_backoff_delay(3, None, base=1.0, cap=30.0)
+        # base=1, attempt=3 -> 1 * 2^2 = 4s + jitter
         self.assertGreaterEqual(delay, 4.0)
-        self.assertLessEqual(delay, 4.25 + 1e-9)
+        self.assertLessEqual(delay, 4.0 + openai_retry._JITTER_SECONDS + 1e-9)
 
     def test_caps_huge_server_hints(self) -> None:
         resp = _FakeResponse(429, headers={"Retry-After": "9999"})
-        delay = openai_retry.compute_backoff_delay(1, resp, cap=10.0)  # type: ignore[arg-type]
-        self.assertLessEqual(delay, 10.0 + 0.25 + 1e-9)
+        delay = openai_retry.compute_backoff_delay(1, resp, base=1.0, cap=10.0)  # type: ignore[arg-type]
+        self.assertLessEqual(delay, 10.0 + openai_retry._JITTER_SECONDS + 1e-9)
 
 
 class PostWithRetriesTests(unittest.IsolatedAsyncioTestCase):
@@ -112,7 +120,8 @@ class PostWithRetriesTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIs(resp, ok)
         self.assertEqual(len(sleeps), 1)
-        self.assertGreaterEqual(sleeps[0], 0.5)
+        # Server hint of 0s is floored to _MIN_SERVER_HINT_SECONDS by the helper.
+        self.assertGreaterEqual(sleeps[0], openai_retry._MIN_SERVER_HINT_SECONDS)
 
     async def test_returns_last_response_when_attempts_exhausted(self) -> None:
         rate_limited = _FakeResponse(429, headers={"Retry-After": "0"})
