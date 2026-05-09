@@ -2,7 +2,7 @@
  * Typed client for the /admin/corpus/* endpoints.
  *
  * Every request goes through the FastAPI backend at NEXT_PUBLIC_API_URL.
- * The admin endpoints are gated server-side by CORPUS_ADMIN_ENABLED=1 — if
+ * The admin endpoints are gated server-side by CORPUS_ADMIN_ENABLED=1; if
  * that's not set, every call returns 503 with `detail`.
  */
 

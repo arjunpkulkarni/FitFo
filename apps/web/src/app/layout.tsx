@@ -202,7 +202,14 @@ export default function RootLayout({
             __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
           }}
         />
-        <div className="fitfo-site-gradient flex min-h-full flex-col">{children}</div>
+        <div className="fitfo-cinema-bg relative flex min-h-full flex-col overflow-x-clip">
+          {/* Fixed cinematic haze layer (slow drifting orange/violet light). */}
+          <div
+            aria-hidden
+            className="fitfo-haze pointer-events-none fixed inset-0 -z-10"
+          />
+          {children}
+        </div>
       </body>
     </html>
   );

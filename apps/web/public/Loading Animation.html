@@ -103,7 +103,7 @@
   const ORANGE_HI = "#FF6A35";
   const BG = "#000";
 
-  // Path points — same vector trace as the original icon
+  // Path points: same vector trace as the original icon
   // Running in a 1024×1024 coordinate space, clipped to a squircle.
   const PTS = [
     { x: 190, y: 720 },
@@ -163,7 +163,7 @@
     return d;
   }
 
-  // Squircle path — iOS-ish continuous corner
+  // Squircle path: iOS-ish continuous corner
   function squircle(s) {
     const r = s * 0.2237;
     return `M ${r},0 L ${s - r},0 C ${s - r/2.5},0 ${s},${r/2.5} ${s},${r}
@@ -207,13 +207,13 @@
         <!-- BG -->
         <rect width="1024" height="1024" fill="${BG}" />
 
-        <!-- Ghost path (where the laser will travel) — very faint -->
+        <!-- Ghost path (where the laser will travel), very faint -->
         <path id="ghostPath"
               d="M ${PTS.map(p => `${p.x} ${p.y}`).join(" L ")}"
               fill="none" stroke="${ORANGE}" stroke-opacity="0.06"
               stroke-width="88" stroke-linecap="square" stroke-linejoin="miter" />
 
-        <!-- Core laser stroke — matches the original icon exactly -->
+        <!-- Core laser stroke: matches the original icon exactly -->
         <path id="corePath" d=""
               fill="none" stroke="${ORANGE}"
               stroke-width="88" stroke-linecap="square" stroke-linejoin="miter" />
@@ -224,7 +224,7 @@
         <!-- Trailing sparks (small circles) -->
         <g id="sparks"></g>
 
-        <!-- Head marker — single orange dot, matches apex dot size -->
+        <!-- Head marker: single orange dot, matches apex dot size -->
         <circle id="headHalo" cx="0" cy="0" r="36" fill="${ORANGE_HI}" opacity="0" />
         <circle id="head"     cx="0" cy="0" r="36" fill="${ORANGE_HI}" opacity="0" />
         <circle id="headRing" cx="0" cy="0" r="36" fill="none" stroke="${ORANGE_HI}" stroke-width="0" opacity="0" />
@@ -344,7 +344,7 @@
         lastSparkTime = now;
       }
     } else if (elapsed <= DURATION + HOLD) {
-      // Phase 2: hold — full path visible, apex pulses in
+      // Phase 2: hold. Full path visible, apex pulses in
       const d = pathUpTo(total);
       corePath.setAttribute("d", d);
       bloomPath.setAttribute("d", d);
@@ -352,12 +352,12 @@
       const endP = PTS[PTS.length - 1];
       const holdT = (elapsed - DURATION) / HOLD;
 
-      // Head traveler becomes the apex dot — no fade swap, they occupy the same position
+      // Head traveler becomes the apex dot. No fade swap; same position.
       head.setAttribute("opacity", 0);
       headHalo.setAttribute("opacity", 0);
       headRing.setAttribute("opacity", 0);
 
-      // Apex dot is on — solid, exactly like the original icon
+      // Apex dot is on: solid, like the original icon
       apexDot.setAttribute("opacity", 1);
       apexDot.setAttribute("r", 36);
 

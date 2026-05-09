@@ -3,9 +3,12 @@ import Link from "next/link";
 
 export function Footer() {
   return (
-    <footer id="support" className="nav-surface">
-      <div className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6 xl:px-10">
-        <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
+    <footer
+      id="support"
+      className="relative border-t border-white/[0.06] bg-black/40 backdrop-blur-2xl"
+    >
+      <div className="mx-auto w-full max-w-[1440px] px-4 py-14 sm:px-6 sm:py-16 lg:px-10 xl:px-12">
+        <div className="flex flex-col gap-11 md:flex-row md:items-start md:justify-between">
           <div className="max-w-sm">
             <Link href="/" className="flex items-center gap-2.5">
               <Image
@@ -13,22 +16,22 @@ export function Footer() {
                 alt=""
                 width={180}
                 height={180}
-                className="h-10 w-10 sm:h-11 sm:w-11"
+                className="h-8 w-8 sm:h-9 sm:w-9"
               />
               <span
-                className="text-base font-bold tracking-[-0.02em] text-text-primary"
+                className="text-base font-bold tracking-[-0.04em] text-white"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 fitfo
               </span>
             </Link>
-            <p className="mt-4 text-sm leading-relaxed text-text-secondary text-pretty">
-              Turn the fitness videos you scroll past into workouts you can
-              actually follow. Built for people who train.
+            <p className="mt-4 text-[13px] leading-relaxed text-white/65 text-pretty">
+              Turn saved fitness videos into workouts you follow. Built for
+              people who train.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-10 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-9 sm:grid-cols-3">
             <FooterCol
               title="Product"
               links={[
@@ -59,13 +62,13 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 flex flex-col gap-3 pt-6 text-xs text-text-muted sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-11 flex flex-col gap-2.5 border-t border-white/[0.06] pt-6 text-[12px] text-white/45 sm:flex-row sm:items-center sm:justify-between">
           <p>© 2026 Vaayu Athletics LLC. All rights reserved.</p>
           <p>
             Questions?{" "}
             <a
               href="mailto:nirv@fitfo.app"
-              className="text-primary-bright hover:underline"
+              className="text-[var(--primary-bright)] transition hover:underline"
             >
               nirv@fitfo.app
             </a>
@@ -86,17 +89,17 @@ function FooterCol({
   return (
     <div>
       <h4
-        className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary-bright"
+        className="text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--primary-bright)]"
         style={{ fontFamily: "var(--font-sans)" }}
       >
         {title}
       </h4>
-      <ul className="mt-4 space-y-2.5">
+      <ul className="mt-3.5 space-y-2.5">
         {links.map((link) => (
           <li key={link.href}>
             <Link
               href={link.href}
-              className="text-sm text-text-secondary transition hover:text-text-primary"
+              className="text-[13px] text-white/65 transition hover:text-white"
             >
               {link.label}
             </Link>

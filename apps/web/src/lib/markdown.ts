@@ -7,7 +7,7 @@
  *   - **bold** spans inline
  *   - [N] citations inline
  *
- * We avoid pulling in `react-markdown` + remark just for this — the surface
+ * We avoid pulling in `react-markdown` + remark just for this; the surface
  * is small enough to parse by hand, and that gives both web and mobile a
  * single shared renderer logic without dragging in a dep that isn't
  * compatible with React Native anyway.

@@ -36,7 +36,7 @@ export interface RetrievedChunk {
 
 export interface ChatResponse {
   answer: string;
-  /** Always empty — user-facing coach hides source chips. */
+  /** Always empty; user-facing coach hides source chips. */
   citations: ChatCitation[];
   retrieval: RetrievedChunk[];
   model: string;
