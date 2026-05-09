@@ -62,6 +62,16 @@ interface ActiveWorkoutScreenProps {
   onHubTourFinishButtonVisible?: () => void;
   onScheduleAgain?: () => void;
   isSchedulingAgain?: boolean;
+  /**
+   * Persist the in-progress session into the saved library so the athlete
+   * can run the same routine again later. Receives the latest exercises
+   * snapshot — same shape `onFinish` uses — so any in-session edits are
+   * captured if the parent decides to derive the saved plan from them.
+   */
+  onSave?: (session: ActiveSessionPreview) => void;
+  isSaving?: boolean;
+  /** When true, render a confirmation state on the save button. */
+  hasSaved?: boolean;
   themeMode?: ThemeMode;
 }
 
@@ -859,6 +869,9 @@ export function ActiveWorkoutScreen({
   onHubTourFinishButtonVisible,
   onScheduleAgain,
   isSchedulingAgain = false,
+  onSave,
+  isSaving = false,
+  hasSaved = false,
   themeMode = "light",
 }: ActiveWorkoutScreenProps) {
   const theme = getTheme(themeMode);
@@ -1702,7 +1715,50 @@ export function ActiveWorkoutScreen({
                 )}
               </Pressable>
             ) : null}
-      
+
+            {onSave ? (
+              <Pressable
+                accessibilityLabel="Save this workout to your library"
+                accessibilityRole="button"
+                disabled={isSaving || hasSaved}
+                onPress={() => onSave({ ...session, exercises })}
+                style={[
+                  styles.scheduleAgainButton,
+                  isSaving ? styles.scheduleAgainButtonDisabled : null,
+                  hasSaved ? styles.saveButtonDone : null,
+                ]}
+              >
+                {isSaving ? (
+                  <>
+                    <ActivityIndicator color={theme.colors.primary} size="small" />
+                    <Text style={styles.scheduleAgainButtonText}>Saving...</Text>
+                  </>
+                ) : hasSaved ? (
+                  <>
+                    <Ionicons
+                      color={theme.colors.primary}
+                      name="checkmark-circle"
+                      size={16}
+                    />
+                    <Text style={styles.scheduleAgainButtonText}>
+                      Saved to Library
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons
+                      color={theme.colors.primary}
+                      name="bookmark-outline"
+                      size={16}
+                    />
+                    <Text style={styles.scheduleAgainButtonText}>
+                      Save Workout
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            ) : null}
+
             <View
               collapsable={false}
               ref={(node) => {
@@ -2756,5 +2812,9 @@ const createStyles = (theme: ActiveWorkoutTheme) =>
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
       letterSpacing: 0.2,
+    },
+    saveButtonDone: {
+      backgroundColor: theme.colors.surfaceMuted,
+      opacity: 0.92,
     },
   });

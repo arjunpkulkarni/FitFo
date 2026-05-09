@@ -317,6 +317,12 @@ export default function App() {
   const [isSchedulingAgain, setIsSchedulingAgain] = useState(false);
   const [scheduleAgainError, setScheduleAgainError] = useState<string | null>(null);
   const [isSavingImportedWorkout, setIsSavingImportedWorkout] = useState(false);
+  const [isSavingActiveSession, setIsSavingActiveSession] = useState(false);
+  // Tracks the startedAt of any active session that was just persisted to the
+  // saved library, so the in-session button can flip to "Saved" without
+  // letting the athlete accidentally re-save the same session twice.
+  const [savedActiveSessionStartedAt, setSavedActiveSessionStartedAt] =
+    useState<number | null>(null);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkoutRecord[]>(
     [],
   );
@@ -1757,6 +1763,71 @@ export default function App() {
     [],
   );
 
+  // Persist the in-progress session to the saved library so the athlete
+  // can re-run the same routine later. Mirrors handleSaveImportedWorkout
+  // but reads from the active session's snapshot — including any
+  // exercises edits made during the session — instead of the most
+  // recent import preview.
+  const handleSaveActiveSession = useCallback(
+    async (session: ActiveSessionPreview) => {
+      if (!accessToken) {
+        return;
+      }
+
+      setIsSavingActiveSession(true);
+      try {
+        const setCount = getCompletedWorkoutSetCount(session.exercises);
+        const metaLeft = session.workoutPlan?.workout_type
+          ? session.workoutPlan.workout_type.replace(/_/g, " ")
+          : "Workout";
+        const metaRight = `${setCount} ${setCount === 1 ? "set" : "sets"}`;
+        const displayTitle = getRoutineDisplayTitle({
+          sourceUrl: session.sourceUrl ?? null,
+          title: session.title,
+          workoutPlan: session.workoutPlan ?? null,
+        });
+
+        const saved = await saveWorkoutForLater(accessToken, {
+          workout_id: session.sourceWorkoutId ?? null,
+          job_id: session.sourceJobId ?? null,
+          source_url: session.sourceUrl ?? null,
+          thumbnail_url: null,
+          title: displayTitle,
+          description: session.description || null,
+          meta_left: metaLeft,
+          meta_right: metaRight,
+          badge_label: "Saved",
+          workout_plan: session.workoutPlan ?? null,
+        });
+        const savedPreview = createSavedRoutinePreviewFromRecord(saved);
+        setSavedWorkouts((current) => {
+          const withoutDuplicate = current.filter(
+            (item) => item.id !== savedPreview.id,
+          );
+          return [savedPreview, ...withoutDuplicate];
+        });
+
+        posthog.capture("workout_saved", {
+          saved_workout_id: savedPreview.id,
+          title: savedPreview.title ?? null,
+          source_url: savedPreview.sourceUrl ?? null,
+          source: "active_session",
+        });
+        setSavedWorkoutsError(null);
+        setSavedActiveSessionStartedAt(session.startedAt);
+      } catch (error) {
+        setSavedWorkoutsError(
+          error instanceof Error
+            ? error.message
+            : "Unable to save this workout right now.",
+        );
+      } finally {
+        setIsSavingActiveSession(false);
+      }
+    },
+    [accessToken, posthog],
+  );
+
   // Schedule a workout that's already in the user's saved library. The
   // existing saved row is reused as the schedule's source — no need to
   // re-save it.
@@ -2665,6 +2736,13 @@ export default function App() {
           isSchedulingAgain={
             isSchedulingAgain &&
             scheduleAgainTarget?.id === `active-${activeSession.startedAt}`
+          }
+          onSave={(latestSession) =>
+            void handleSaveActiveSession(latestSession)
+          }
+          isSaving={isSavingActiveSession}
+          hasSaved={
+            savedActiveSessionStartedAt === activeSession.startedAt
           }
           themeMode={themeMode}
         />
