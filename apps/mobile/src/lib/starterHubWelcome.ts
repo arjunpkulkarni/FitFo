@@ -151,7 +151,7 @@ const NUNO_PLAN: WorkoutPlan = {
           sets: 3,
           reps: 8,
           duration_sec: null,
-          rest_sec: 60,
+          rest_sec: null,
           notes: null,
         },
         {
@@ -159,7 +159,7 @@ const NUNO_PLAN: WorkoutPlan = {
           sets: 3,
           reps: 8,
           duration_sec: null,
-          rest_sec: 60,
+          rest_sec: null,
           notes: null,
         },
         {
@@ -167,7 +167,7 @@ const NUNO_PLAN: WorkoutPlan = {
           sets: 3,
           reps: 8,
           duration_sec: null,
-          rest_sec: 60,
+          rest_sec: null,
           notes: null,
         },
         {
@@ -175,7 +175,7 @@ const NUNO_PLAN: WorkoutPlan = {
           sets: 3,
           reps: 8,
           duration_sec: null,
-          rest_sec: 60,
+          rest_sec: null,
           notes: null,
         },
         {
@@ -183,7 +183,7 @@ const NUNO_PLAN: WorkoutPlan = {
           sets: 2,
           reps: 8,
           duration_sec: null,
-          rest_sec: 60,
+          rest_sec: null,
           notes: null,
         },
         {
@@ -191,7 +191,7 @@ const NUNO_PLAN: WorkoutPlan = {
           sets: 2,
           reps: 10,
           duration_sec: null,
-          rest_sec: 60,
+          rest_sec: null,
           notes: null,
         },
       ],
