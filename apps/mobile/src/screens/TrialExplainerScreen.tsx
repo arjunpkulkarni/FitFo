@@ -155,8 +155,8 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       marginBottom: 4,
     },
     logo: {
-      width: 80,
-      height: 80,
+      width: 50,
+      height: 50,
     },
     eyebrow: {
       color: theme.colors.primary,

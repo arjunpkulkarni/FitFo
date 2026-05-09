@@ -691,8 +691,8 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       justifyContent: "center",
     },
     logo: {
-      width: 60,
-      height: 60,
+      width: 40,
+      height: 40,
     },
     eyebrow: {
       color: theme.colors.primary,
