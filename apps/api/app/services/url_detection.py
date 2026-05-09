@@ -29,10 +29,36 @@ def is_instagram_host(host: str) -> bool:
 # unsupported (handled explicitly in `assert_valid_instagram_reel_url` below).
 _REEL_PATH_PREFIXES = ("/reel/", "/reels/", "/tv/")
 
+# TikTok carousel / slideshow posts use `/photo/<id>` (occasionally `/photos/`)
+# in the canonical path. We use this segment match — not a startswith — because
+# the canonical TikTok URL always begins with `/@username/` before the type
+# segment.
+_TIKTOK_SLIDESHOW_PATH_SEGMENTS = ("/photo/", "/photos/")
+
 
 def _is_reel_path(path: str) -> bool:
     normalized = path if path.startswith("/") else f"/{path}"
     return any(normalized.startswith(prefix) for prefix in _REEL_PATH_PREFIXES)
+
+
+def is_tiktok_slideshow_url(url: str) -> bool:
+    """True if `url` is a TikTok carousel / slideshow post.
+
+    Used by the router to dispatch image-only posts to
+    ``slideshow_pipeline.run_slideshow_job`` instead of the video pipeline,
+    which can't handle them. Callers should resolve any TikTok shortlinks
+    first so the path segment is canonical (e.g. ``/@user/photo/<id>``
+    rather than ``vm.tiktok.com/<code>``).
+    """
+    try:
+        normalized = normalize_source_url(url)
+    except ValueError:
+        return False
+    parsed = urlparse(normalized)
+    if not is_tiktok_host(parsed.netloc):
+        return False
+    path = parsed.path if parsed.path.startswith("/") else f"/{parsed.path}"
+    return any(segment in path for segment in _TIKTOK_SLIDESHOW_PATH_SEGMENTS)
 
 
 def detect_source(url: str) -> SourceType | None:

@@ -332,6 +332,8 @@ function LibraryWorkoutCard({
       <View style={styles.cardBottomRow}>
         {scheduleLabel ? (
           // Already scheduled — keep the two-line stack so the date is legible.
+          // Unscheduled cards intentionally render no left-side chip so the
+          // action row sits flush left, matching the v1 saved-workouts spec.
           <View style={styles.cardScheduleBlock}>
             <Ionicons
               color={accent}
@@ -348,39 +350,7 @@ function LibraryWorkoutCard({
               </Text>
             </View>
           </View>
-        ) : (
-          // Unscheduled / draft — collapse to one line so it doesn't wrap to
-          // "Not / schedule / d" on narrow cards. The chip is tappable when
-          // a schedule handler exists (mirrors the small calendar button
-          // in the action row, but gives the area a clearer affordance).
-          <Pressable
-            disabled={isDraft || !onMore}
-            onPress={onMore}
-            style={({ pressed }) => [
-              styles.cardScheduleBlock,
-              styles.cardScheduleChip,
-              pressed && onMore ? styles.actionPressed : null,
-            ]}
-            accessibilityRole={onMore ? "button" : undefined}
-            accessibilityLabel={onMore ? "Schedule this workout" : undefined}
-          >
-            <Ionicons
-              color={accent}
-              name="calendar-outline"
-              size={14}
-              style={styles.cardScheduleIcon}
-            />
-            <Text
-              style={styles.cardScheduleChipLabel}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {isDraft
-                ? lastEditedLabel || "Draft"
-                : "Tap to schedule"}
-            </Text>
-          </Pressable>
-        )}
+        ) : null}
 
         <View style={styles.cardActionRow}>
           {isDraft ? (
@@ -1126,22 +1096,6 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       fontFamily: "Satoshi-Medium",
       fontWeight: "500",
       marginTop: 1,
-    },
-    cardScheduleChip: {
-      flex: 0,
-      flexShrink: 1,
-      gap: 6,
-      borderRadius: 999,
-      paddingVertical: 6,
-      paddingHorizontal: 10,
-      backgroundColor: theme.colors.surfaceMuted,
-    },
-    cardScheduleChipLabel: {
-      color: theme.colors.textPrimary,
-      fontSize: 12,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      flexShrink: 1,
     },
     cardActionRow: {
       flexDirection: "row",
