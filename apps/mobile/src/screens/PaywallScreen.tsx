@@ -483,11 +483,11 @@ export function PaywallScreen({
               {annualPackage && annualMonthlyEquiv && annualPriceString ? (
                 <>
                   <Text style={styles.planPriceLarge}>
-                    {annualMonthlyEquiv}
-                    <Text style={styles.planPricePeriod}>/month</Text>
+                    {annualPriceString}
+                    <Text style={styles.planPricePeriod}>/year</Text>
                   </Text>
                   <Text style={styles.planSubLabel}>
-                    {annualPriceString} billed annually
+                    {annualMonthlyEquiv}/month billed annually
                   </Text>
                 </>
               ) : offeringLoading ? (
