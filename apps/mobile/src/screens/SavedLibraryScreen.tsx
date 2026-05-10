@@ -17,6 +17,7 @@ import {
   getBrandAccent,
 } from "../components/WorkoutCard";
 import { getCreatorDisplayLabel } from "../lib/fitfo";
+import { useTabBarScrollPadding } from "../lib/tabBarLayout";
 import {
   MUSCLE_GROUPS,
   MUSCLE_GROUP_LABELS,
@@ -459,6 +460,7 @@ export function SavedLibraryScreen({
   starterDemoTitle,
   themeMode = "light",
 }: SavedLibraryScreenProps) {
+  const tabBarScrollPad = useTabBarScrollPadding();
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
   const accent = getBrandAccent(theme);
@@ -534,7 +536,10 @@ export function SavedLibraryScreen({
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: tabBarScrollPad },
+      ]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
@@ -748,7 +753,6 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     content: {
       paddingHorizontal: 20,
       paddingTop: 20,
-      paddingBottom: 140,
       gap: 14,
     },
     headerNav: {

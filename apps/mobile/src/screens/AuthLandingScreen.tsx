@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type TextStyle,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -150,7 +151,9 @@ export function AuthLandingScreen({
   onSelectMode,
   themeMode = "dark",
 }: AuthLandingScreenProps) {
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
+  /** Short phones (e.g. iPhone SE): tighten TikTok demo so the share control stays tappable. */
+  const tryDemoTight = windowHeight < 720;
   const authTheme = useMemo(() => createAuthTheme(themeMode), [themeMode]);
   const { colors, styles } = authTheme;
   const scrollRef = useRef<ScrollView>(null);
@@ -559,6 +562,7 @@ export function AuthLandingScreen({
                 nativeControls={false}
                 player={tryDemoVideoPlayer}
                 playsInline
+                pointerEvents="none"
                 style={styles.tiktokVideo}
               />
               <LinearGradient
@@ -586,17 +590,59 @@ export function AuthLandingScreen({
                 <Ionicons color="#FFFFFF" name="search" size={24} />
               </View>
 
-              <View style={styles.tiktokSideRail}>
-                <View style={styles.tiktokAvatar}>
-                  <Text style={styles.tiktokAvatarText}>{demoCreatorName[0]}</Text>
-                  <View style={styles.tiktokAvatarPlus}>
-                    <Ionicons color="#FFFFFF" name="add" size={13} />
+              <View
+                style={[
+                  styles.tiktokSideRail,
+                  tryDemoTight && styles.tiktokSideRailTight,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.tiktokAvatar,
+                    tryDemoTight && styles.tiktokAvatarTight,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tiktokAvatarText,
+                      tryDemoTight && styles.tiktokAvatarTextTight,
+                    ]}
+                  >
+                    {demoCreatorName[0]}
+                  </Text>
+                  <View
+                    style={[
+                      styles.tiktokAvatarPlus,
+                      tryDemoTight && styles.tiktokAvatarPlusTight,
+                    ]}
+                  >
+                    <Ionicons
+                      color="#FFFFFF"
+                      name="add"
+                      size={tryDemoTight ? 11 : 13}
+                    />
                   </View>
                 </View>
-                <TikTokAction icon="heart" label={demoLikeCountLabel} />
-                <TikTokAction icon="chatbubble-ellipses" label="Add 1st" />
-                <TikTokAction icon="bookmark" label="6" />
+                <TikTokAction
+                  icon="heart"
+                  iconSize={tryDemoTight ? 26 : 30}
+                  label={demoLikeCountLabel}
+                  labelStyle={tryDemoTight ? styles.tiktokActionTextTight : undefined}
+                />
+                <TikTokAction
+                  icon="chatbubble-ellipses"
+                  iconSize={tryDemoTight ? 26 : 30}
+                  label="Add 1st"
+                  labelStyle={tryDemoTight ? styles.tiktokActionTextTight : undefined}
+                />
+                <TikTokAction
+                  icon="bookmark"
+                  iconSize={tryDemoTight ? 26 : 30}
+                  label="6"
+                  labelStyle={tryDemoTight ? styles.tiktokActionTextTight : undefined}
+                />
                 <Pressable
+                  hitSlop={12}
                   onPress={openTryShareSheet}
                   style={({ pressed }) => [
                     styles.tiktokAction,
@@ -605,8 +651,19 @@ export function AuthLandingScreen({
                     pressed && styles.pressed,
                   ]}
                 >
-                  <Ionicons color="#FFFFFF" name="arrow-redo" size={32} />
-                  <Text style={styles.tiktokActionText}>Share</Text>
+                  <Ionicons
+                    color="#FFFFFF"
+                    name="arrow-redo"
+                    size={tryDemoTight ? 28 : 32}
+                  />
+                  <Text
+                    style={[
+                      styles.tiktokActionText,
+                      tryDemoTight && styles.tiktokActionTextTight,
+                    ]}
+                  >
+                    Share
+                  </Text>
                 </Pressable>
               </View>
 
@@ -638,7 +695,13 @@ export function AuthLandingScreen({
               </View>
 
               {tryStage === "tiktok" ? (
-                <View style={styles.tapShareCallout}>
+                <View
+                  pointerEvents="box-none"
+                  style={[
+                    styles.tapShareCallout,
+                    tryDemoTight && styles.tapShareCalloutTight,
+                  ]}
+                >
                   <Text style={styles.tapShareTitle}>Tap Share</Text>
                   <Text style={styles.tapShareBody}>Start like you would in TikTok.</Text>
                 </View>
@@ -921,9 +984,17 @@ function StepSlide({
   width: number;
 }) {
   const { colors, styles } = useAuthTheme();
+  const { height: stepWindowHeight } = useWindowDimensions();
+  const onboardingTight = stepWindowHeight < 720;
   return (
     <View style={[styles.slide, { width }]}>
-      <View style={[styles.stepSlide, compact && styles.stepSlideCompact]}>
+      <View
+        style={[
+          styles.stepSlide,
+          compact && styles.stepSlideCompact,
+          onboardingTight && styles.stepSlideTight,
+        ]}
+      >
         <View style={styles.progressShell}>
           <Text style={styles.progressText}>
             Step {index} of {ONBOARDING_STEP_COUNT}
@@ -933,10 +1004,24 @@ function StepSlide({
           </View>
         </View>
         <View style={styles.stepHeader}>
-          <Text style={styles.stepTitle}>{title}</Text>
-          <Text style={styles.bodyText}>{subtitle}</Text>
+          <Text style={[styles.stepTitle, onboardingTight && styles.stepTitleTight]}>
+            {title}
+          </Text>
+          <Text style={[styles.bodyText, onboardingTight && styles.stepSubtitleTight]}>
+            {subtitle}
+          </Text>
         </View>
-        <View style={[styles.stepBody, compact && styles.stepBodyCompact]}>{children}</View>
+        <ScrollView
+          contentContainerStyle={[
+            styles.stepBodyScrollContent,
+            compact && styles.stepBodyScrollContentCompact,
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={styles.stepBodyScroll}
+        >
+          {children}
+        </ScrollView>
         <View style={styles.footer}>
           <Pressable onPress={back} style={styles.backButton}>
             <Ionicons color={colors.text} name="arrow-back" size={18} />
@@ -993,16 +1078,20 @@ function SecondaryButton({
 
 function TikTokAction({
   icon,
+  iconSize = 30,
   label,
+  labelStyle,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
+  iconSize?: number;
   label: string;
+  labelStyle?: TextStyle;
 }) {
   const { styles } = useAuthTheme();
   return (
     <View style={styles.tiktokAction}>
-      <Ionicons color="#FFFFFF" name={icon} size={30} />
-      <Text style={styles.tiktokActionText}>{label}</Text>
+      <Ionicons color="#FFFFFF" name={icon} size={iconSize} />
+      <Text style={[styles.tiktokActionText, labelStyle]}>{label}</Text>
     </View>
   );
 }
@@ -1137,6 +1226,10 @@ function Field({
 
 function FeatureCard({ title, type }: { title?: string; type: "calendar" | "coach" }) {
   const { colors, styles } = useAuthTheme();
+  const { height: featureWindowHeight } = useWindowDimensions();
+  const featureTight = featureWindowHeight < 720;
+  const coachHideChips = featureWindowHeight < 700;
+
   if (type === "calendar") {
     return (
       <View style={styles.featureCard}>
@@ -1145,7 +1238,14 @@ function FeatureCard({ title, type }: { title?: string; type: "calendar" | "coac
           {["M", "T", "W", "T", "F", "S", "S"].map((day, index) => {
             const active = index === 2 || index === 4;
             return (
-              <View key={`${day}-${index}`} style={[styles.calendarDay, active && styles.calendarDayActive]}>
+              <View
+                key={`${day}-${index}`}
+                style={[
+                  styles.calendarDay,
+                  featureTight && styles.calendarDayTight,
+                  active && styles.calendarDayActive,
+                ]}
+              >
                 <Text style={[styles.calendarText, active && styles.calendarTextActive]}>{day}</Text>
                 <Text style={[styles.calendarDate, active && styles.calendarTextActive]}>{index + 1}</Text>
               </View>
@@ -1165,57 +1265,69 @@ function FeatureCard({ title, type }: { title?: string; type: "calendar" | "coac
   }
 
   return (
-    <View style={[styles.featureCard, styles.coachFeatureCard]}>
+    <View
+      style={[
+        styles.featureCard,
+        styles.coachFeatureCard,
+        featureTight && styles.coachFeatureCardTight,
+      ]}
+    >
       <View style={styles.coachCardHeader}>
-        <View style={styles.coachIcon}>
+        <View style={[styles.coachIcon, featureTight && styles.coachIconTight]}>
           <Image
             accessibilityIgnoresInvertColors
             resizeMode="contain"
             source={COACH_AVATAR}
-            style={styles.coachIconImage}
+            style={[styles.coachIconImage, featureTight && styles.coachIconImageTight]}
           />
         </View>
         <View style={styles.optionCopy}>
-          <Text style={styles.coachTitle}>Fitfo AI Coach</Text>
+          <Text style={[styles.coachTitle, featureTight && styles.coachTitleTight]}>
+            Fitfo AI Coach
+          </Text>
           <Text style={styles.optionSub}>Live help for your current workout</Text>
         </View>
-        <Ionicons color={colors.accent} name="sparkles-outline" size={22} />
+        <Ionicons color={colors.accent} name="sparkles-outline" size={featureTight ? 18 : 22} />
       </View>
 
-      <View style={styles.coachChatPanel}>
-        <View style={[styles.coachBubble, styles.coachBubbleUser]}>
-          <Text style={styles.coachBubbleUserText}>Why do I feel this in my shoulders?</Text>
+      <View style={[styles.coachChatPanel, featureTight && styles.coachChatPanelTight]}>
+        <View style={[styles.coachBubble, styles.coachBubbleUser, featureTight && styles.coachBubbleTight]}>
+          <Text style={[styles.coachBubbleUserText, featureTight && styles.coachBubbleTextTight]}>
+            Why do I feel this in my shoulders?
+          </Text>
         </View>
-        <View style={[styles.coachBubble, styles.coachBubbleFitfo]}>
-          <Text style={styles.coachBubbleText}>
+        <View style={[styles.coachBubble, styles.coachBubbleFitfo, featureTight && styles.coachBubbleTight]}>
+          <Text style={[styles.coachBubbleText, featureTight && styles.coachBubbleTextTight]}>
             Tuck elbows slightly, keep your chest up, and stop when shoulders take over.
           </Text>
         </View>
       </View>
 
-      <View style={styles.coachCueList}>
+      <View style={[styles.coachCueList, featureTight && styles.coachCueListTight]}>
         {[
           ["Form cue", "Elbows 30-45 degrees"],
           ["Swap", "Use machine press if shoulders pinch"],
           ["Progress", "Add 5 lb after all 3 sets feel clean"],
         ].map(([label, detail]) => (
-          <View key={label} style={styles.coachCueRow}>
-            <Ionicons color={colors.accent} name="checkmark-circle-outline" size={18} />
+          <View key={label} style={[styles.coachCueRow, featureTight && styles.coachCueRowTight]}>
+            <Ionicons color={colors.accent} name="checkmark-circle-outline" size={featureTight ? 16 : 18} />
             <View style={styles.optionCopy}>
-              <Text style={styles.coachCueLabel}>{label}</Text>
-              <Text style={styles.coachCueDetail}>{detail}</Text>
+              <Text style={[styles.coachCueLabel, featureTight && styles.coachCueLabelTight]}>{label}</Text>
+              <Text style={[styles.coachCueDetail, featureTight && styles.coachCueDetailTight]}>{detail}</Text>
             </View>
           </View>
         ))}
       </View>
 
-      <View style={styles.coachChipRow}>
-        {["Explain set", "Swap move", "Next weight"].map((label) => (
-          <View key={label} style={styles.coachChip}>
-            <Text style={styles.coachChipText}>{label}</Text>
-          </View>
-        ))}
-      </View>
+      {coachHideChips ? null : (
+        <View style={styles.coachChipRow}>
+          {["Explain set", "Swap move", "Next weight"].map((label) => (
+            <View key={label} style={styles.coachChip}>
+              <Text style={styles.coachChipText}>{label}</Text>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -1345,6 +1457,11 @@ function createAuthStyles(colors: AuthColors) {
     gap: 12,
     paddingTop: Platform.OS === "ios" ? 32 : 22,
   },
+  stepSlideTight: {
+    gap: 10,
+    paddingBottom: Platform.OS === "ios" ? 16 : 14,
+    paddingTop: Platform.OS === "ios" ? 24 : 16,
+  },
   progressShell: {
     gap: 9,
   },
@@ -1377,12 +1494,34 @@ function createAuthStyles(colors: AuthColors) {
     lineHeight: 39,
     textAlign: "left",
   },
+  stepTitleTight: {
+    fontSize: 28,
+    letterSpacing: -0.5,
+    lineHeight: 32,
+  },
+  stepSubtitleTight: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
   stepBody: {
     flex: 1,
     justifyContent: "center",
   },
   stepBodyCompact: {
     alignItems: "center",
+    justifyContent: "flex-start",
+  },
+  stepBodyScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  stepBodyScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingBottom: 8,
+    paddingTop: 4,
+  },
+  stepBodyScrollContentCompact: {
     justifyContent: "flex-start",
   },
   footer: {
@@ -1687,6 +1826,7 @@ function createAuthStyles(colors: AuthColors) {
     backgroundColor: "#000000",
     borderRadius: 32,
     flex: 1,
+    minHeight: 0,
     overflow: "hidden",
   },
   tiktokVideo: {
@@ -1699,10 +1839,10 @@ function createAuthStyles(colors: AuthColors) {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    left: 18,
+    left: "6%",
     position: "absolute",
-    right: 18,
-    top: 13,
+    right: "6%",
+    top: "2.6%",
     zIndex: 2,
   },
   tiktokTime: {
@@ -1719,10 +1859,10 @@ function createAuthStyles(colors: AuthColors) {
     alignItems: "center",
     flexDirection: "row",
     gap: 14,
-    left: 16,
+    left: "5.5%",
     position: "absolute",
-    right: 13,
-    top: 47,
+    right: "4.5%",
+    top: "9.4%",
     zIndex: 2,
   },
   tiktokTabMuted: {
@@ -1749,9 +1889,12 @@ function createAuthStyles(colors: AuthColors) {
     alignItems: "center",
     gap: 13,
     position: "absolute",
-    right: 10,
-    top: 156,
-    zIndex: 3,
+    right: "3.5%",
+    top: "31%",
+    zIndex: 5,
+  },
+  tiktokSideRailTight: {
+    gap: 7,
   },
   tiktokAvatar: {
     alignItems: "center",
@@ -1763,10 +1906,17 @@ function createAuthStyles(colors: AuthColors) {
     justifyContent: "center",
     width: 48,
   },
+  tiktokAvatarTight: {
+    height: 40,
+    width: 40,
+  },
   tiktokAvatarText: {
     color: colors.accent,
     fontFamily: F.black,
     fontSize: 22,
+  },
+  tiktokAvatarTextTight: {
+    fontSize: 18,
   },
   tiktokAvatarPlus: {
     alignItems: "center",
@@ -1777,6 +1927,11 @@ function createAuthStyles(colors: AuthColors) {
     justifyContent: "center",
     position: "absolute",
     width: 22,
+  },
+  tiktokAvatarPlusTight: {
+    bottom: -7,
+    height: 19,
+    width: 19,
   },
   tiktokAction: {
     alignItems: "center",
@@ -1802,12 +1957,15 @@ function createAuthStyles(colors: AuthColors) {
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
+  tiktokActionTextTight: {
+    fontSize: 9,
+  },
   tiktokCaption: {
-    bottom: 54,
+    bottom: "10.8%",
     gap: 4,
-    left: 16,
+    left: "5.5%",
     position: "absolute",
-    right: 78,
+    right: "27%",
     zIndex: 2,
   },
   tiktokCreator: {
@@ -1828,9 +1986,10 @@ function createAuthStyles(colors: AuthColors) {
     borderTopWidth: 1,
     bottom: 0,
     flexDirection: "row",
-    height: 48,
+    height: "9.6%",
     justifyContent: "space-around",
     left: 0,
+    minHeight: 44,
     paddingHorizontal: 8,
     position: "absolute",
     right: 0,
@@ -1868,13 +2027,21 @@ function createAuthStyles(colors: AuthColors) {
     borderColor: colors.accentBorderStrong,
     borderRadius: 16,
     borderWidth: 1,
+    maxWidth: "46%",
     paddingHorizontal: 12,
     paddingVertical: 9,
     position: "absolute",
-    right: 66,
-    top: 333,
-    width: 132,
+    right: "23%",
+    top: "62%",
+    width: "46%",
     zIndex: 4,
+  },
+  tapShareCalloutTight: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    right: "28%",
+    top: "58%",
+    width: "42%",
   },
   tapShareTitle: {
     color: colors.accent,
@@ -2266,6 +2433,10 @@ function createAuthStyles(colors: AuthColors) {
     gap: 10,
     padding: 14,
   },
+  coachFeatureCardTight: {
+    gap: 8,
+    padding: 12,
+  },
   calendarRow: {
     flexDirection: "row",
     gap: 6,
@@ -2277,6 +2448,10 @@ function createAuthStyles(colors: AuthColors) {
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.surfaceMuted,
+  },
+  calendarDayTight: {
+    minHeight: 50,
+    borderRadius: 12,
   },
   calendarDayActive: {
     backgroundColor: colors.accent,
@@ -2328,20 +2503,41 @@ function createAuthStyles(colors: AuthColors) {
     height: 44,
     width: 44,
   },
+  coachIconTight: {
+    borderRadius: 12,
+    height: 36,
+    width: 36,
+  },
+  coachIconImageTight: {
+    height: 36,
+    width: 36,
+  },
   coachTitle: {
     color: colors.text,
     fontFamily: F.black,
     fontSize: 16,
     lineHeight: 19,
   },
+  coachTitleTight: {
+    fontSize: 15,
+    lineHeight: 18,
+  },
   coachChatPanel: {
     gap: 7,
+  },
+  coachChatPanelTight: {
+    gap: 5,
   },
   coachBubble: {
     borderRadius: 16,
     maxWidth: "92%",
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  coachBubbleTight: {
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
   coachBubbleUser: {
     alignSelf: "flex-end",
@@ -2367,8 +2563,15 @@ function createAuthStyles(colors: AuthColors) {
     fontSize: 12,
     lineHeight: 16,
   },
+  coachBubbleTextTight: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
   coachCueList: {
     gap: 7,
+  },
+  coachCueListTight: {
+    gap: 5,
   },
   coachCueRow: {
     alignItems: "center",
@@ -2380,16 +2583,30 @@ function createAuthStyles(colors: AuthColors) {
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
+  coachCueRowTight: {
+    borderRadius: 12,
+    gap: 8,
+    minHeight: 40,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
   coachCueLabel: {
     color: colors.text,
     fontFamily: F.black,
     fontSize: 12,
+  },
+  coachCueLabelTight: {
+    fontSize: 11,
   },
   coachCueDetail: {
     color: colors.textSecondary,
     fontFamily: F.bold,
     fontSize: 10,
     lineHeight: 13,
+  },
+  coachCueDetailTight: {
+    fontSize: 9,
+    lineHeight: 12,
   },
   coachChipRow: {
     flexDirection: "row",

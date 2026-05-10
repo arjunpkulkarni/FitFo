@@ -9,6 +9,7 @@ import {
   getRoutineDisplayTitle,
   getCompletedWorkoutMeta,
 } from "../lib/fitfo";
+import { useTabBarScrollPadding } from "../lib/tabBarLayout";
 import { getTheme, type ThemeMode } from "../theme";
 import type { ActiveSessionPreview, CompletedWorkoutRecord } from "../types";
 
@@ -57,6 +58,7 @@ export function LogsScreen({
   workouts,
   themeMode = "light",
 }: LogsScreenProps) {
+  const tabBarScrollPad = useTabBarScrollPadding();
   const [nowTick, setNowTick] = useState(() => Date.now());
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
@@ -105,7 +107,10 @@ export function LogsScreen({
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: tabBarScrollPad },
+      ]}
       showsVerticalScrollIndicator={false}
     >
       
@@ -298,7 +303,6 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     content: {
       paddingHorizontal: 20,
       paddingTop: 24,
-      paddingBottom: 140,
       gap: 24,
     },
     header: {

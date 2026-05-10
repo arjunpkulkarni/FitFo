@@ -1,4 +1,11 @@
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 
@@ -38,6 +45,8 @@ export function BottomNav({
   onImportWorkout,
   themeMode = "light",
 }: BottomNavProps) {
+  const { width } = useWindowDimensions();
+  const sideInset = Math.max(10, Math.min(30, Math.round(width * 0.065)));
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
   const isDark = theme.mode === "dark";
@@ -88,7 +97,10 @@ export function BottomNav({
   };
 
   return (
-    <View style={styles.shell} pointerEvents="box-none">
+    <View
+      style={[styles.shell, { left: sideInset, right: sideInset }]}
+      pointerEvents="box-none"
+    >
       <BlurView
         intensity={Platform.OS === "ios" ? 70 : 90}
         tint={isDark ? "dark" : "light"}
@@ -121,8 +133,6 @@ const createStyles = (theme: ReturnType<typeof getTheme>) => {
   return StyleSheet.create({
     shell: {
       position: "absolute",
-      left: 26,
-      right: 26,
       bottom: 18,
       borderRadius: 999,
       overflow: "hidden",

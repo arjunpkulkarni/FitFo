@@ -17,6 +17,7 @@ import {
 } from "react-native";
 
 import { getCompletedWorkoutSetCount } from "../lib/fitfo";
+import { useTabBarScrollPadding } from "../lib/tabBarLayout";
 import { getTheme, type ThemeMode } from "../theme";
 import type {
   BodyWeightEntryRecord,
@@ -201,7 +202,6 @@ function createStyles(
     content: {
       paddingHorizontal: 20,
       paddingTop: 24,
-      paddingBottom: 140,
       gap: 24,
     },
     header: {
@@ -1604,6 +1604,7 @@ export function ProgressChartsScreen({
   themeMode = "light",
   weightEntries,
 }: ProgressChartsScreenProps) {
+  const tabBarScrollPad = useTabBarScrollPadding();
   const [activeLift, setActiveLift] = useState<LiftKey>("bench");
   const [isAddWeightVisible, setIsAddWeightVisible] = useState(false);
   const theme = themeMode === "dark" ? DARK_THEME : LIGHT_THEME;
@@ -1629,7 +1630,10 @@ export function ProgressChartsScreen({
     <ChartsThemeContext.Provider value={{ palette, styles, theme }}>
       <>
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: tabBarScrollPad },
+          ]}
           showsVerticalScrollIndicator={false}
           style={styles.container}
         >

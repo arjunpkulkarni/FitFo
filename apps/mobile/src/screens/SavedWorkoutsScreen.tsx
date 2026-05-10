@@ -30,6 +30,7 @@ import {
   formatCompletedWorkoutDate,
   getRoutineDisplayTitle,
 } from "../lib/fitfo";
+import { useTabBarScrollPadding } from "../lib/tabBarLayout";
 import { getTheme, type ThemeMode } from "../theme";
 import type {
   CompletedWorkoutRecord,
@@ -443,6 +444,7 @@ export function SavedWorkoutsScreen({
   tourSpotlightsSavedWorkoutsCard = false,
   themeMode = "light",
 }: SavedWorkoutsScreenProps) {
+  const tabBarScrollPad = useTabBarScrollPadding();
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
   const accent = getBrandAccent(theme);
@@ -602,7 +604,10 @@ export function SavedWorkoutsScreen({
       }
       ref={scrollViewRef}
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: tabBarScrollPad },
+      ]}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.headerRow}>
@@ -950,7 +955,6 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     content: {
       paddingHorizontal: 20,
       paddingTop: 24,
-      paddingBottom: 140,
       gap: 16,
     },
     headerRow: {

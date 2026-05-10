@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { usePostHog } from "posthog-react-native";
 
 import { ApiError } from "../lib/api";
+import { useTabBarScrollPadding } from "../lib/tabBarLayout";
 import { getTheme, type ThemeMode } from "../theme";
 import type { UserProfile } from "../types";
 
@@ -45,6 +46,7 @@ export function ProfileScreen({
   profile,
   themeMode = "dark",
 }: ProfileScreenProps) {
+  const tabBarScrollPad = useTabBarScrollPadding();
   const posthog = usePostHog();
 
   const handleSuggestFeatures = () => {
@@ -158,7 +160,10 @@ export function ProfileScreen({
     <>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: tabBarScrollPad },
+        ]}
         showsVerticalScrollIndicator={false}
       >
       <View style={styles.header}>
@@ -392,7 +397,6 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     content: {
       paddingHorizontal: 20,
       paddingTop: 24,
-      paddingBottom: 140,
       gap: 24,
     },
     header: {

@@ -7,11 +7,15 @@ import {
   AppState,
   InteractionManager,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+} from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -215,6 +219,10 @@ function getWorkoutCompletionRatio(session: ActiveSessionPreview) {
 }
 
 export default function App() {
+  const { width: windowWidth } = useWindowDimensions();
+  const splashLogoSize = Math.round(
+    Math.min(176, Math.max(120, windowWidth * 0.38)),
+  );
   const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
   const [fontsLoaded] = useFonts({
     // Body family — Satoshi (Fontshare). Replaces Barlow.
@@ -3092,6 +3100,7 @@ export default function App() {
 
   return (
     <PostHogProvider client={posthog} debug={__DEV__} autocapture={{ captureTouches: true, captureScreens: false }}>
+    <SafeAreaProvider>
     <GestureHandlerRootView style={styles.flexRoot}>
       <SafeAreaView style={styles.safeArea}>
       <StatusBar style={themeMode === "dark" ? "light" : "dark"} />
@@ -3101,7 +3110,7 @@ export default function App() {
             <FitfoLoadingAnimation
               caption="loading"
               label="Fitfo is loading"
-              size={160}
+              size={splashLogoSize}
               themeMode={themeMode}
             />
           </View>
@@ -3111,7 +3120,7 @@ export default function App() {
               <FitfoLoadingAnimation
                 caption="checking access"
                 label="Checking your Fitfo Pro status"
-                size={160}
+                size={splashLogoSize}
                 themeMode={themeMode}
               />
               {billingCheckShowBuyNow ? (
@@ -3323,6 +3332,7 @@ export default function App() {
       ) : null}
     </SafeAreaView>
     </GestureHandlerRootView>
+    </SafeAreaProvider>
     </PostHogProvider>
   );
 }
