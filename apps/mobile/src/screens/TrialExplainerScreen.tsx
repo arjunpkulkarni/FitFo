@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { usePostHog } from "posthog-react-native";
 
@@ -56,7 +56,13 @@ export function TrialExplainerScreen({
   }, [posthog]);
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      bounces={false}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      style={styles.scrollRoot}
+    >
       <View style={styles.heroIcon}>
         <Image
           accessibilityIgnoresInvertColors
@@ -133,19 +139,25 @@ export function TrialExplainerScreen({
           <Text style={styles.legalLink}>Privacy Policy</Text>
         </Pressable>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const createStyles = (theme: ReturnType<typeof getTheme>) =>
   StyleSheet.create({
-    container: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
+    scrollRoot: {
       backgroundColor: theme.colors.background,
-      paddingHorizontal: 28,
+      flex: 1,
+    },
+    container: {
+      alignItems: "center",
+      backgroundColor: theme.colors.background,
+      flexGrow: 1,
       gap: 18,
+      justifyContent: "center",
+      paddingBottom: 32,
+      paddingHorizontal: 28,
+      paddingTop: 32,
     },
     heroIcon: {
       width: 96,

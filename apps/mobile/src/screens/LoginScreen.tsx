@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -53,7 +54,12 @@ export function LoginScreen({
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={styles.shell}>
+      <ScrollView
+        bounces={false}
+        contentContainerStyle={styles.shell}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.hero}>
           <Image 
             source={require('../../assets/icon.png')} 
@@ -143,7 +149,7 @@ export function LoginScreen({
             </Text>
           </Text>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -155,12 +161,12 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       backgroundColor: theme.colors.background,
     },
     shell: {
-      flex: 1,
-      justifyContent: "center",
-      paddingHorizontal: 24,
-      paddingTop: Platform.OS === "ios" ? 20 : 16,
-      paddingBottom: 16,
+      flexGrow: 1,
       gap: 20,
+      justifyContent: "center",
+      paddingBottom: 24,
+      paddingHorizontal: 24,
+      paddingTop: Platform.OS === "ios" ? 28 : 20,
     },
     hero: {
       gap: 6,
