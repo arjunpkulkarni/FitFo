@@ -301,12 +301,7 @@ export function PaywallScreen({
       }
       return "Pricing unavailable";
     }
-    if (selectedPlan === "annual") {
-      return "Try 7 days completely free";
-    }
-    return monthlyPriceString
-      ? `Subscribe · ${monthlyPriceString}/month`
-      : "Subscribe";
+    return "Try 7 days completely free";
   })();
 
   const ctaSubLabel = (() => {
@@ -318,7 +313,9 @@ export function PaywallScreen({
         ? `Then ${annualPriceString}/year on ${trialEndLabel}`
         : null;
     }
-    return "Renews monthly until cancelled";
+    return monthlyPriceString
+      ? `Then ${monthlyPriceString}/month on ${trialEndLabel}`
+      : null;
   })();
 
   if (purchaseSucceeded) {
@@ -334,9 +331,7 @@ export function PaywallScreen({
         <Text style={styles.successEyebrow}>You&apos;re in</Text>
         <Text style={styles.successTitle}>Welcome to Fitfo.</Text>
         <Text style={styles.successBody}>
-          {selectedPlan === "annual"
-            ? `Your 7 days completely free have started. Cancel anytime before ${trialEndLabel} and you won't be charged a cent.`
-            : "Your subscription is active. Let's get to work."}
+          {`Your 7 days completely free have started. Cancel anytime before ${trialEndLabel} and you won't be charged a cent.`}
         </Text>
 
         <Pressable
@@ -506,7 +501,7 @@ export function PaywallScreen({
           </View>
         </Pressable>
 
-        {/* Monthly — no intro offer in spec, just the recurring price. */}
+        {/* Monthly — also includes a 7-day free trial intro offer. */}
         <Pressable
           accessibilityRole="radio"
           accessibilityState={{ selected: selectedPlan === "monthly" }}
@@ -519,6 +514,13 @@ export function PaywallScreen({
             pressed ? styles.planCardPressed : null,
           ]}
         >
+          <View style={styles.badgeRow}>
+            <View style={styles.badge}>
+              <Ionicons color={theme.colors.primary} name="gift" size={12} />
+              <Text style={styles.badgeText}>{TRIAL_DAYS}-day free trial</Text>
+            </View>
+          </View>
+
           <View style={styles.planRow}>
             <View style={styles.radioOuter}>
               {selectedPlan === "monthly" ? <View style={styles.radioInner} /> : null}
@@ -531,7 +533,9 @@ export function PaywallScreen({
                     {monthlyPriceString}
                     <Text style={styles.planPricePeriod}>/month</Text>
                   </Text>
-                  <Text style={styles.planSubLabel}>Billed every month</Text>
+                  <Text style={styles.planSubLabel}>
+                    Free for {TRIAL_DAYS} days, then billed every month
+                  </Text>
                 </>
               ) : offeringLoading ? (
                 <Text style={styles.planSubLabel}>Loading App Store price…</Text>
@@ -570,12 +574,16 @@ export function PaywallScreen({
           ) : (
             <>
               <Text style={styles.trialPrimary}>
-                {monthlyPriceString
-                  ? `${monthlyPriceString}/month, billed by Apple. Cancel anytime.`
-                  : "Billed monthly by Apple. Cancel anytime."}
+                {TRIAL_DAYS} days completely free
+                {monthlyPriceString ? `, then ${monthlyPriceString}/month.` : "."}
               </Text>
               <Text style={styles.trialSecondary}>
-                Renews automatically until you cancel from Settings → Apple ID →
+                You won&apos;t be charged a cent during your {TRIAL_DAYS}-day
+                free trial. Cancel anytime before it ends.
+              </Text>
+              <Text style={styles.trialSecondary}>
+                Free trial ends {trialEndLabel} (your first billing date).
+                Renews monthly until cancelled in Settings → Apple ID →
                 Subscriptions.
               </Text>
             </>

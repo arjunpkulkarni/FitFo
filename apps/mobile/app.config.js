@@ -2,7 +2,7 @@ export default {
   expo: {
     name: "Fitfo",
     slug: "fitfo-mobile",
-    version: "1.0.3",
+    version: "1.0.4",
     orientation: "portrait",
     icon: "./assets/icon.png",
     scheme: "fitfo",
@@ -44,7 +44,7 @@ export default {
           iosActivationRules: {
             NSExtensionActivationSupportsWebURLWithMaxCount: 1,
             NSExtensionActivationSupportsWebPageWithMaxCount: 1,
-            NSExtensionActivationSupportsText: 1,
+            NSExtensionActivationSupportsText: true,
             NSExtensionActivationDictionaryVersion: 2,
           },
           iosShareExtensionName: "fit fo Share",
