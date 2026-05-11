@@ -62,6 +62,13 @@ export function getFirstHubTipStorageKey(profileId: string): string {
   return `@fitfo:first-hub-tip:${profileId}`;
 }
 
+/** Once dismissed, the post-paywall welcome sheet does not show again for this profile. */
+export function getPostPaywallWelcomeDismissedStorageKey(
+  profileId: string,
+): string {
+  return `@fitfo:post-paywall-welcome-dismissed:v1:${profileId}`;
+}
+
 export function getHubTourDoneStorageKey(profileId: string): string {
   return `@fitfo:starter-hub-tour-done:v2:${profileId}`;
 }

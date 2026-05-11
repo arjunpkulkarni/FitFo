@@ -19,6 +19,9 @@ export default {
       buildNumber: "21",
       icon: "./assets/icon.png",
       usesAppleSignIn: true,
+      infoPlist: {
+        LSApplicationQueriesSchemes: ["instagram", "tiktok", "snssdk1180"],
+      },
     },
     android: {
       adaptiveIcon: {

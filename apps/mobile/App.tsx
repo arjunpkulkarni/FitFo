@@ -27,6 +27,7 @@ import { applyDefaultFont } from "./src/lib/fonts";
 import { AddWorkoutModal } from "./src/components/AddWorkoutModal";
 import type { CoachChatMessage } from "./src/components/CoachSheet";
 import { FirstHubTipModal } from "./src/components/FirstHubTipModal";
+import { PostPaywallWelcomeModal } from "./src/components/PostPaywallWelcomeModal";
 import {
   SavedWorkoutsCoachmark,
   type CoachmarkPlacement,
@@ -109,6 +110,7 @@ import {
   getHubTourStartSessionCoachmarkBody,
   getHubTourStartSessionCoachmarkTitle,
   getHubTourStepStorageKey,
+  getPostPaywallWelcomeDismissedStorageKey,
   getSavedWorkoutsCoachmarkBody,
   getSavedWorkoutsCoachmarkTitle,
   getStarterDemoTitleForSex,
@@ -354,6 +356,8 @@ export default function App() {
     ScheduledConfirmationState | null
   >(null);
   const [isFirstHubTipVisible, setIsFirstHubTipVisible] = useState(false);
+  const [isPostPaywallWelcomeVisible, setIsPostPaywallWelcomeVisible] =
+    useState(false);
   const [hubTourStep, setHubTourStep] = useState<HubTourStep | null>(null);
   const [hubTourCoachRect, setHubTourCoachRect] = useState<CoachmarkRect | null>(null);
   const hubTourStepRef = useRef<HubTourStep | null>(null);
@@ -374,6 +378,7 @@ export default function App() {
   const handledImportedWorkoutId = useRef<string | null>(null);
   const handledNativeShareUrls = useRef(new Set<string>());
   const handledImportLaunchNotificationRef = useRef(false);
+  const pendingPostPaywallWelcomeRef = useRef(false);
   const storeReviewPromptQueuedUserIdsRef = useRef(new Set<string>());
   // Tracks any pending post-close cleanup of AddWorkoutModal so we can cancel
   // it if the user re-opens the modal before the cleanup fires (otherwise a
@@ -553,6 +558,61 @@ export default function App() {
     }
     void AsyncStorage.setItem(trialExplainerStorageKey, "1").catch(() => undefined);
   }, [trialExplainerStorageKey]);
+
+  const handleDismissPostPaywallWelcome = useCallback(async () => {
+    const userId = currentUser?.id;
+    setIsPostPaywallWelcomeVisible(false);
+    if (!userId) {
+      return;
+    }
+    try {
+      await AsyncStorage.setItem(
+        getPostPaywallWelcomeDismissedStorageKey(userId),
+        "1",
+      );
+    } catch {
+      // non-fatal
+    }
+    posthog.capture("post_paywall_welcome_dismissed");
+  }, [currentUser?.id]);
+
+  /**
+   * After the paywall success screen taps through, we refresh entitlement state,
+   * then show a one-time welcome sheet once `hasBillingAccess` flips true.
+   */
+  useEffect(() => {
+    if (!hasBillingAccess || !currentUser?.id || isBillingCheckPending) {
+      return;
+    }
+    if (!pendingPostPaywallWelcomeRef.current) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const dismissed = await AsyncStorage.getItem(
+          getPostPaywallWelcomeDismissedStorageKey(currentUser.id),
+        );
+        if (cancelled) {
+          return;
+        }
+        if (dismissed === "1") {
+          pendingPostPaywallWelcomeRef.current = false;
+          return;
+        }
+        if (!pendingPostPaywallWelcomeRef.current) {
+          return;
+        }
+        pendingPostPaywallWelcomeRef.current = false;
+        setIsPostPaywallWelcomeVisible(true);
+      } catch {
+        pendingPostPaywallWelcomeRef.current = false;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id, hasBillingAccess, isBillingCheckPending]);
 
   const resetPostLoginState = useCallback(() => {
     setActiveTab("saved");
@@ -1154,6 +1214,8 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) {
       setIsFirstHubTipVisible(false);
+      setIsPostPaywallWelcomeVisible(false);
+      pendingPostPaywallWelcomeRef.current = false;
     }
   }, [currentUser]);
 
@@ -3016,6 +3078,7 @@ export default function App() {
       hubTourStep == null ||
       !hasBillingAccess ||
       isFirstHubTipVisible ||
+      isPostPaywallWelcomeVisible ||
       isAddWorkoutVisible
     ) {
       return false;
@@ -3053,6 +3116,7 @@ export default function App() {
     isActiveWorkoutVisible,
     isAddWorkoutVisible,
     isFirstHubTipVisible,
+    isPostPaywallWelcomeVisible,
     isProfileVisible,
     isSavedLibraryVisible,
     onboardingSex,
@@ -3161,6 +3225,7 @@ export default function App() {
                 onPurchasePackage={revenueCat.purchasePackage}
                 onRestorePurchases={revenueCat.restorePurchases}
                 onUnlocked={() => {
+                  pendingPostPaywallWelcomeRef.current = true;
                   void revenueCat.refreshCustomerInfo();
                 }}
                 themeMode={themeMode}
@@ -3314,9 +3379,16 @@ export default function App() {
         visible={
           POST_SIGNUP_HUB_GUIDANCE_ENABLED &&
           isFirstHubTipVisible &&
-          hasBillingAccess
+          hasBillingAccess &&
+          !isPostPaywallWelcomeVisible
         }
         onDismiss={handleDismissFirstHubTip}
+      />
+
+      <PostPaywallWelcomeModal
+        themeMode={themeMode}
+        visible={Boolean(currentUser && hasBillingAccess && isPostPaywallWelcomeVisible)}
+        onDismiss={handleDismissPostPaywallWelcome}
       />
 
       {scheduledConfirmation ? (
