@@ -272,6 +272,22 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    InteractionManager.runAfterInteractions(() => {
+      void import("./src/lib/reportAppleSearchAdsAttribution").then(
+        ({ reportAppleSearchAdsAttribution }) => {
+          if (!cancelled) {
+            void reportAppleSearchAdsAttribution(posthog);
+          }
+        },
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleThemeModeChange = useCallback((mode: ThemeMode) => {
     setThemeMode(mode);
     void storeThemeMode(mode);

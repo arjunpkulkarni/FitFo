@@ -1,8 +1,11 @@
+const universalLinkHost =
+  process.env.APP_UNIVERSAL_LINK_HOST ?? "www.fitfo.app";
+
 export default {
   expo: {
     name: "Fitfo",
     slug: "fitfo-mobile",
-    version: "1.0.4",
+    version: "1.0.5",
     orientation: "portrait",
     icon: "./assets/icon.png",
     scheme: "fitfo",
@@ -19,6 +22,7 @@ export default {
       buildNumber: "21",
       icon: "./assets/icon.png",
       usesAppleSignIn: true,
+      associatedDomains: [`applinks:${universalLinkHost}`],
       infoPlist: {
         LSApplicationQueriesSchemes: ["instagram", "tiktok", "snssdk1180"],
       },
@@ -32,6 +36,20 @@ export default {
       predictiveBackGestureEnabled: false,
       package: "com.fitfo.mobile",
       versionCode: 1,
+      intentFilters: [
+        {
+          action: "VIEW",
+          autoVerify: true,
+          data: [
+            {
+              scheme: "https",
+              host: universalLinkHost,
+              pathPrefix: "/app",
+            },
+          ],
+          category: ["BROWSABLE", "DEFAULT"],
+        },
+      ],
     },
     web: {
       favicon: "./assets/favicon.png",
@@ -63,6 +81,8 @@ export default {
         process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ||
         process.env.EXPO_PUBLIC_RC_API_KEY,
       revenueCatGoogleApiKey: process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY,
+      disableAppleSearchAdsAttribution:
+        process.env.EXPO_PUBLIC_DISABLE_APPLE_SEARCH_ADS_ATTRIBUTION === "1",
       eas: {
         projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
       },

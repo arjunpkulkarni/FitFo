@@ -1,0 +1,15 @@
+{
+  "name": "expo-apple-search-ads",
+  "version": "1.0.0",
+  "description": "iOS AdServices AAAttribution token for Apple Search Ads install attribution.",
+  "main": "src/index.ts",
+  "license": "MIT",
+  "author": "Fitfo",
+  "homepage": "https://developer.apple.com/documentation/adservices",
+  "peerDependencies": {
+    "expo": "*",
+    "expo-modules-core": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

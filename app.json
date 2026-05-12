@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fitfo",
     "slug": "fitfo",
-    "version": "0.1.1",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./apps/mobile/assets/icon.png",
     "scheme": "fitfo",

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 
 import { FITFO_PRODUCT_FAQ } from "@/content/fitfoProductFaq";
+import { APP_STORE_URL, SITE_URL } from "@/lib/siteUrls";
 
 import "./globals.css";
 
@@ -21,8 +22,6 @@ const satoshi = localFont({
 
 const LOGO_URL_PATH = "/fitfo-logo.png";
 const OG_IMAGE_PATH = "/og-image.png";
-const SITE_URL = "https://www.fitfo.app";
-const APP_STORE_URL = "https://apps.apple.com/app/id6762418380";
 const DESCRIPTION =
   "Share any TikTok or Instagram Reel workout to Fitfo. AI extracts the exercises, sets, and reps so you can train it, log it, and repeat. Free on iOS.";
 const OG_TITLE = "Fitfo: Turn fitness videos into workouts you actually do";

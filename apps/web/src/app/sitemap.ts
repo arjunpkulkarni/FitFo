@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const SITE_URL = "https://www.fitfo.app";
+import { SITE_URL } from "@/lib/siteUrls";
 
 const routes: {
   path: string;

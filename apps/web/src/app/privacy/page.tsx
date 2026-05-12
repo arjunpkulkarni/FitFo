@@ -404,6 +404,16 @@ export default function PrivacyPage() {
                 Apple privacy prompt in the future, we will describe it here and
                 in the app before enabling it.
               </p>
+              <p>
+                <strong>Apple Search Ads.</strong> When you discover Fitfo
+                through an Apple Ads campaign and install our iPhone app, Apple
+                may provide attribution signals using Apple&apos;s AdServices
+                framework (for example coarse campaign identifiers). Fitfo sends
+                a one-time summarized conversion event to our product analytics so
+                we can evaluate whether those visits lead to installs. This does
+                not enable cross-app behavioral advertising beyond what Apple&apos;s own
+                Apple Search Ads tooling provides for campaign reporting.
+              </p>
 
               <H2>14. Changes to this policy</H2>
               <p>
