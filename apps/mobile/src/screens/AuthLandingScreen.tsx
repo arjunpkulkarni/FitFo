@@ -36,7 +36,7 @@ const WORKOUT_VIDEO = require("../../assets/my-workout.mp4");
 const NUNO_VIDEO = require("../../assets/nuno.mov");
 const NICOLETTE_VIDEO = require("../../assets/nicolette.mp4");
 const FITFO_APP_ICON = require("../../assets/icon.png");
-const COACH_AVATAR = require("../../assets/coach.png");
+const COACH_DEMO = require("../../assets/coachDemo.png");
 
 function createAuthColors(mode: ThemeMode) {
   const theme = getTheme(mode);
@@ -1228,7 +1228,6 @@ function FeatureCard({ title, type }: { title?: string; type: "calendar" | "coac
   const { colors, styles } = useAuthTheme();
   const { height: featureWindowHeight } = useWindowDimensions();
   const featureTight = featureWindowHeight < 720;
-  const coachHideChips = featureWindowHeight < 700;
 
   if (type === "calendar") {
     return (
@@ -1264,70 +1263,21 @@ function FeatureCard({ title, type }: { title?: string; type: "calendar" | "coac
     );
   }
 
+  const coachDemoHeight = Math.round(
+    Math.min(Math.max(featureWindowHeight * 0.38, 260), 460),
+  );
+
   return (
-    <View
-      style={[
-        styles.featureCard,
-        styles.coachFeatureCard,
-        featureTight && styles.coachFeatureCardTight,
-      ]}
-    >
-      <View style={styles.coachCardHeader}>
-        <View style={[styles.coachIcon, featureTight && styles.coachIconTight]}>
-          <Image
-            accessibilityIgnoresInvertColors
-            resizeMode="contain"
-            source={COACH_AVATAR}
-            style={[styles.coachIconImage, featureTight && styles.coachIconImageTight]}
-          />
-        </View>
-        <View style={styles.optionCopy}>
-          <Text style={[styles.coachTitle, featureTight && styles.coachTitleTight]}>
-            Fitfo AI Coach
-          </Text>
-          <Text style={styles.optionSub}>Live help for your current workout</Text>
-        </View>
-        <Ionicons color={colors.accent} name="sparkles-outline" size={featureTight ? 18 : 22} />
+    <View style={styles.coachDemoCard}>
+      <View style={[styles.coachDemoFrame, { height: coachDemoHeight }]}>
+        <Image
+          accessibilityIgnoresInvertColors
+          accessibilityLabel="Preview of the in-workout Fitfo AI Coach chat"
+          resizeMode="contain"
+          source={COACH_DEMO}
+          style={styles.coachDemoImage}
+        />
       </View>
-
-      <View style={[styles.coachChatPanel, featureTight && styles.coachChatPanelTight]}>
-        <View style={[styles.coachBubble, styles.coachBubbleUser, featureTight && styles.coachBubbleTight]}>
-          <Text style={[styles.coachBubbleUserText, featureTight && styles.coachBubbleTextTight]}>
-            Why do I feel this in my shoulders?
-          </Text>
-        </View>
-        <View style={[styles.coachBubble, styles.coachBubbleFitfo, featureTight && styles.coachBubbleTight]}>
-          <Text style={[styles.coachBubbleText, featureTight && styles.coachBubbleTextTight]}>
-            Tuck elbows slightly, keep your chest up, and stop when shoulders take over.
-          </Text>
-        </View>
-      </View>
-
-      <View style={[styles.coachCueList, featureTight && styles.coachCueListTight]}>
-        {[
-          ["Form cue", "Elbows 30-45 degrees"],
-          ["Swap", "Use machine press if shoulders pinch"],
-          ["Progress", "Add 5 lb after all 3 sets feel clean"],
-        ].map(([label, detail]) => (
-          <View key={label} style={[styles.coachCueRow, featureTight && styles.coachCueRowTight]}>
-            <Ionicons color={colors.accent} name="checkmark-circle-outline" size={featureTight ? 16 : 18} />
-            <View style={styles.optionCopy}>
-              <Text style={[styles.coachCueLabel, featureTight && styles.coachCueLabelTight]}>{label}</Text>
-              <Text style={[styles.coachCueDetail, featureTight && styles.coachCueDetailTight]}>{detail}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
-
-      {coachHideChips ? null : (
-        <View style={styles.coachChipRow}>
-          {["Explain set", "Swap move", "Next weight"].map((label) => (
-            <View key={label} style={styles.coachChip}>
-              <Text style={styles.coachChipText}>{label}</Text>
-            </View>
-          ))}
-        </View>
-      )}
     </View>
   );
 }
@@ -2429,13 +2379,23 @@ function createAuthStyles(colors: AuthColors) {
     backgroundColor: colors.surface,
     padding: 18,
   },
-  coachFeatureCard: {
-    gap: 10,
-    padding: 14,
+  coachDemoCard: {
+    alignSelf: "stretch",
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    gap: 0,
+    // stepSlide uses paddingHorizontal 24; bleed so the screenshot reads wider.
+    marginHorizontal: -24,
+    padding: 0,
   },
-  coachFeatureCardTight: {
-    gap: 8,
-    padding: 12,
+  coachDemoFrame: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  coachDemoImage: {
+    height: "100%",
+    width: "100%",
   },
   calendarRow: {
     flexDirection: "row",
@@ -2485,149 +2445,6 @@ function createAuthStyles(colors: AuthColors) {
     fontFamily: F.black,
     fontSize: 10,
     letterSpacing: 1,
-  },
-  coachCardHeader: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 10,
-  },
-  coachIcon: {
-    alignItems: "center",
-    borderRadius: 14,
-    height: 44,
-    justifyContent: "center",
-    overflow: "hidden",
-    width: 44,
-  },
-  coachIconImage: {
-    height: 44,
-    width: 44,
-  },
-  coachIconTight: {
-    borderRadius: 12,
-    height: 36,
-    width: 36,
-  },
-  coachIconImageTight: {
-    height: 36,
-    width: 36,
-  },
-  coachTitle: {
-    color: colors.text,
-    fontFamily: F.black,
-    fontSize: 16,
-    lineHeight: 19,
-  },
-  coachTitleTight: {
-    fontSize: 15,
-    lineHeight: 18,
-  },
-  coachChatPanel: {
-    gap: 7,
-  },
-  coachChatPanelTight: {
-    gap: 5,
-  },
-  coachBubble: {
-    borderRadius: 16,
-    maxWidth: "92%",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  coachBubbleTight: {
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  coachBubbleUser: {
-    alignSelf: "flex-end",
-    backgroundColor: colors.accent,
-    borderBottomRightRadius: 6,
-  },
-  coachBubbleFitfo: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.surfaceMuted,
-    borderBottomLeftRadius: 6,
-    borderColor: colors.border,
-    borderWidth: 1,
-  },
-  coachBubbleUserText: {
-    color: colors.onAccent,
-    fontFamily: F.black,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  coachBubbleText: {
-    color: colors.text,
-    fontFamily: F.bold,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  coachBubbleTextTight: {
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  coachCueList: {
-    gap: 7,
-  },
-  coachCueListTight: {
-    gap: 5,
-  },
-  coachCueRow: {
-    alignItems: "center",
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: 14,
-    flexDirection: "row",
-    gap: 9,
-    minHeight: 46,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  coachCueRowTight: {
-    borderRadius: 12,
-    gap: 8,
-    minHeight: 40,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-  },
-  coachCueLabel: {
-    color: colors.text,
-    fontFamily: F.black,
-    fontSize: 12,
-  },
-  coachCueLabelTight: {
-    fontSize: 11,
-  },
-  coachCueDetail: {
-    color: colors.textSecondary,
-    fontFamily: F.bold,
-    fontSize: 10,
-    lineHeight: 13,
-  },
-  coachCueDetailTight: {
-    fontSize: 9,
-    lineHeight: 12,
-  },
-  coachChipRow: {
-    flexDirection: "row",
-    gap: 7,
-  },
-  coachChip: {
-    alignItems: "center",
-    backgroundColor: colors.accentSoft,
-    borderColor: colors.accentBorder,
-    borderRadius: 999,
-    borderWidth: 1,
-    flex: 1,
-    minHeight: 30,
-    justifyContent: "center",
-    paddingHorizontal: 6,
-  },
-  coachChipText: {
-    color: colors.accent,
-    fontFamily: F.black,
-    fontSize: 9,
-    textAlign: "center",
   },
   statCards: {
     flexDirection: "row",
