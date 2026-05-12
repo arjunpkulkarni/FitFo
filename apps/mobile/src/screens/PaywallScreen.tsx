@@ -238,6 +238,11 @@ export function PaywallScreen({
           package_id: selectedPackage.identifier,
           product_id: selectedPackage.product.identifier,
         });
+        // Entitlements update inside `onPurchasePackage` before this continuation
+        // runs, so the parent may switch to the main app and unmount this screen
+        // before the user taps "Get started". Notify immediately so one-shot UI
+        // (e.g. post-paywall welcome) can still trigger.
+        onUnlocked();
         setPurchaseSucceeded(true);
       }
     } catch {
@@ -259,6 +264,7 @@ export function PaywallScreen({
       const unlocked = await onRestorePurchases();
       if (unlocked) {
         posthog.capture("subscription_restored");
+        onUnlocked();
         setPurchaseSucceeded(true);
         return;
       }
