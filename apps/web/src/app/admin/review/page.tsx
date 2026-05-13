@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -18,6 +19,10 @@ import {
 const ADMIN_ENABLED =
   process.env.NEXT_PUBLIC_CORPUS_ADMIN_ENABLED === "1" ||
   process.env.NEXT_PUBLIC_CORPUS_ADMIN_ENABLED === "true";
+
+const APP_HEALTH_DASHBOARD_ENABLED =
+  process.env.NEXT_PUBLIC_APP_HEALTH_DASHBOARD_ENABLED === "1" ||
+  process.env.NEXT_PUBLIC_APP_HEALTH_DASHBOARD_ENABLED === "true";
 
 type StatusFilter = "pending" | "needs_review" | "approved" | "rejected";
 
@@ -219,6 +224,17 @@ export default function AdminReviewPage() {
         <p className="mt-2 text-text-secondary">
           Approve, reject, or edit creator chunks before they enter retrieval.
         </p>
+        {APP_HEALTH_DASHBOARD_ENABLED ? (
+          <p className="mt-3 text-sm">
+            <Link
+              href="/admin/dashboard"
+              className="font-medium text-primary hover:underline"
+            >
+              App health dashboard →
+            </Link>{" "}
+            <span className="text-text-muted">PostHog · Shot · store links</span>
+          </p>
+        ) : null}
       </header>
 
       <section className="mb-8 rounded-2xl border border-border bg-surface p-5">

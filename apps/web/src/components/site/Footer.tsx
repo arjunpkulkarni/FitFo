@@ -1,16 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { LANDING_CONTENT_MAX } from "@/lib/landingLayout";
+import { APP_STORE_URL } from "@/lib/siteUrls";
+
 export function Footer() {
   return (
     <footer
       id="support"
       className="relative border-t border-white/[0.06] bg-black/40 backdrop-blur-2xl"
     >
-      <div className="mx-auto w-full max-w-[1440px] px-4 py-14 sm:px-6 sm:py-16 lg:px-10 xl:px-12">
+      <div className={`mx-auto w-full ${LANDING_CONTENT_MAX} px-4 py-14 sm:px-6 sm:py-16 lg:px-6`}>
         <div className="flex flex-col gap-11 md:flex-row md:items-start md:justify-between">
           <div className="max-w-sm">
-            <Link href="/" className="flex items-center gap-2.5">
+            <Link href="/" aria-label="Fitfo home" className="inline-flex items-center">
               <Image
                 src="/fitfo-logo.png"
                 alt=""
@@ -18,16 +21,10 @@ export function Footer() {
                 height={180}
                 className="h-8 w-8 sm:h-9 sm:w-9"
               />
-              <span
-                className="text-base font-bold tracking-[-0.04em] text-white"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                fitfo
-              </span>
             </Link>
             <p className="mt-4 text-[13px] leading-relaxed text-white/65 text-pretty">
-              Turn saved fitness videos into workouts you follow. Built for
-              people who train.
+              TikTok &amp; Reels → real workouts on your phone. Tap share. Hit
+              the gym.
             </p>
           </div>
 
@@ -35,13 +32,8 @@ export function Footer() {
             <FooterCol
               title="Product"
               links={[
-                { label: "Home", href: "/" },
-                { label: "How it works", href: "/#how" },
-                { label: "Demo", href: "/#demo" },
-                {
-                  label: "Download",
-                  href: "https://apps.apple.com/app/id6762418380",
-                },
+                { label: "App Store", href: APP_STORE_URL, external: true },
+                { label: "See screenshots", href: "/#see" },
               ]}
             />
             <FooterCol
@@ -84,7 +76,7 @@ function FooterCol({
   links,
 }: {
   title: string;
-  links: { label: string; href: string }[];
+  links: { label: string; href: string; external?: boolean }[];
 }) {
   return (
     <div>
@@ -96,13 +88,24 @@ function FooterCol({
       </h4>
       <ul className="mt-3.5 space-y-2.5">
         {links.map((link) => (
-          <li key={link.href}>
-            <Link
-              href={link.href}
-              className="text-[13px] text-white/65 transition hover:text-white"
-            >
-              {link.label}
-            </Link>
+          <li key={`${link.label}-${link.href}`}>
+            {link.external ? (
+              <a
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[13px] text-white/65 transition hover:text-white"
+              >
+                {link.label}
+              </a>
+            ) : (
+              <Link
+                href={link.href}
+                className="text-[13px] text-white/65 transition hover:text-white"
+              >
+                {link.label}
+              </Link>
+            )}
           </li>
         ))}
       </ul>

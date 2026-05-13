@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ElementType, ReactNode } from "react";
 
 type RevealVariant = "up" | "scale";
+
+/** `viewport` — animate when scrolled into view (default). `load` — animate on first paint after hydrate (stagger with `delay`). */
+type RevealWhen = "viewport" | "load";
 
 interface RevealProps {
   children: ReactNode;
@@ -11,6 +14,8 @@ interface RevealProps {
   delay?: number;
   /** Which entrance shape to use , plain translate (`up`) or translate + scale (`scale`). */
   variant?: RevealVariant;
+  /** When to run the entrance transition. */
+  when?: RevealWhen;
   /** Element tag to render , defaults to `div`. */
   as?: ElementType;
   className?: string;
@@ -18,18 +23,15 @@ interface RevealProps {
 }
 
 /**
- * Fade + slide element into view when it enters the viewport. Uses a single
- * IntersectionObserver per instance, unsubscribes after the first trigger so
- * scrolling back up doesn't re-animate. Matches the shared easing + duration
- * defined in globals.css so every reveal on the site feels cohesive.
- *
- * Marked "use client" , the rest of the page stays a server component, but
- * this small island hydrates for the observer wiring.
+ * Fade + slide into view. Default: IntersectionObserver fires once per element.
+ * `when="load"` runs on mount (after layout) so the full page can choreograph
+ * on first visit without waiting for scroll.
  */
 export function Reveal({
   children,
   delay = 0,
   variant = "up",
+  when = "viewport",
   as: Component = "div",
   className = "",
   style,
@@ -37,12 +39,26 @@ export function Reveal({
   const ref = useRef<HTMLElement | null>(null);
   const [inView, setInView] = useState(false);
 
+  useLayoutEffect(() => {
+    if (when !== "load") return;
+
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      setInView(true);
+      return;
+    }
+
+    setInView(true);
+  }, [when]);
+
   useEffect(() => {
+    if (when !== "viewport") return;
+
     const node = ref.current;
     if (!node) return;
 
-    // Respect reduced motion , flip to the final state immediately so users
-    // still see the content.
     if (
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -59,8 +75,6 @@ export function Reveal({
         }
       },
       {
-        // Fire slightly before the element hits the edge so animations line up
-        // with scroll momentum and feel responsive rather than late.
         threshold: 0.12,
         rootMargin: "0px 0px -64px 0px",
       },
@@ -68,7 +82,7 @@ export function Reveal({
 
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [when]);
 
   const variantClass = variant === "scale" ? "reveal-scale" : "reveal-up";
   const classes = [

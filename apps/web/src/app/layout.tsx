@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 
 import { FITFO_PRODUCT_FAQ } from "@/content/fitfoProductFaq";
 import { APP_STORE_URL, SITE_URL } from "@/lib/siteUrls";
+import { SplashGate } from "@/components/site/SplashGate";
 
 import "./globals.css";
 
@@ -23,10 +24,10 @@ const satoshi = localFont({
 const LOGO_URL_PATH = "/fitfo-logo.png";
 const OG_IMAGE_PATH = "/og-image.png";
 const DESCRIPTION =
-  "Share any TikTok or Instagram Reel workout to Fitfo. AI extracts the exercises, sets, and reps so you can train it, log it, and repeat. Free on iOS.";
-const OG_TITLE = "Fitfo: Turn fitness videos into workouts you actually do";
+  "TikTok & Reels → workouts you train for real. Tap share, hit the gym. Free on iPhone.";
+const OG_TITLE = "Fitfo — stop scrolling, start lifting";
 const SHARE_DESCRIPTION =
-  "Share any TikTok or Reel to Fitfo. AI parses the video and builds a workout you can train, log, and repeat.";
+  "Turn the fitness videos on your feed into workouts you actually do. Fitfo on iPhone.";
 const KEYWORDS = [
   "Fitfo",
   "TikTok workout app",
@@ -50,7 +51,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   applicationName: "Fitfo",
   title: {
-    default: "Fitfo: Turn TikTok & Instagram Workouts Into Real Training",
+    default: "Fitfo — TikTok & Reels to real workouts · iPhone",
     template: "%s · Fitfo",
   },
   description: DESCRIPTION,
@@ -207,7 +208,7 @@ export default function RootLayout({
             aria-hidden
             className="fitfo-haze pointer-events-none fixed inset-0 -z-10"
           />
-          {children}
+          <SplashGate>{children}</SplashGate>
         </div>
       </body>
     </html>

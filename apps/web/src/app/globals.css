@@ -313,8 +313,8 @@ body {
 @keyframes blurFadeUp {
   from {
     opacity: 0;
-    filter: blur(20px);
-    transform: translateY(40px);
+    filter: blur(24px);
+    transform: translateY(48px);
   }
   to {
     opacity: 1;
@@ -325,7 +325,21 @@ body {
 
 .animate-blur-fade-up {
   opacity: 0;
-  animation: blurFadeUp 1s ease-out forwards;
+  animation: blurFadeUp 1.15s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes heroVeilIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fitfo-hero-veil-enter {
+  opacity: 0;
+  animation: heroVeilIn 1.1s ease-out 40ms forwards;
 }
 
 .nav-surface {
@@ -429,8 +443,8 @@ body {
   opacity: 0;
   transform: translateY(24px);
   transition:
-    opacity 800ms var(--ease-out-soft),
-    transform 800ms var(--ease-out-soft);
+    opacity 950ms var(--ease-out-soft),
+    transform 950ms var(--ease-out-soft);
   will-change: opacity, transform;
 }
 
@@ -532,6 +546,56 @@ body {
   transform: translateY(-2px);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* "See the app" scroll target + link arrow pulse */
+@keyframes see-strip-hit-glow {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 0 transparent,
+      0 0 0 0 rgba(255, 106, 44, 0);
+  }
+
+  40% {
+    box-shadow:
+      inset 0 0 96px -24px rgba(255, 106, 44, 0.2),
+      0 0 0 1px rgba(255, 106, 44, 0.32),
+      0 0 64px -12px rgba(255, 90, 20, 0.15);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .see-strip-hit {
+    animation: see-strip-hit-glow 1.05s var(--ease-out-soft) forwards;
+    border-radius: 0;
+    will-change: box-shadow;
+  }
+
+  .see-app-link-arrow-hit {
+    animation: fitfo-see-arrow-slide 0.62s var(--ease-out-soft) both;
+    color: var(--primary-bright);
+  }
+
+  @keyframes fitfo-see-arrow-slide {
+    0% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(7px);
+    }
+
+    100% {
+      transform: translateY(0);
+    }
+  }
+}
+
 /*
  * Respect users who've opted out of motion , kill all animation/transition
  * durations but keep final states intact by applying the `.in-view` target
@@ -557,5 +621,17 @@ body {
     opacity: 1 !important;
     filter: none !important;
     transform: none !important;
+  }
+
+  .fitfo-hero-veil-enter {
+    opacity: 1 !important;
+    animation: none !important;
+  }
+
+  .see-strip-hit,
+  .see-app-link-arrow-hit {
+    animation: none !important;
+    box-shadow: none !important;
+    color: inherit !important;
   }
 }

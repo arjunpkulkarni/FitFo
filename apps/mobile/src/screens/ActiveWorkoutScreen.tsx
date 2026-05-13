@@ -1168,6 +1168,7 @@ export function ActiveWorkoutScreen({
       current_set_logged_summary: draftLogged,
       source_workout_id: session.sourceWorkoutId ?? null,
       source_job_id: session.sourceJobId ?? null,
+      source_url: session.sourceUrl ?? null,
     };
   }, [
     completedSetCount,

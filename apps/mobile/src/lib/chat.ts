@@ -74,6 +74,8 @@ export interface WorkoutContext {
   source_workout_id?: string | null;
   /** Import/job id when the session came from TikTok ingest (optional). */
   source_job_id?: string | null;
+  /** Original shared link for this workout (TikTok, Instagram, etc.); drives coach “reference” taps. */
+  source_url?: string | null;
 }
 
 export interface ChatRequestBody {

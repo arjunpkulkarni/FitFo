@@ -119,16 +119,18 @@ import {
 } from "./src/lib/starterHubWelcome";
 import * as Notifications from "expo-notifications";
 import {
-  INGESTION_READY_NOTIFICATION_KIND,
-  TRIAL_PRE_CHARGE_NOTIFICATION_KIND,
+  cancelGymScheduleNudge,
   cancelWorkoutReminder,
   getAutoNotifyImportsPreference,
+  INGESTION_READY_NOTIFICATION_KIND,
   notifyWorkoutReady,
   reconcileScheduledNotifications,
   requestNotificationPermissionForOnboarding,
   scheduleWorkoutReminder,
   setAutoNotifyImportsPreference,
   syncExpoPushTokenWithBackend,
+  syncGymScheduleNudgeIfNeeded,
+  TRIAL_PRE_CHARGE_NOTIFICATION_KIND,
 } from "./src/lib/notifications";
 import { ActiveWorkoutScreen } from "./src/screens/ActiveWorkoutScreen";
 import { AuthLandingScreen } from "./src/screens/AuthLandingScreen";
@@ -337,6 +339,7 @@ export default function App() {
   const [scheduledWorkoutsError, setScheduledWorkoutsError] = useState<string | null>(
     null,
   );
+  const scheduledWorkoutsRef = useRef<ScheduledWorkoutRecord[]>([]);
   const [isSchedulingWorkout, setIsSchedulingWorkout] = useState(false);
   const [scheduleAgainTarget, setScheduleAgainTarget] =
     useState<ScheduleAgainTarget | null>(null);
@@ -460,9 +463,14 @@ export default function App() {
   }, [isAuthReady, accessToken, currentUser?.id]);
 
   useEffect(() => {
+    scheduledWorkoutsRef.current = scheduledWorkouts;
+  }, [scheduledWorkouts]);
+
+  useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
       if (next === "active" && isAuthReady && accessToken?.trim() && currentUser?.id) {
         void syncExpoPushTokenWithBackend(accessToken);
+        void syncGymScheduleNudgeIfNeeded(scheduledWorkoutsRef.current);
       }
     });
     return () => sub.remove();
@@ -935,6 +943,7 @@ export default function App() {
       void reconcileScheduledNotifications(
         rows.filter((row) => row.status === "scheduled").map((row) => row.id),
       );
+      void syncGymScheduleNudgeIfNeeded(rows);
     } catch (error) {
       setScheduledWorkoutsError(
         error instanceof Error
@@ -2553,6 +2562,7 @@ export default function App() {
   }, [pendingOtpChallenge]);
 
   const resetAuthenticatedState = useCallback(() => {
+    void cancelGymScheduleNudge();
     setAccessToken(null);
     setCurrentUser(null);
     setSavedWorkouts([]);

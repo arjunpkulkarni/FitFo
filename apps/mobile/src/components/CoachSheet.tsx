@@ -55,6 +55,26 @@ const SUGGESTIONS = [
   "Should I add or drop weight?",
 ];
 
+function isLikelyTikTokUrl(raw: string): boolean {
+  return raw.toLowerCase().includes("tiktok.com");
+}
+
+/** Prefer opening the workout’s TikTok reel; fallback to TikTok citations, then original reel / citation URLs. */
+function resolveCoachCitationTapUrl(
+  workoutSourceUrl: string | null | undefined,
+  citationSourceUrl: string | null | undefined,
+): string | undefined {
+  const w = workoutSourceUrl?.trim();
+  const c = citationSourceUrl?.trim();
+  const httpW = w?.startsWith("http") ? w : undefined;
+  const httpC = c?.startsWith("http") ? c : undefined;
+  if (httpW && isLikelyTikTokUrl(httpW)) return httpW;
+  if (httpC && isLikelyTikTokUrl(httpC)) return httpC;
+  if (httpW) return httpW;
+  if (httpC) return httpC;
+  return undefined;
+}
+
 export default function CoachSheet({
   visible,
   onClose,
@@ -151,8 +171,11 @@ export default function CoachSheet({
       }
       if (inline.kind === "citation") {
         const cite = citationLookup(citations, inline.index);
-        const url = cite?.source_url?.trim();
-        const canOpen = Boolean(url?.startsWith("http"));
+        const url = resolveCoachCitationTapUrl(
+          workoutRef.current?.source_url,
+          cite?.source_url,
+        );
+        const canOpen = Boolean(url);
         if (canOpen && url) {
           return (
             <Text

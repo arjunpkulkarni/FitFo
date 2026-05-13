@@ -89,7 +89,7 @@ function askUserBeforeSystemPrompt(): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     Alert.alert(
       "Turn on Fitfo alerts?",
-      "Fitfo sends two kinds of local alerts: reminders the day before and morning of each workout you schedule, and a quick ping when an imported workout finishes building so you can keep scrolling while it processes. No marketing, no ads. You can turn them off anytime in iOS Settings.",
+      "Fitfo sends local alerts: reminders the evening before and morning of each workout you schedule, a quick ping when an imported workout finishes building, and—if your calendar has no upcoming workouts—a gentle nudge about every two days to schedule your next session. No marketing, no ads. You can turn them off anytime in iOS Settings.",
       [
         {
           text: "Not now",
@@ -178,7 +178,7 @@ export async function requestNotificationPermissionForOnboarding(): Promise<bool
     const userAgreed = await new Promise<boolean>((resolve) => {
       Alert.alert(
         "Get workout reminders?",
-        "We'll remind you the evening before and the morning of each workout you schedule, so your sessions stay on track. If an import takes a bit, we can also let you know when your workout is ready to save. You can turn this off anytime in Settings.",
+        "We'll remind you the evening before and the morning of each workout you schedule, nudge you about every two days if nothing is on your calendar, and—if an import takes a bit—let you know when your workout is ready to save. You can turn this off anytime in Settings.",
         [
           { text: "Not now", style: "cancel", onPress: () => resolve(false) },
           { text: "Allow", onPress: () => resolve(true) },
@@ -465,6 +465,138 @@ export async function reconcileScheduledNotifications(
     delete map[id];
   }
   await writeNotificationMap(map);
+}
+
+const GYM_NUDGE_NOTIFICATION_ID_KEY = "@fitfo:gym-schedule-nudge-notification-id";
+
+/** Roughly biweekly ping when nothing is on the training calendar. */
+const GYM_NUDGE_INTERVAL_DAYS = 2;
+const GYM_NUDGE_HOUR_LOCAL = 10;
+const GYM_NUDGE_MINUTE_LOCAL = 0;
+
+export const GYM_SCHEDULE_NUDGE_NOTIFICATION_KIND = "gym-schedule-nudge";
+
+function localTodayYmd(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function normalizeScheduleYmd(scheduled_for: string): string {
+  const trimmed = scheduled_for.trim();
+  const match = /^(\d{4}-\d{2}-\d{2})/u.exec(trimmed);
+  return match ? match[1] : trimmed.slice(0, 10);
+}
+
+function hasUpcomingScheduledWorkoutOnCalendar(
+  rows: readonly ScheduledWorkoutRecord[],
+): boolean {
+  const today = localTodayYmd();
+  return rows.some(
+    (r) =>
+      r.status === "scheduled" &&
+      typeof r.scheduled_for === "string" &&
+      normalizeScheduleYmd(r.scheduled_for) >= today,
+  );
+}
+
+function computeNextGymNudgeFireDate(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + GYM_NUDGE_INTERVAL_DAYS);
+  d.setHours(GYM_NUDGE_HOUR_LOCAL, GYM_NUDGE_MINUTE_LOCAL, 0, 0);
+  const nowMs = Date.now();
+  while (d.getTime() <= nowMs) {
+    d.setDate(d.getDate() + 1);
+  }
+  return d;
+}
+
+async function readGymNudgeNotificationId(): Promise<string | null> {
+  try {
+    const raw = await AsyncStorage.getItem(GYM_NUDGE_NOTIFICATION_ID_KEY);
+    return raw && raw.trim().length > 0 ? raw.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeGymNudgeNotificationId(id: string | null): Promise<void> {
+  try {
+    if (id) {
+      await AsyncStorage.setItem(GYM_NUDGE_NOTIFICATION_ID_KEY, id);
+    } else {
+      await AsyncStorage.removeItem(GYM_NUDGE_NOTIFICATION_ID_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/** Drops the repeating “schedule a workout” ping (e.g. on logout). */
+export async function cancelGymScheduleNudge(): Promise<void> {
+  const id = await readGymNudgeNotificationId();
+  if (id) {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    } catch {
+      // already fired or cancelled
+    }
+  }
+  await writeGymNudgeNotificationId(null);
+}
+
+/**
+ * Keeps a single local notification ~2 days out when the user has no upcoming
+ * scheduled workout (today or later). Cancels when they schedule again.
+ */
+export async function syncGymScheduleNudgeIfNeeded(
+  rows: readonly ScheduledWorkoutRecord[],
+): Promise<void> {
+  try {
+    const perms = await Notifications.getPermissionsAsync();
+    if (!perms.granted) {
+      await cancelGymScheduleNudge();
+      return;
+    }
+
+    await ensureReminderNotificationChannel();
+
+    if (hasUpcomingScheduledWorkoutOnCalendar(rows)) {
+      await cancelGymScheduleNudge();
+      return;
+    }
+
+    const existingId = await readGymNudgeNotificationId();
+    if (existingId) {
+      const pending = await Notifications.getAllScheduledNotificationsAsync();
+      if (pending.some((n) => n.identifier === existingId)) {
+        return;
+      }
+    }
+
+    await cancelGymScheduleNudge();
+
+    const fireAt = computeNextGymNudgeFireDate();
+    const newId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Time to go to the gym",
+        body: "You don’t have a workout scheduled. Open Fitfo and plan your next session.",
+        sound: "default",
+        data: {
+          kind: GYM_SCHEDULE_NUDGE_NOTIFICATION_KIND,
+        },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: fireAt,
+      },
+    });
+    await writeGymNudgeNotificationId(newId);
+  } catch {
+    // Non-fatal: scheduling APIs can fail on simulators / permission edge cases.
+  }
 }
 
 /**
