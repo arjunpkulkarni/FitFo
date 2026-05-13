@@ -8,7 +8,8 @@ const BG = "#000";
 const DURATION = 2400;
 const HOLD = 900;
 const FADE = 600;
-const LOOP = DURATION + HOLD + FADE;
+/** One draw + hold + fade (ms); synced with splash minimum duration */
+export const FITFO_LOADING_CYCLE_MS = DURATION + HOLD + FADE;
 const SPARK_COUNT = 10;
 
 const PTS = [
@@ -133,7 +134,7 @@ export function FitfoLoadingAnimation({
 
     const frame = (now: number) => {
       let elapsed = now - start;
-      if (elapsed > LOOP) {
+      if (elapsed > FITFO_LOADING_CYCLE_MS) {
         start = now;
         elapsed = 0;
       }

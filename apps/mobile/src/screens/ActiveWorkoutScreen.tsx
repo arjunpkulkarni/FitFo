@@ -1604,7 +1604,7 @@ export function ActiveWorkoutScreen({
               </Pressable>
               <Image
                 resizeMode="contain"
-                source={require("../../assets/icon.png")}
+                source={require("../../assets/vector-no-bg.png")}
                 style={styles.brandLogo}
               />
               <Pressable

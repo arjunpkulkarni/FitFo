@@ -117,7 +117,7 @@ export function WorkoutSummaryScreen({
         </Pressable>
         <Image
           resizeMode="contain"
-          source={require("../../assets/icon.png")}
+          source={require("../../assets/vector-no-bg.png")}
           style={styles.brandLogo}
         />
         <View style={styles.headerSpacer} />

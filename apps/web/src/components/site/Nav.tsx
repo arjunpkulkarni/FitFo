@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 
 import { LANDING_CONTENT_MAX } from "@/lib/landingLayout";
-import { APP_STORE_URL } from "@/lib/siteUrls";
+import { APP_STORE_URL, SITE_LOGO_SRC } from "@/lib/siteUrls";
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
@@ -36,7 +36,7 @@ export function Nav() {
         >
           <span className="logo-mark relative inline-flex h-10 w-10 items-center justify-center sm:h-12 sm:w-12 md:h-[3.25rem] md:w-[3.25rem]">
             <Image
-              src="/fitfo-logo.png"
+              src={SITE_LOGO_SRC}
               alt=""
               width={104}
               height={104}

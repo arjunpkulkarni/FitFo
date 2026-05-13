@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { LANDING_CONTENT_MAX } from "@/lib/landingLayout";
-import { APP_STORE_URL } from "@/lib/siteUrls";
+import { APP_STORE_URL, SITE_LOGO_SRC } from "@/lib/siteUrls";
 
 export function Footer() {
   return (
@@ -15,7 +15,7 @@ export function Footer() {
           <div className="max-w-sm">
             <Link href="/" aria-label="Fitfo home" className="inline-flex items-center">
               <Image
-                src="/fitfo-logo.png"
+                src={SITE_LOGO_SRC}
                 alt=""
                 width={180}
                 height={180}

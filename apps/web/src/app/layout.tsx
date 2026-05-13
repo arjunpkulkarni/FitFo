@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 
 import { FITFO_PRODUCT_FAQ } from "@/content/fitfoProductFaq";
-import { APP_STORE_URL, SITE_URL } from "@/lib/siteUrls";
+import { APP_STORE_URL, SITE_LOGO_SRC, SITE_URL } from "@/lib/siteUrls";
 import { SplashGate } from "@/components/site/SplashGate";
 
 import "./globals.css";
@@ -21,7 +21,7 @@ const satoshi = localFont({
   display: "swap",
 });
 
-const LOGO_URL_PATH = "/fitfo-logo.png";
+const LOGO_URL_PATH = SITE_LOGO_SRC;
 const OG_IMAGE_PATH = "/og-image.png";
 const DESCRIPTION =
   "TikTok & Reels → workouts you train for real. Tap share, hit the gym. Free on iPhone.";

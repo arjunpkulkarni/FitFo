@@ -35,7 +35,7 @@ const TRY_DEMO_SLIDE_INDEX = 5;
 const WORKOUT_VIDEO = require("../../assets/my-workout.mp4");
 const NUNO_VIDEO = require("../../assets/nuno.mov");
 const NICOLETTE_VIDEO = require("../../assets/nicolette.mp4");
-const FITFO_APP_ICON = require("../../assets/icon.png");
+const FITFO_APP_ICON = require("../../assets/vector-no-bg.png");
 const COACH_DEMO = require("../../assets/coachDemo.png");
 
 function createAuthColors(mode: ThemeMode) {

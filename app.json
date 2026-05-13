@@ -4,12 +4,12 @@
     "slug": "fitfo",
     "version": "1.0.6",
     "orientation": "portrait",
-    "icon": "./apps/mobile/assets/icon.png",
+    "icon": "./apps/mobile/assets/vector-no-bg.png",
     "scheme": "fitfo",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "splash": {
-      "image": "./apps/mobile/assets/logo.png",
+      "image": "./apps/mobile/assets/vector-no-bg.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
@@ -17,13 +17,13 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fitfo.mobile",
       "buildNumber": "16",
-      "icon": "./apps/mobile/assets/icon.png",
+      "icon": "./apps/mobile/assets/vector-no-bg.png",
       "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./apps/mobile/assets/adaptive-icon.png",
-        "backgroundColor": "#F4F1EC"
+        "foregroundImage": "./apps/mobile/assets/vector-no-bg.png",
+        "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -31,7 +31,7 @@
       "versionCode": 1
     },
     "web": {
-      "favicon": "./apps/mobile/assets/icon.png"
+      "favicon": "./apps/mobile/assets/vector-no-bg.png"
     }
   }
 }

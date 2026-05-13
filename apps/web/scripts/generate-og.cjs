@@ -25,7 +25,7 @@ async function main() {
 
   const base = await sharp(Buffer.from(svg)).png().toBuffer();
 
-  const logoPath = path.join(root, "public/fitfo-logo.png");
+  const logoPath = path.join(root, "public/vector-no-bg.png");
   const phonePath = path.join(root, "public/assets/IMG_4970.PNG");
   const composites = [];
 

@@ -1,3 +1,6 @@
+/** Logo mark in `public/` (Nav, Footer, Open App, schema, OG script). Orange vector on transparent. */
+export const SITE_LOGO_SRC = "/vector-no-bg.png";
+
 /** Canonical origin (no trailing slash). Align Linktree targets with this host. */
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.fitfo.app";

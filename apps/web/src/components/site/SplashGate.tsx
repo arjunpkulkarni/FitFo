@@ -3,10 +3,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
-import { FitfoLoadingAnimation } from "@/components/FitfoLoadingAnimation";
+import {
+  FitfoLoadingAnimation,
+  FITFO_LOADING_CYCLE_MS,
+} from "@/components/FitfoLoadingAnimation";
 
 const SPLASH_DONE_KEY = "fitfo:splash-complete:v2";
-const MIN_VISIBLE_MS = 1000;
+/** At least one full SVG cycle before the overlay fades out */
+const MIN_SPLASH_MS = FITFO_LOADING_CYCLE_MS;
 const EXIT_MS = 480;
 
 type Phase = "idle" | "show" | "exit" | "gone";
@@ -18,6 +22,12 @@ export function SplashGate({ children }: { children: React.ReactNode }) {
   const exitTimerRef = useRef<number | undefined>(undefined);
   const dismissedRef = useRef(false);
   const splashRanRef = useRef(false);
+
+  /** Reveal routed page only after splash fully finishes (homepage first session). */
+  const pageUnlocked =
+    pathname.startsWith("/admin") ||
+    (pathname !== "/" && pathname !== "") ||
+    phase === "gone";
 
   useLayoutEffect(() => {
     dismissedRef.current = false;
@@ -92,7 +102,7 @@ export function SplashGate({ children }: { children: React.ReactNode }) {
         if (cancelled || dismissedRef.current) return;
         dismissedRef.current = true;
         setPhase("exit");
-      }, Math.max(0, MIN_VISIBLE_MS - elapsed));
+      }, Math.max(0, MIN_SPLASH_MS - elapsed));
     }
 
     void dismiss();
@@ -131,6 +141,19 @@ export function SplashGate({ children }: { children: React.ReactNode }) {
     }
   }, [phase, pathname]);
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (pageUnlocked) {
+      document.body.style.overflow = "";
+      return;
+    }
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [pageUnlocked]);
+
   const overlay =
     phase === "show" || phase === "exit" ? (
       <div
@@ -148,7 +171,16 @@ export function SplashGate({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      {children}
+      <div
+        aria-hidden={!pageUnlocked}
+        className={
+          pageUnlocked
+            ? "relative flex min-h-0 w-full flex-1 flex-col"
+            : "hidden w-full"
+        }
+      >
+        {children}
+      </div>
       {overlay}
     </>
   );

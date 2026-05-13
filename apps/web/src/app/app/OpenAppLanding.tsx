@@ -8,6 +8,7 @@ import {
   APP_STORE_URL,
   FITFO_SCHEME_OPEN_URL,
   PLAY_STORE_URL,
+  SITE_LOGO_SRC,
   SITE_URL,
 } from "@/lib/siteUrls";
 
@@ -41,7 +42,7 @@ export default function OpenAppLanding() {
   return (
     <main className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-lg flex-col items-center justify-center gap-10 px-6 py-16 text-center">
       <Image
-        src="/fitfo-logo.png"
+        src={SITE_LOGO_SRC}
         alt="Fitfo"
         width={120}
         height={120}

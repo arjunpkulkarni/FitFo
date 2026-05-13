@@ -7,12 +7,12 @@ export default {
     slug: "fitfo-mobile",
     version: "1.0.6",
     orientation: "portrait",
-    icon: "./assets/icon.png",
+    icon: "./assets/vector-no-bg.png",
     scheme: "fitfo",
     userInterfaceStyle: "dark",
     newArchEnabled: true,
     splash: {
-      image: "./assets/icon.png",
+      image: "./assets/vector-no-bg.png",
       resizeMode: "contain",
       backgroundColor: "#000000",
     },
@@ -20,7 +20,7 @@ export default {
       supportsTablet: true,
       bundleIdentifier: "com.fitfo.mobile",
       buildNumber: "21",
-      icon: "./assets/icon.png",
+      icon: "./assets/vector-no-bg.png",
       usesAppleSignIn: true,
       associatedDomains: [`applinks:${universalLinkHost}`],
       infoPlist: {
@@ -29,8 +29,8 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#F4F1EC",
+        foregroundImage: "./assets/vector-no-bg.png",
+        backgroundColor: "#000000",
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,

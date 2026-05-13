@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   APP_STORE_ID,
   APP_STORE_URL,
+  SITE_LOGO_SRC,
 } from "@/lib/siteUrls";
 
 import {
@@ -165,7 +166,7 @@ export default function AppHealthDashboardPage() {
       <div className="flex flex-col gap-6 border-b border-border-soft pb-8 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-start gap-4">
           <Image
-            src="/fitfo-logo.png"
+            src={SITE_LOGO_SRC}
             alt=""
             width={48}
             height={48}
