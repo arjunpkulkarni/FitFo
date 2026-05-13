@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
@@ -16,6 +17,12 @@ const IMG = {
   session: "/assets/IMG_4967.PNG",
 } as const;
 
+const TEAM = [
+  { src: "/assets/team/jacob.jpg", name: "Jacob" },
+  { src: "/assets/team/nirv.png", name: "Nirv" },
+  { src: "/assets/team/nuno.png", name: "Nuno" },
+] as const;
+
 export default function LandingPage() {
   return (
     <>
@@ -23,6 +30,7 @@ export default function LandingPage() {
       <main id="top" className="relative flex flex-1 flex-col">
         <Hero />
         <VisualStrip />
+        <Team />
         <Closer />
       </main>
       <Reveal when="load" delay={920} variant="up" className="w-full shrink-0">
@@ -223,11 +231,69 @@ function VisualStrip() {
   );
 }
 
+function Team() {
+  return (
+    <section
+      id="team"
+      className="scroll-mt-20 border-t border-white/[0.06] bg-black/[0.18] py-14 sm:py-16 lg:py-20"
+    >
+      <div className={`mx-auto ${LANDING_CONTENT_MAX} px-4 sm:px-6`}>
+        <Reveal when="load" delay={660} variant="up">
+          <h2
+            className="mx-auto max-w-xl px-2 text-center text-[clamp(1.05rem,3.4vw,1.35rem)] font-semibold leading-snug tracking-[-0.035em] text-white sm:max-w-none"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Used by your{" "}
+            <span className="text-[var(--primary-bright)] drop-shadow-[0_0_32px_rgba(255,106,44,0.35)]">
+              favorite fitness influencers
+            </span>
+          </h2>
+        </Reveal>
+        <div className="mx-auto mt-12 grid max-w-2xl grid-cols-1 gap-12 sm:max-w-none sm:grid-cols-3 sm:gap-10">
+          {TEAM.map((member, i) => (
+            <Reveal
+              key={member.name}
+              when="load"
+              delay={730 + i * 90}
+              variant="up"
+              className="flex flex-col items-center text-center"
+            >
+              <div className="relative mb-4">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 -z-10 scale-110 rounded-full opacity-35 blur-2xl"
+                  style={{
+                    background:
+                      "radial-gradient(circle at 50% 50%, rgba(255,106,44,0.32), transparent 70%)",
+                  }}
+                />
+                <Image
+                  src={member.src}
+                  alt=""
+                  width={160}
+                  height={160}
+                  className="h-40 w-40 rounded-full border border-white/[0.1] object-cover shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
+                />
+              </div>
+              <p
+                className="text-lg font-semibold tracking-[-0.02em] text-white"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                {member.name}
+              </p>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Closer() {
   return (
     <section id="download" className="scroll-mt-20 pb-20 pt-8 sm:pb-24">
       <div className={`mx-auto ${LANDING_CONTENT_MAX} px-4 sm:px-6`}>
-        <Reveal when="load" delay={820} variant="scale">
+        <Reveal when="load" delay={960} variant="scale">
           <div className="relative overflow-hidden rounded-[28px] border border-white/[0.08] p-8 sm:p-11 lg:p-14">
             <div
               aria-hidden
