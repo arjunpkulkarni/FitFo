@@ -57,6 +57,14 @@ export default {
     plugins: [
       "expo-video",
       [
+        "expo-image-picker",
+        {
+          photosPermission:
+            "Fitfo lets you choose a profile photo from your library.",
+          cameraPermission: "Fitfo uses the camera to take your profile photo.",
+        },
+      ],
+      [
         "expo-share-intent",
         {
           iosActivationRules: {

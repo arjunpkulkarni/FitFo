@@ -46,6 +46,7 @@ class UserProfileResponse(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     apple_user_id: Optional[str] = None
+    avatar_url: Optional[str] = None
     onboarding: Optional[UserOnboardingResponse] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

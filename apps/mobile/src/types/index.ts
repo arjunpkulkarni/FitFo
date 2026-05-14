@@ -83,6 +83,7 @@ export interface UserProfile {
   phone: string | null;
   email: string | null;
   apple_user_id: string | null;
+  avatar_url?: string | null;
   onboarding: UserOnboarding | null;
   created_at: string | null;
   updated_at: string | null;

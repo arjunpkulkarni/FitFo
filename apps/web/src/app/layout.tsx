@@ -25,7 +25,7 @@ const LOGO_URL_PATH = SITE_LOGO_SRC;
 const OG_IMAGE_PATH = "/og-image.png";
 const DESCRIPTION =
   "TikTok & Reels → workouts you train for real. Tap share, hit the gym. Free on iPhone.";
-const OG_TITLE = "Fitfo — stop scrolling, start lifting";
+const OG_TITLE = "Fitfo — stop watching, start lifting";
 const SHARE_DESCRIPTION =
   "Turn the fitness videos on your feed into workouts you actually do. Fitfo on iPhone.";
 const KEYWORDS = [

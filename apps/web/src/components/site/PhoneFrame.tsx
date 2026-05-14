@@ -1,9 +1,14 @@
+"use client";
+
 import Image from "next/image";
 import type { ComponentPropsWithoutRef, CSSProperties } from "react";
+import { useEffect, useRef } from "react";
 
 interface PhoneFrameProps extends ComponentPropsWithoutRef<"div"> {
   src: string;
   alt: string;
+  /** Looping poster video; when set, `src` is used as `poster`. */
+  videoSrc?: string;
   /**
    * Width of the rendered frame in pixels. The phone aspect ratio (19.5:9ish
    * iPhone shape) is derived from this so the screenshot always sits cleanly
@@ -36,6 +41,7 @@ interface PhoneFrameProps extends ComponentPropsWithoutRef<"div"> {
 export function PhoneFrame({
   src,
   alt,
+  videoSrc,
   width = 280,
   glow = false,
   priority = false,
@@ -46,6 +52,30 @@ export function PhoneFrame({
   ...rest
 }: PhoneFrameProps) {
   const height = Math.round(width * 2.17);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !videoSrc) return;
+
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const apply = () => {
+      if (reduce.matches) {
+        el.pause();
+        el.autoplay = false;
+      } else {
+        el.muted = true;
+        void el.play().catch(() => {
+          /* ignore autoplay rejection */
+        });
+      }
+    };
+
+    apply();
+    reduce.addEventListener("change", apply);
+    return () => reduce.removeEventListener("change", apply);
+  }, [videoSrc]);
 
   // The ambient float keyframes read `--float-rotate` so any phone with a
   // persistent tilt keeps its tilt while bobbing. If no rotation is set, the
@@ -76,14 +106,29 @@ export function PhoneFrame({
         style={{ width, height }}
       >
         <div className="relative h-full w-full overflow-hidden rounded-[34px] bg-black">
-          <Image
-            src={src}
-            alt={alt}
-            fill
-            sizes={`${width}px`}
-            className="object-cover object-top"
-            priority={priority}
-          />
+          {videoSrc ? (
+            <video
+              ref={videoRef}
+              aria-label={alt}
+              className="absolute inset-0 h-full w-full object-cover object-top"
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              poster={src}
+            >
+              <source src={videoSrc} type="video/mp4" />
+            </video>
+          ) : (
+            <Image
+              src={src}
+              alt={alt}
+              fill
+              sizes={`${width}px`}
+              className="object-cover object-top"
+              priority={priority}
+            />
+          )}
         </div>
         {/* Dynamic-island placeholder for a more iPhone-y silhouette. */}
         <div

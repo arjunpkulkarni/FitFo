@@ -26,6 +26,7 @@ import {
   WorkoutCard,
   getBrandAccent,
 } from "../components/WorkoutCard";
+import { ProfileAvatarCircle } from "../components/ProfileAvatarCircle";
 import {
   formatCompletedWorkoutDate,
   getRoutineDisplayTitle,
@@ -44,6 +45,8 @@ interface SavedWorkoutsScreenProps {
   importedWorkouts: SavedRoutinePreview[];
   isScheduleLoading: boolean;
   onAddWorkout: () => void;
+  profileAvatarRevision?: string | null;
+  profileAvatarUrl?: string | null;
   onOpenProfile: () => void;
   onOpenCompletedSession: (workout: CompletedWorkoutRecord) => void;
   onOpenSavedList: () => void;
@@ -63,6 +66,16 @@ interface SavedWorkoutsScreenProps {
 }
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** Long weekday for subtitles under Today / Tomorrow. */
+const WEEKDAY_LABELS_LONG = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 const MONTH_LABELS = [
   "Jan",
   "Feb",
@@ -123,6 +136,19 @@ function formatReadableDate(date: Date): string {
     return "Tomorrow";
   }
   return `${DAY_LABELS[reference.getDay()]}, ${MONTH_LABELS[reference.getMonth()]} ${reference.getDate()}`;
+}
+
+/** Full calendar line under headline (today / tomorrow / picked day). */
+function formatCalendarSubtitle(date: Date): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const reference = new Date(date);
+  reference.setHours(0, 0, 0, 0);
+  const y = reference.getFullYear();
+  const thisYear = today.getFullYear();
+  const suffix = y !== thisYear ? `, ${y}` : "";
+  const dayName = WEEKDAY_LABELS_LONG[reference.getDay()] ?? "";
+  return `${dayName}, ${MONTH_LABELS[reference.getMonth()]} ${reference.getDate()}${suffix}`;
 }
 
 function SavedLibraryBento({
@@ -219,8 +245,8 @@ function SavedLibraryBento({
         <Text numberOfLines={1} style={styles.libraryBentoTitle}>
           Saved Workouts
         </Text>
-        <Text numberOfLines={1} style={styles.libraryBentoBody}>
-          Imported programs and drafts you want to keep around.
+        <Text numberOfLines={2} style={styles.libraryBentoBody}>
+          Manage and schedule saved plans.
         </Text>
       </View>
       <View style={styles.libraryBentoArrow}>
@@ -380,47 +406,6 @@ function UpcomingWorkoutRow({
   );
 }
 
-function QuickAddRow({
-  onPress,
-  theme,
-}: {
-  onPress: () => void;
-  theme: ReturnType<typeof getTheme>;
-}) {
-  const styles = createStyles(theme);
-  const accent = getBrandAccent(theme);
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel="Quick add a new workout"
-      style={({ pressed }) => [
-        styles.quickAddRow,
-        pressed ? styles.bentoPressed : null,
-      ]}
-    >
-      <View
-        style={[
-          styles.quickAddCircle,
-          {
-            backgroundColor:
-              theme.mode === "dark"
-                ? "rgba(255, 111, 34, 0.16)"
-                : "rgba(71, 88, 240, 0.12)",
-          },
-        ]}
-      >
-        <Ionicons color={accent} name="add" size={20} />
-      </View>
-      <View style={styles.quickAddTextBlock}>
-        <Text style={styles.quickAddTitle}>Quick Add</Text>
-        <Text style={styles.quickAddBody}>Create a new workout</Text>
-      </View>
-      <Ionicons color={theme.colors.textMuted} name="chevron-forward" size={18} />
-    </Pressable>
-  );
-}
-
 export function SavedWorkoutsScreen({
   completedWorkouts,
   completedWorkoutsError,
@@ -428,6 +413,8 @@ export function SavedWorkoutsScreen({
   importedWorkouts,
   isScheduleLoading,
   onAddWorkout,
+  profileAvatarRevision,
+  profileAvatarUrl,
   onOpenProfile,
   onOpenCompletedSession,
   onOpenSavedList,
@@ -541,6 +528,11 @@ export function SavedWorkoutsScreen({
   const selectionHasPlans = scheduledForSelected.length > 0;
   const selectionHasLogs = completedForSelected.length > 0;
 
+  const scheduleDayActionLabel =
+    selectionHasPlans || selectionHasLogs
+      ? "Add to this day"
+      : "Schedule for this day";
+
   const upcomingAfterSelected = useMemo(() => {
     const sorted = [...scheduledWorkouts]
       .filter((routine) => routine.scheduledFor)
@@ -616,6 +608,9 @@ export function SavedWorkoutsScreen({
           <Text style={styles.title}>Workouts</Text>
         </View>
         <Pressable
+          accessibilityHint="Opens your profile and account settings."
+          accessibilityLabel="Profile"
+          accessibilityRole="button"
           onPress={onOpenProfile}
           style={({ pressed }) => [
             styles.profileButton,
@@ -623,10 +618,12 @@ export function SavedWorkoutsScreen({
           ]}
           hitSlop={10}
         >
-          <Ionicons
-            color={theme.colors.textPrimary}
-            name="person-outline"
-            size={20}
+          <ProfileAvatarCircle
+            diameter={48}
+            fallbackIconColor={theme.colors.textPrimary}
+            iconBackgroundColor={theme.colors.surface}
+            revision={profileAvatarRevision}
+            uri={profileAvatarUrl}
           />
         </Pressable>
       </View>
@@ -648,8 +645,6 @@ export function SavedWorkoutsScreen({
           title="Couldn't load workout history"
         />
       ) : null}
-
-      <QuickAddRow onPress={onAddWorkout} theme={theme} />
 
       <View style={styles.section} onLayout={handleScheduledSectionLayout}>
         <Text style={[styles.sectionEyebrow, { color: accent }]}>CALENDAR</Text>
@@ -673,7 +668,7 @@ export function SavedWorkoutsScreen({
                   : theme.colors.textMuted
               }
               name="chevron-back"
-              size={18}
+              size={15}
             />
           </Pressable>
 
@@ -739,34 +734,31 @@ export function SavedWorkoutsScreen({
             <Ionicons
               color={theme.colors.textPrimary}
               name="chevron-forward"
-              size={18}
+              size={15}
             />
           </Pressable>
         </View>
 
         <View style={styles.scheduledSubHeader}>
-          <Text style={styles.calendarSelectedLabel}>
-            {formatReadableDate(selectedDateObject)}
-          </Text>
+          <View style={styles.scheduledDateBlock}>
+            <Text style={styles.calendarSelectedLabel}>
+              {formatReadableDate(selectedDateObject)}
+            </Text>
+            <Text style={styles.calendarSelectedSubtitle}>
+              {formatCalendarSubtitle(selectedDateObject)}
+            </Text>
+          </View>
           <Pressable
             onPress={onAddWorkout}
             style={({ pressed }) => [
               styles.scheduledChip,
-              {
-                borderColor:
-                  theme.mode === "dark"
-                    ? "rgba(255, 111, 34, 0.32)"
-                    : "rgba(71, 88, 240, 0.22)",
-              },
               pressed ? styles.bentoPressed : null,
             ]}
             accessibilityRole="button"
-            accessibilityLabel="Schedule a workout"
+            accessibilityLabel={`${scheduleDayActionLabel} — opens workout flow`}
           >
-            <Ionicons color={accent} name="add" size={14} />
-            <Text style={[styles.scheduledChipText, { color: accent }]}>
-              Schedule Workout
-            </Text>
+            <Ionicons color="#FFFFFF" name="add" size={15} />
+            <Text style={styles.scheduledChipText}>{scheduleDayActionLabel}</Text>
           </Pressable>
         </View>
 
@@ -890,7 +882,8 @@ export function SavedWorkoutsScreen({
                   <View style={styles.scheduledEmptyTextBlock}>
                     <Text style={styles.scheduledEmptyTitle}>Nothing on this day</Text>
                     <Text style={styles.scheduledEmptyBody}>
-                      Nothing scheduled yet and no finished workouts logged for this date.
+                      Pull from your library, create something new, or pick another date
+                      in the strip above.
                     </Text>
                   </View>
                   <View style={styles.scheduledEmptyDecor}>
@@ -901,6 +894,43 @@ export function SavedWorkoutsScreen({
                       style={{ opacity: 0.2 }}
                     />
                   </View>
+                </View>
+                <View style={styles.scheduledEmptyActions}>
+                  <Pressable
+                    onPress={onOpenSavedList}
+                    style={({ pressed }) => [
+                      styles.scheduledEmptyCtaOutline,
+                      {
+                        borderColor:
+                          theme.mode === "dark"
+                            ? "rgba(255, 111, 34, 0.42)"
+                            : "rgba(71, 88, 240, 0.35)",
+                      },
+                      pressed ? styles.bentoPressed : null,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Browse saved workouts library"
+                  >
+                    <Ionicons color={accent} name="folder-open-outline" size={16} />
+                    <Text
+                      style={[styles.scheduledEmptyCtaOutlineText, { color: accent }]}
+                    >
+                      Browse library
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={onAddWorkout}
+                    style={({ pressed }) => [
+                      styles.scheduledEmptyCtaFill,
+                      { backgroundColor: accent },
+                      pressed ? styles.bentoPressed : null,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Create a new workout"
+                  >
+                    <Ionicons color="#FFFFFF" name="add" size={16} />
+                    <Text style={styles.scheduledEmptyCtaFillText}>Create workout</Text>
+                  </Pressable>
                 </View>
               </View>
             ) : null}
@@ -960,7 +990,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     headerRow: {
       flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: "flex-start",
+      alignItems: "center",
       paddingHorizontal: 2,
       marginTop: 4,
       marginBottom: 4,
@@ -970,8 +1000,8 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       flex: 1,
     },
     profileButton: {
-      width: 40,
-      height: 40,
+      width: 52,
+      height: 52,
       borderRadius: 999,
       alignItems: "center",
       justifyContent: "center",
@@ -981,7 +1011,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
         theme.mode === "dark"
           ? "rgba(255, 255, 255, 0.10)"
           : "rgba(20, 32, 85, 0.12)",
-      marginTop: 6,
+      marginTop: 0,
     },
     profileButtonPressed: {
       opacity: 0.7,
@@ -1124,42 +1154,6 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       fontWeight: "700",
     },
 
-    quickAddRow: {
-      borderRadius: 22,
-      backgroundColor: theme.colors.surface,
-      paddingVertical: 14,
-      paddingHorizontal: 16,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      borderWidth: theme.mode === "dark" ? 1 : 0,
-      borderColor: theme.colors.borderSoft,
-      ...theme.shadows.softCard,
-    },
-    quickAddCircle: {
-      width: 38,
-      height: 38,
-      borderRadius: 999,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    quickAddTextBlock: {
-      flex: 1,
-    },
-    quickAddTitle: {
-      color: theme.colors.textPrimary,
-      fontSize: 14,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    quickAddBody: {
-      color: theme.colors.textSecondary,
-      fontFamily: "Satoshi-Medium",
-      fontWeight: "500",
-      fontSize: 12,
-      marginTop: 1,
-    },
-
     section: {
       gap: 12,
       paddingHorizontal: 2,
@@ -1205,13 +1199,30 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       justifyContent: "center",
       gap: 6,
       borderRadius: 999,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
+      flexShrink: 0,
+      backgroundColor: BRAND_ORANGE,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      ...Platform.select({
+        ios: {
+          shadowColor: BRAND_ORANGE,
+          shadowOffset: { width: 0, height: 5 },
+          shadowOpacity: theme.mode === "dark" ? 0.55 : 0.4,
+          shadowRadius: 14,
+        },
+        android: {
+          elevation: 12,
+          shadowColor: BRAND_ORANGE,
+        },
+        default: {},
+      }),
+      borderWidth: theme.mode === "dark" ? 1 : 0,
+      borderColor:
+        theme.mode === "dark" ? "rgba(255, 255, 255, 0.14)" : "transparent",
     },
     scheduledChipText: {
-      fontSize: 12,
+      color: "#FFFFFF",
+      fontSize: 13,
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
     },
@@ -1228,13 +1239,13 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     calendarPagerRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 6,
-      paddingVertical: 6,
+      gap: 5,
+      paddingVertical: 3,
     },
     calendarArrowButton: {
-      width: 36,
-      height: 84,
-      borderRadius: 16,
+      width: 32,
+      height: 62,
+      borderRadius: 13,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: theme.colors.surface,
@@ -1246,9 +1257,9 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     },
     calendarPill: {
       flex: 1,
-      borderRadius: 16,
-      paddingVertical: 12,
-      paddingHorizontal: 4,
+      borderRadius: 14,
+      paddingVertical: 7,
+      paddingHorizontal: 3,
       alignItems: "center",
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
@@ -1256,19 +1267,19 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     },
     calendarPillLabel: {
       color: theme.colors.textMuted,
-      fontSize: 10,
+      fontSize: 9,
       fontFamily: "Satoshi-Black",
       fontWeight: "900",
-      letterSpacing: 1.2,
+      letterSpacing: 1,
     },
     calendarPillLabelSelected: {
       color: "#FFFFFF",
     },
     calendarPillNumber: {
-      marginTop: 4,
+      marginTop: 2,
       color: theme.colors.textPrimary,
-      fontSize: 22,
-      lineHeight: 24,
+      fontSize: 17,
+      lineHeight: 19,
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
     },
@@ -1276,9 +1287,9 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       color: "#FFFFFF",
     },
     calendarPillMonth: {
-      marginTop: 4,
+      marginTop: 2,
       color: theme.colors.textMuted,
-      fontSize: 11,
+      fontSize: 10,
       fontFamily: "Satoshi-Bold",
       fontWeight: "700",
     },
@@ -1286,9 +1297,9 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       color: "#FFFFFF",
     },
     calendarPillDot: {
-      marginTop: 6,
-      width: 5,
-      height: 5,
+      marginTop: 4,
+      width: 4,
+      height: 4,
       borderRadius: 999,
     },
     calendarPillDotSelected: {
@@ -1301,6 +1312,19 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
       letterSpacing: -0.6,
+    },
+    calendarSelectedSubtitle: {
+      marginTop: 4,
+      color: theme.colors.textMuted,
+      fontSize: 13,
+      lineHeight: 17,
+      fontFamily: "Satoshi-Medium",
+      fontWeight: "500",
+    },
+    scheduledDateBlock: {
+      flex: 1,
+      minWidth: 0,
+      paddingRight: 4,
     },
     loggedSessionsBlock: {
       gap: 10,
@@ -1358,7 +1382,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
 
     scheduledSubHeader: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       justifyContent: "space-between",
       marginTop: 8,
       gap: 12,
@@ -1385,9 +1409,9 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     scheduledEmptyCard: {
       borderRadius: 22,
       backgroundColor: theme.colors.surface,
-      paddingVertical: 18,
-      paddingHorizontal: 18,
-      gap: 14,
+      paddingVertical: 24,
+      paddingHorizontal: 20,
+      gap: 18,
       borderWidth: theme.mode === "dark" ? 1 : 0,
       borderColor: theme.colors.borderSoft,
       ...theme.shadows.softCard,
@@ -1407,7 +1431,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     },
     scheduledEmptyTextBlock: {
       flex: 1,
-      gap: 4,
+      gap: 6,
     },
     scheduledEmptyTitle: {
       color: theme.colors.textPrimary,
@@ -1429,6 +1453,49 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       height: 60,
       alignItems: "center",
       justifyContent: "center",
+    },
+    scheduledEmptyActions: {
+      flexDirection: "row",
+      gap: 10,
+      alignItems: "stretch",
+    },
+    scheduledEmptyCtaOutline: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 12,
+      paddingHorizontal: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      backgroundColor:
+        theme.mode === "dark"
+          ? "rgba(255, 255, 255, 0.04)"
+          : "rgba(71, 88, 240, 0.06)",
+    },
+    scheduledEmptyCtaOutlineText: {
+      fontSize: 12,
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "800",
+    },
+    scheduledEmptyCtaFill: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingVertical: 12,
+      paddingHorizontal: 10,
+      borderRadius: 14,
+    },
+    scheduledEmptyCtaFillText: {
+      color: "#FFFFFF",
+      fontSize: 12,
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "800",
     },
 
     upcomingRow: {

@@ -882,7 +882,7 @@ function ExerciseCard({
 
 export function ActiveWorkoutScreen({
   session,
-  onBack,
+  onBack: _onBack,
   onFinish,
   coachMessages,
   setCoachMessages,
@@ -1626,36 +1626,11 @@ export function ActiveWorkoutScreen({
   const listHeader = (
     <View style={styles.workoutHeaderStack}>
       <View style={styles.header}>
-              <Pressable onPress={onBack} style={styles.backButton} hitSlop={10}>
-                <Ionicons color={theme.colors.primary} name="chevron-back" size={18} />
-              </Pressable>
               <Image
                 resizeMode="contain"
                 source={require("../../assets/vector-no-bg.png")}
                 style={styles.brandLogo}
               />
-              <Pressable
-                onPress={() => setCoachOpen(true)}
-                ref={(node) => {
-                  coachButtonRef.current = node;
-                }}
-                onLayout={() => {
-                  measureCoachButton();
-                }}
-                style={({ pressed }) => [
-                  styles.coachButton,
-                  pressed && styles.coachButtonPressed,
-                ]}
-                hitSlop={10}
-                accessibilityLabel="Open coach chat"
-                accessibilityRole="button"
-              >
-                <Image
-                  resizeMode="contain"
-                  source={require("../../assets/coach.png")}
-                  style={styles.coachButtonIcon}
-                />
-              </Pressable>
             </View>
       
             <View style={styles.heroSection}>
@@ -1683,6 +1658,42 @@ export function ActiveWorkoutScreen({
                   ? "Workout paused"
                   : `${completedSetCount} of ${totalSetCount} sets logged`}
               </Text>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open AI coach chat"
+                onPress={() => setCoachOpen(true)}
+                ref={(node) => {
+                  coachButtonRef.current = node;
+                }}
+                onLayout={() => {
+                  measureCoachButton();
+                }}
+                style={({ pressed }) => [
+                  styles.timerCoachRow,
+                  pressed && styles.timerCoachRowPressed,
+                ]}
+                hitSlop={{ top: 6, bottom: 6 }}
+              >
+                <View style={styles.timerCoachInset}>
+                  <View style={styles.timerCoachIconBubble}>
+                    <Image
+                      resizeMode="contain"
+                      source={require("../../assets/coach.png")}
+                      style={styles.timerCoachIcon}
+                    />
+                  </View>
+                  <View style={styles.timerCoachTextBlock}>
+                    <Text style={styles.timerCoachEyebrow}>AI Coach</Text>
+                  </View>
+                  <Ionicons
+                    color={theme.colors.primary}
+                    name="chatbubble-outline"
+                    size={20}
+                  />
+                </View>
+              </Pressable>
+
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={isTimerPaused ? "Resume workout timer" : "Pause workout timer"}
@@ -2001,57 +2012,69 @@ const createStyles = (theme: ActiveWorkoutTheme) =>
     header: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "space-between",
+      justifyContent: "center",
       paddingTop: 4,
       paddingBottom: 4,
     },
-    backButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 999,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.mode === "dark" ? theme.colors.borderSoft : "transparent",
+    timerCoachRow: {
+      alignSelf: "stretch",
+      marginTop: 12,
+      width: "100%",
     },
-    headerSpacer: {
-      width: 36,
-      height: 36,
+    timerCoachRowPressed: {
+      opacity: 0.94,
+      transform: [{ scale: 0.996 }],
     },
-    coachButton: {
+    timerCoachInset: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 0,
-      paddingLeft: 8,
-      paddingRight: 14,
-      paddingVertical: 6,
-      borderRadius: 999,
-      backgroundColor: theme.colors.primary,
-      shadowColor: theme.colors.primary,
-      shadowOpacity: theme.mode === "dark" ? 0.45 : 0.3,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 6 },
-      elevation: 5,
+      gap: 10,
+      borderRadius: 16,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      backgroundColor: "#FFFFFF",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: "rgba(0, 0, 0, 0.08)",
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000000",
+          shadowOpacity: 0.07,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
+        },
+        default: {
+          elevation: 2,
+        },
+      }),
     },
-    coachButtonPressed: {
-      opacity: 0.85,
-      transform: [{ scale: 0.97 }],
+    timerCoachIconBubble: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(255, 111, 34, 0.11)",
     },
-    coachButtonIcon: {
-      width: 26,
-      height: 26,
-      marginRight: -4,
-      tintColor: "#FFFFFF",
+    timerCoachIcon: {
+      width: 17,
+      height: 17,
+      tintColor: theme.colors.primary,
     },
-    coachButtonText: {
-      color: "#FFFFFF",
+    timerCoachTextBlock: {
+      flex: 1,
+      minWidth: 0,
+      justifyContent: "center",
+    },
+    timerCoachEyebrow: {
+      color: "#141414",
       fontSize: 13,
-      fontFamily: F.bold,
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "800",
+      letterSpacing: -0.15,
     },
     brandLogo: {
-      width: 72,
-      height: 72,
+      width: 48,
+      height: 48,
     },
     heroSection: {
       gap: 8,
@@ -2112,7 +2135,7 @@ const createStyles = (theme: ActiveWorkoutTheme) =>
       fontWeight: "600",
     },
     timerPauseButton: {
-      marginTop: 16,
+      marginTop: 12,
       minHeight: 42,
       borderRadius: 999,
       backgroundColor: theme.colors.surface,

@@ -214,6 +214,47 @@ function stripLegacyImportDescriptor(title: string): string {
   return title.trim();
 }
 
+/** Long captions / hashtag dumps from TikTok & Reels — poor one-line UI titles. */
+function looksLikeSocialCaption(title: string): boolean {
+  const t = title.trim();
+  if (!t) {
+    return false;
+  }
+  if (/#/.test(t)) {
+    return true;
+  }
+  if (t.length > 64) {
+    return true;
+  }
+  const words = t.split(/\s+/).filter(Boolean);
+  return words.length >= 12;
+}
+
+function stripHashtagsForDisplay(value: string): string {
+  return value
+    .replace(/#[^\s#]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactReadableCaption(cleanedTitle: string, maxWords: number): string {
+  const trimmed = stripHashtagsForDisplay(cleanedTitle);
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length === 0) {
+    return cleanedTitle.trim();
+  }
+  return words.slice(0, maxWords).join(" ");
+}
+
+/** Drop noisy social captions when choosing a structured label from ``WorkoutPlan``. */
+function normalizeTitleCandidateForPlan(raw: string | null | undefined): string | null {
+  const t = asString(raw);
+  if (!t) {
+    return null;
+  }
+  return looksLikeSocialCaption(t) ? null : t;
+}
+
 function extractCreatorName(job?: JobResponse | null): string | null {
   const providerMeta = asRecord(job?.provider_meta);
 
@@ -332,6 +373,8 @@ function inferFocusFromText(text: string): string | null {
 
   const keywordMap: Array<{ keywords: string[]; label: string }> = [
     { keywords: ["deadlift", "rdl", "romanian deadlift"], label: "Deadlift Day" },
+    { keywords: ["push day", "push workout"], label: "Push Day" },
+    { keywords: ["pull day", "pull workout"], label: "Pull Day" },
     { keywords: ["squat", "hack squat", "leg press"], label: "Squat Day" },
     { keywords: ["bench", "bench press"], label: "Bench Day" },
     { keywords: ["pull up", "pull-up", "chin up", "chin-up"], label: "Pull-Up Session" },
@@ -373,8 +416,9 @@ function getPrimaryExerciseName(plan: WorkoutPlan): string | null {
 }
 
 function getWorkoutFocus(workout: WorkoutRow, job?: JobResponse | null): string {
-  const explicitTitle = asString(workout.title) || asString(workout.plan.title);
-  const suspectExerciseTitle = isLikelyMisassignedExerciseTitle(explicitTitle, workout.plan);
+  const explicitRaw = asString(workout.title) || asString(workout.plan.title);
+  const suspectExerciseTitle = isLikelyMisassignedExerciseTitle(explicitRaw, workout.plan);
+  const explicitTitle = normalizeTitleCandidateForPlan(explicitRaw);
   if (
     explicitTitle &&
     !GENERIC_ROUTINE_TITLES.has(explicitTitle.toLowerCase()) &&
@@ -390,7 +434,11 @@ function getWorkoutFocus(workout: WorkoutRow, job?: JobResponse | null): string 
       return inferredFromCaption;
     }
     const trimmed = captionMatch.trim();
-    if (trimmed.length >= 3 && trimmed.length <= 80) {
+    if (
+      trimmed.length >= 3 &&
+      trimmed.length <= 80 &&
+      !looksLikeSocialCaption(trimmed)
+    ) {
       return humanizeWords(trimmed);
     }
   }
@@ -424,8 +472,11 @@ function getWorkoutFocus(workout: WorkoutRow, job?: JobResponse | null): string 
 }
 
 function getWorkoutFocusFromPlan(plan: WorkoutPlan, fallbackTitle?: string | null): string | null {
-  const explicitTitle = asString(plan.title) || asString(fallbackTitle);
-  const suspectExerciseTitle = isLikelyMisassignedExerciseTitle(explicitTitle, plan);
+  const planTitleCandidate = normalizeTitleCandidateForPlan(asString(plan.title));
+  const fallbackCandidate = normalizeTitleCandidateForPlan(fallbackTitle);
+  const explicitTitle = planTitleCandidate || fallbackCandidate;
+  const suspectSource = asString(plan.title) || asString(fallbackTitle);
+  const suspectExerciseTitle = isLikelyMisassignedExerciseTitle(suspectSource, plan);
   if (
     explicitTitle &&
     !GENERIC_ROUTINE_TITLES.has(explicitTitle.toLowerCase()) &&
@@ -473,10 +524,13 @@ export function getRoutineDisplayTitle(input: {
     cleanedTitle &&
     isLikelyMisassignedExerciseTitle(cleanedTitle, input.workoutPlan);
 
+  const captionNoise = Boolean(cleanedTitle && looksLikeSocialCaption(cleanedTitle));
+
   if (
     cleanedTitle &&
     !GENERIC_ROUTINE_TITLES.has(cleanedTitle.toLowerCase()) &&
-    !suspectExerciseTitle
+    !suspectExerciseTitle &&
+    !captionNoise
   ) {
     return titleCase(cleanedTitle) || cleanedTitle;
   }
@@ -488,15 +542,27 @@ export function getRoutineDisplayTitle(input: {
   const creatorName = creatorLabel
     ? humanizeWords(creatorLabel.replace(/^@/, ""))
     : null;
-  const focus = input.workoutPlan
+
+  const planFocusRaw = input.workoutPlan
     ? getWorkoutFocusFromPlan(input.workoutPlan, cleanedTitle)
     : null;
+  const planFocus =
+    planFocusRaw && planFocusRaw.trim().toLowerCase() !== "workout"
+      ? planFocusRaw
+      : null;
+  const captionFocus = cleanedTitle ? inferFocusFromText(cleanedTitle) : null;
+  const focus = planFocus || captionFocus;
 
   if (focus) {
     return creatorName ? `${toPossessive(creatorName)} ${focus}` : focus;
   }
 
-  return (cleanedTitle && (titleCase(cleanedTitle) || cleanedTitle)) || "Workout";
+  if (cleanedTitle) {
+    const compact = compactReadableCaption(cleanedTitle, 7);
+    return titleCase(compact) || compact;
+  }
+
+  return "Workout";
 }
 
 function getImportedDescription(

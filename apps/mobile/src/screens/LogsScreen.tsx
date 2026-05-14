@@ -1,13 +1,19 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import {
-  formatCompletedWorkoutDate,
   canReplayCompletedSession,
-  getCompletedWorkoutDisplaySummary,
   getRoutineDisplayTitle,
-  getCompletedWorkoutMeta,
 } from "../lib/fitfo";
 import { useTabBarScrollPadding } from "../lib/tabBarLayout";
 import { getTheme, type ThemeMode } from "../theme";
@@ -28,6 +34,27 @@ interface LogsScreenProps {
   themeMode?: ThemeMode;
 }
 
+function completedWorkoutSourceLabel(
+  url: string | null | undefined,
+): string | null {
+  const raw = (url || "").trim();
+  if (!raw) {
+    return null;
+  }
+  try {
+    const host = new URL(raw).host.toLowerCase();
+    if (host.includes("tiktok")) {
+      return "TikTok";
+    }
+    if (host.includes("instagram")) {
+      return "Instagram";
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function formatElapsed(startedAt: number, nowTick: number) {
   const elapsedSeconds = Math.max(0, Math.floor((nowTick - startedAt) / 1000));
   const hours = Math.floor(elapsedSeconds / 3600);
@@ -45,6 +72,17 @@ function formatElapsed(startedAt: number, nowTick: number) {
   return `${seconds}s`;
 }
 
+function completedWorkoutDayShort(completedAt: string): string {
+  const parsed = new Date(completedAt);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  return parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function LogsScreen({
   activeWorkout,
   error,
@@ -60,8 +98,28 @@ export function LogsScreen({
 }: LogsScreenProps) {
   const tabBarScrollPad = useTabBarScrollPadding();
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const headlineBreath = useRef(new Animated.Value(0)).current;
+
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
+
+  const headlineAnimatedStyle = useMemo(
+    () => ({
+      opacity: headlineBreath.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.92, 1],
+      }),
+      transform: [
+        {
+          translateY: headlineBreath.interpolate({
+            inputRange: [0, 1],
+            outputRange: [2, -2],
+          }),
+        },
+      ],
+    }),
+    [headlineBreath],
+  );
 
   const activeWorkoutSetCount = activeWorkout
     ? activeWorkout.exercises.reduce((count, exercise) => count + exercise.sets.length, 0)
@@ -100,6 +158,29 @@ export function LogsScreen({
     return undefined;
   }, [activeWorkout, activeWorkout?.hubTimerFrozenWallMs]);
 
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(headlineBreath, {
+          toValue: 1,
+          duration: 2400,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(headlineBreath, {
+          toValue: 0,
+          duration: 2400,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    anim.start();
+    return () => {
+      anim.stop();
+    };
+  }, [headlineBreath]);
+
   const elapsedNowMs =
     activeWorkout?.hubTimerFrozenWallMs ?? nowTick;
   const isHubWorkoutPaused = activeWorkout?.hubTimerFrozenWallMs != null;
@@ -116,11 +197,13 @@ export function LogsScreen({
       
 
       <View style={styles.titleBlock}>
-        <Text style={styles.eyebrow}>Workout History</Text>
-        <Text style={styles.title}>
-          Your Training{"\n"}
-          <Text style={styles.titleAccent}>Archive.</Text>
-        </Text>
+        <Text style={styles.eyebrow}>History</Text>
+        <Animated.View style={headlineAnimatedStyle}>
+          <Text style={styles.title}>
+            Stop watching.{"\n"}
+            <Text style={styles.titleAccent}>Start lifting.</Text>
+          </Text>
+        </Animated.View>
       </View>
 
       {activeWorkout ? (
@@ -167,7 +250,7 @@ export function LogsScreen({
 
       <View style={styles.recentSessionsSection}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Sessions</Text>
+          <Text style={styles.sectionTitle}>Past sessions</Text>
         </View>
 
         {isLoading ? (
@@ -190,7 +273,6 @@ export function LogsScreen({
         ) : workouts.length > 0 ? (
           <View style={styles.sessionList}>
             {workouts.map((item) => {
-              const meta = getCompletedWorkoutMeta(item);
               const displayTitle = getRoutineDisplayTitle({
                 sourceUrl: item.source_url,
                 title: item.title,
@@ -198,6 +280,9 @@ export function LogsScreen({
               });
 
               const isSchedulingThis = schedulingWorkoutId === item.id;
+              const sourceTag = completedWorkoutSourceLabel(item.source_url);
+              const dayShort = completedWorkoutDayShort(item.completed_at);
+              const metaLine = [dayShort, sourceTag].filter(Boolean).join(" · ");
 
               return (
                 <Pressable
@@ -207,26 +292,15 @@ export function LogsScreen({
                 >
                   <View style={styles.sessionTop}>
                     <View style={styles.sessionImageShell}>
-                      <Ionicons color={theme.colors.primary} name="barbell-outline" size={18} />
+                      <Ionicons color={theme.colors.primary} name="barbell-outline" size={17} />
                     </View>
                     <View style={styles.sessionCopy}>
-                      <Text style={styles.sessionDate}>
-                        {formatCompletedWorkoutDate(item.completed_at)}
+                      <Text numberOfLines={1} style={styles.sessionTitle}>
+                        {displayTitle}
                       </Text>
-                      <Text style={styles.sessionTitle}>{displayTitle}</Text>
-                      <Text style={styles.sessionSummary}>
-                        {getCompletedWorkoutDisplaySummary(item)}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.sessionStats}>
-                    <View>
-                      <Text style={styles.sessionStatLabel}>Summary</Text>
-                      <Text style={styles.sessionStatValue}>{meta.metaLeft}</Text>
-                    </View>
-                    <View>
-                      <Text style={styles.sessionStatLabel}>Sets</Text>
-                      <Text style={styles.sessionStatValue}>{meta.metaRight}</Text>
+                      {metaLine ? (
+                        <Text style={styles.sessionMetaLine}>{metaLine}</Text>
+                      ) : null}
                     </View>
                   </View>
                   {(onStartFromCompleted || onScheduleAgain) ? (
@@ -245,7 +319,7 @@ export function LogsScreen({
                               : null,
                           ]}
                         >
-                          <Ionicons color={theme.colors.surface} name="play" size={14} />
+                          <Ionicons color={theme.colors.surface} name="play" size={13} />
                           <Text style={styles.startNowButtonText}>Start</Text>
                         </Pressable>
                       ) : null}
@@ -266,7 +340,7 @@ export function LogsScreen({
                             <Ionicons
                               color={theme.colors.primary}
                               name="calendar-outline"
-                              size={14}
+                              size={13}
                             />
                           )}
                           <Text style={styles.scheduleAgainButtonText}>
@@ -364,14 +438,14 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     },
     title: {
       color: theme.colors.textPrimary,
-      fontSize: 42,
+      fontSize: 34,
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
-      lineHeight: 44,
-      letterSpacing: -1.5,
+      lineHeight: 38,
+      letterSpacing: -1.25,
     },
     titleAccent: {
-      color: theme.colors.primaryLight,
+      color: theme.colors.primary,
     },
     analysisCard: {
       flexDirection: "row",
@@ -533,12 +607,13 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       gap: 12,
     },
     sectionTitle: {
-      color: theme.colors.textPrimary,
-      fontSize: 26,
+      color: theme.colors.textMuted,
+      fontSize: 12,
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
-      letterSpacing: -0.8,
-      lineHeight: 30,
+      letterSpacing: 1.15,
+      textTransform: "uppercase",
+      lineHeight: 16,
     },
     feedbackCard: {
       borderRadius: theme.radii.large,
@@ -582,77 +657,57 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     sessionCard: {
       borderRadius: theme.radii.large,
       backgroundColor: theme.colors.surface,
-      padding: 16,
-      gap: 14,
-      borderWidth: 1,
-      borderColor: theme.mode === "dark" ? theme.colors.borderSoft : "transparent",
-      ...theme.shadows.card,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      gap: 10,
+      borderWidth: theme.mode === "dark" ? 1 : 0,
+      borderColor: theme.colors.borderSoft,
+      ...theme.shadows.softCard,
     },
     sessionTop: {
       flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
+      alignItems: "flex-start",
+      gap: 10,
     },
     sessionImageShell: {
-      width: 46,
-      height: 46,
-      borderRadius: 14,
+      width: 42,
+      height: 42,
+      borderRadius: 13,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.colors.surfaceMuted,
+      backgroundColor:
+        theme.mode === "dark"
+          ? "rgba(255, 111, 34, 0.12)"
+          : theme.colors.surfaceMuted,
+      borderWidth: theme.mode === "dark" ? 1 : 0,
+      borderColor: "rgba(255, 111, 34, 0.22)",
     },
     sessionCopy: {
       flex: 1,
-      gap: 4,
-    },
-    sessionDate: {
-      color: theme.colors.primary,
-      fontSize: 10,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 1,
-      textTransform: "uppercase",
+      minWidth: 0,
+      gap: 2,
     },
     sessionTitle: {
       color: theme.colors.textPrimary,
-      fontSize: 22,
+      fontSize: 17,
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
-      letterSpacing: -0.7,
+      letterSpacing: -0.35,
+      lineHeight: 22,
     },
-    sessionSummary: {
-      color: theme.colors.textSecondary,
-      fontFamily: "satoshi",
-      fontSize: 14,
-      lineHeight: 20,
-    },
-    sessionStats: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      borderTopWidth: 1,
-      borderTopColor: theme.colors.borderSoft,
-      paddingTop: 12,
-    },
-    sessionStatLabel: {
+    sessionMetaLine: {
+      marginTop: 3,
       color: theme.colors.textMuted,
-      fontSize: 10,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 1,
-      textTransform: "uppercase",
-    },
-    sessionStatValue: {
-      marginTop: 4,
-      color: theme.colors.textPrimary,
-      fontSize: 16,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
+      fontFamily: "Satoshi-Medium",
+      fontWeight: "500",
+      fontSize: 12,
+      lineHeight: 16,
     },
     sessionActions: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
-      marginTop: 12,
+      gap: 8,
+      marginTop: 10,
     },
     sessionActionPressed: {
       opacity: 0.86,
@@ -665,15 +720,15 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      gap: 6,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
       borderRadius: 999,
       backgroundColor: theme.colors.primary,
     },
     startNowButtonText: {
       color: theme.colors.surface,
-      fontSize: 13,
+      fontSize: 12,
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
       letterSpacing: 0.2,
@@ -682,11 +737,11 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      gap: 8,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
+      gap: 6,
+      paddingHorizontal: 11,
+      paddingVertical: 7,
       borderRadius: 999,
-      borderWidth: 1,
+      borderWidth: StyleSheet.hairlineWidth,
       borderColor: theme.colors.primary,
       backgroundColor: theme.colors.surfaceMuted,
     },
@@ -698,7 +753,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     },
     scheduleAgainButtonText: {
       color: theme.colors.primary,
-      fontSize: 13,
+      fontSize: 12,
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
       letterSpacing: 0.2,

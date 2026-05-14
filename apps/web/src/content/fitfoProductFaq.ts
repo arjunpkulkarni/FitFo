@@ -17,7 +17,7 @@ export const FITFO_PRODUCT_FAQ: { question: string; answer: string }[] = [
   {
     question: "Is Fitfo free?",
     answer:
-      "Yes, Fitfo is completely free for the first 7 days, with full access to every feature. You don't need to put a card down to start. After the trial, it's $4.99 per month or $32.99 per year, and you'll only be asked for a card when the 7 days end. There's no mandatory paywall up front, so you can use Fitfo like any free app for the first week.",
+      "Yes, Fitfo is completely free for the first 7 days, with full access to every feature. You don't need to put a card down to start. After the trial, it's $5.99 per month or $39.99 per year, and you'll only be asked for a card when the 7 days end. There's no mandatory paywall up front, so you can use Fitfo like any free app for the first week.",
   },
   {
     question: "How accurate is the AI when it converts a video into a workout?",

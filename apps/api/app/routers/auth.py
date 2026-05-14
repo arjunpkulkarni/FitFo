@@ -2,7 +2,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from twilio.base.exceptions import TwilioRestException
 
 from app.routers.deps import require_access_payload, require_profile_id
@@ -460,6 +460,60 @@ def apple_sign_in(body: AppleSignInRequest) -> AppleSignInResponse:
     except Exception as exc:
         raise HTTPException(
             status_code=500, detail=f"Failed to sign in with Apple: {exc}"
+        ) from exc
+
+
+@router.post("/me/avatar", response_model=MeResponse)
+async def upload_my_avatar(
+    file: UploadFile = File(...),
+    profile_id: str = Depends(require_profile_id),
+) -> MeResponse:
+    """
+    Accept a small JPEG / PNG / WebP upload, store it in Supabase Storage, and
+    set ``profiles.avatar_url`` to the public object URL (mobile ``<Image />``).
+
+    Validates magic bytes server-side — do not trust the client MIME type alone.
+    """
+    try:
+        raw = await file.read()
+        if len(raw) > supabase_db.AVATAR_MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Photo must be smaller than 2.5 MB.",
+            )
+        public_url = supabase_db.upload_profile_avatar_bytes(profile_id, raw)
+        profile = supabase_db.update_profile_avatar_url(profile_id, public_url)
+        return MeResponse(ok=True, profile=embed_fitfo_pro_bypass(profile))
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except supabase_db.ProfileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except supabase_db.SupabaseNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to upload avatar: {exc}",
+        ) from exc
+
+
+@router.delete("/me/avatar", response_model=MeResponse)
+def delete_my_avatar(profile_id: str = Depends(require_profile_id)) -> MeResponse:
+    """Remove stored avatar bits and clear ``profiles.avatar_url``."""
+    try:
+        supabase_db.remove_profile_avatar_object(profile_id)
+        profile = supabase_db.update_profile_avatar_url(profile_id, None)
+        return MeResponse(ok=True, profile=embed_fitfo_pro_bypass(profile))
+    except supabase_db.ProfileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except supabase_db.SupabaseNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to remove avatar: {exc}",
         ) from exc
 
 

@@ -287,6 +287,74 @@ export async function patchProfile(
   });
 }
 
+function guessImageMimeFromUri(uri: string): string {
+  const lower = uri.split("?")[0]?.toLowerCase() ?? "";
+  if (lower.endsWith(".png")) {
+    return "image/png";
+  }
+  if (lower.endsWith(".webp")) {
+    return "image/webp";
+  }
+  return "image/jpeg";
+}
+
+export async function uploadProfileAvatar(
+  accessToken: string,
+  asset: { uri: string; mimeType?: string | null },
+): Promise<MeResponse> {
+  const mime = asset.mimeType?.trim() || guessImageMimeFromUri(asset.uri);
+  const name =
+    mime === "image/png"
+      ? "avatar.png"
+      : mime === "image/webp"
+        ? "avatar.webp"
+        : "avatar.jpg";
+
+  const form = new FormData();
+  form.append(
+    "file",
+    {
+      uri: asset.uri,
+      name,
+      type: mime,
+    } as unknown as Blob,
+  );
+
+  const response = await fetch(`${API_BASE}/auth/me/avatar`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: form,
+  });
+
+  if (!response.ok) {
+    const bodyText = await response.text().catch(() => "");
+    let message = defaultMessageForStatus(response.status);
+    try {
+      const parsed = JSON.parse(bodyText) as { detail?: unknown };
+      const detail = parsed.detail;
+      if (typeof detail === "string" && detail.trim()) {
+        message = looksLikeHtmlPayload(detail)
+          ? defaultMessageForStatus(response.status)
+          : detail.trim();
+      }
+    } catch {
+      message = humanizeErrorPayload(response.status, bodyText);
+    }
+    throw new ApiError(response.status, message);
+  }
+
+  return response.json() as Promise<MeResponse>;
+}
+
+export async function deleteProfileAvatar(accessToken: string): Promise<MeResponse> {
+  return request<MeResponse>("/auth/me/avatar", {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
 /** Register device for server-driven "import ready" push notifications. */
 export async function registerExpoPushToken(
   accessToken: string,

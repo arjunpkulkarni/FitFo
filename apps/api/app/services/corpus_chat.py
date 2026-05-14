@@ -102,7 +102,7 @@ You are an in-workout coach trained on a single coach's voice. Direct, confident
 
 SCOPE: Only answer questions about training, form, sets/reps/programming, muscle growth, \
 strength, fat loss, mobility, athlete nutrition, supplements, recovery, sleep, training \
-mindset, and the user's CURRENT WORKOUT (if provided). For anything else, reply EXACTLY: \
+mindset, and the user's live session (if a snapshot is provided). For anything else, reply EXACTLY: \
 "I'm your in-workout coach — ask me about your training."
 
 GROUNDING:
@@ -111,14 +111,16 @@ GROUNDING:
 the grounded clause (example: "... drive elbows under **[1]**"). Use only markers \
 [N] where N matches a numbered line in COACHING CONTEXT (never invent indices).
 - Do not name TikTok/video hosts, URLs, "chunks", or "sources" in prose—the app shows links.
-- For CURRENT WORKOUT, use the block at the end of this prompt (below retrieved tips). \
-It includes ATHLETE POSITION = the app's live snapshot (exercise #, working set #, timer). \
-That block overrides assumptions from generic programming advice elsewhere in the prompt.
+- For the in-app session, use the SESSION SNAPSHOT block at the end of this prompt (below \
+retrieved tips). It includes ATHLETE POSITION = the app's live view (exercise #, working \
+set #, timer). That block overrides assumptions from generic programming advice elsewhere.
 - If ATHLETE POSITION states exercise # / Working set #, questions like "what set am I \
 on?", "which exercise?", or "where am I in this workout?" MUST answer with those exact \
 counts and lift names — never vague hedges like "one of your sets" or "one of three."
-- For the user's CURRENT WORKOUT, answer from that snapshot as if you're next to them \
-mid-session — same plain style.
+- Answer from that snapshot as if you're next to them mid-session — same plain style.
+- Never repeat internal section headings from this prompt (e.g. `SESSION SNAPSHOT`, \
+bracket placeholders, or pseudo-tags like `[CURRENT WORKOUT]`). Retrieval citations ONLY \
+use **[N]** where N matches COACHING CONTEXT.
 - If context doesn't cover the question, say so in one line. Never invent.
 
 STYLE:
@@ -165,6 +167,24 @@ def _clamp_citations_in_answer(text: str, num_chunks: int) -> str:
         return ""
     cleaned = re.sub(r"\[(\d+)\]", repl, text)
     return re.sub(r"\s{2,}", " ", cleaned).strip()
+
+
+def _strip_coach_echo_tags(text: str) -> str:
+    if not text:
+        return ""
+    t = text
+    # Wrapped in faux bold / citations (often `**[CURRENT WORKOUT].**`).
+    t = re.sub(
+        r"\s*[,.]?\s*\*{1,2}\s*\[CURRENT WORKOUT\]\s*\.?\s*\*{1,2}(?:\s*\.)?",
+        "",
+        t,
+        flags=re.IGNORECASE,
+    )
+    # Standalone bracket tag — do not swallow the sentence's period after `]`.
+    t = re.sub(r"\s*\[\s*CURRENT WORKOUT\s*\]", "", t, flags=re.IGNORECASE)
+    t = re.sub(r"\s{2,}", " ", t)
+    t = re.sub(r"\s+([.,!?])", r"\1", t)
+    return t.strip()
 
 
 def _citations_from_chunks(chunks: list[corpus_retrieval.RetrievedChunk]) -> list[ChatCitation]:
@@ -327,8 +347,8 @@ def _build_messages(
     )
     if workout_block:
         sections.append(
-            "═══ CURRENT WORKOUT — TRUST THIS BEFORE ANYTHING ELSE ABOUT WHERE THE ATHLETE "
-            f"IS ═══\n{workout_block}",
+            "═══ SESSION SNAPSHOT (trust this for where the athlete is in-app; "
+            f"never quote this heading in prose) ═══\n{workout_block}",
         )
 
     system_content = "\n\n".join(sections)
@@ -429,6 +449,7 @@ async def answer(
         answer_text = _FALLBACK_ANSWER
 
     answer_text = _clamp_citations_in_answer(answer_text, len(chunks))
+    answer_text = _strip_coach_echo_tags(answer_text)
     cites = _citations_from_chunks(chunks)
 
     return ChatResult(

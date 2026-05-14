@@ -129,7 +129,7 @@ def _utc_now_iso() -> str:
 
 
 PROFILE_SELECT_FIELDS = (
-    "id, full_name, phone, email, apple_user_id, created_at, updated_at"
+    "id, full_name, phone, email, apple_user_id, avatar_url, created_at, updated_at"
 )
 PROFILE_ONBOARDING_SELECT_FIELDS = (
     "user_id, goals, sex, training_split, custom_split_notes, days_per_week, weight_lbs, "
@@ -862,6 +862,8 @@ def delete_profile(profile_id: str) -> Dict[str, Any]:
         raise ProfileNotFoundError(f"Profile {profile_id} not found")
     snapshot = existing.data[0]
 
+    remove_profile_avatar_object(profile_id)
+
     for table in _USER_SCOPED_TABLES:
         _delete_user_rows(table, profile_id)
 
@@ -1092,3 +1094,85 @@ def create_signed_download_url_for_path(
     if isinstance(out, dict):
         return out.get("signedURL") or out.get("signedUrl")  # storage3 casing varies
     return getattr(out, "signedURL", None) or getattr(out, "signedUrl", None)
+
+
+AVATAR_MAX_UPLOAD_BYTES = 2_500_000
+
+
+def _avatar_bucket() -> str:
+    return (os.environ.get("SUPABASE_AVATAR_BUCKET") or "profile-avatars").strip()
+
+
+def avatar_object_storage_path(profile_id: str) -> str:
+    return f"{profile_id}/avatar"
+
+
+def profile_avatar_public_url(*, bucket: str, object_path: str) -> str:
+    base = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
+    if not base:
+        raise SupabaseNotConfiguredError(
+            "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY for persistence."
+        )
+    return f"{base}/storage/v1/object/public/{bucket}/{object_path}"
+
+
+def detect_profile_image_payload(data: bytes) -> str:
+    """
+    Return a content-type string for JPEG, PNG, or WebP payloads.
+
+    Validates magic bytes — do not trust client-supplied MIME types alone.
+    """
+    if len(data) < 12:
+        raise ValueError("Choose a JPEG, PNG, or WebP image.")
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    raise ValueError("Use a JPEG, PNG, or WebP photo.")
+
+
+def upload_profile_avatar_bytes(profile_id: str, data: bytes) -> str:
+    """
+    Upload raw profile image bytes (validated) via storage upsert.
+
+    ``profile_id`` is used as the object path prefix. Returns the public URL
+    persisted on ``profiles.avatar_url``.
+    """
+    if len(data) > AVATAR_MAX_UPLOAD_BYTES:
+        raise ValueError("Photo must be smaller than 2.5 MB.")
+    content_type = detect_profile_image_payload(data)
+    bucket = _avatar_bucket()
+    path = avatar_object_storage_path(profile_id)
+    upload_bytes_to_storage(
+        path=path,
+        content=data,
+        content_type=content_type,
+        bucket=bucket,
+        upsert=True,
+    )
+    return profile_avatar_public_url(bucket=bucket, object_path=path)
+
+
+def update_profile_avatar_url(profile_id: str, avatar_url: Optional[str]) -> Dict[str, Any]:
+    """Set or clear ``profiles.avatar_url`` for one user."""
+    supa = get_supabase()
+    result = (
+        supa.table("profiles")
+        .update({"avatar_url": avatar_url})
+        .eq("id", profile_id)
+        .execute()
+    )
+    if not result.data:
+        raise ProfileNotFoundError(f"Profile {profile_id} not found")
+    return _attach_profile_onboarding(result.data[0])
+
+
+def remove_profile_avatar_object(profile_id: str) -> None:
+    """Best-effort storage delete for this user's avatar object."""
+    try:
+        supa = get_supabase()
+        supa.storage.from_(_avatar_bucket()).remove([avatar_object_storage_path(profile_id)])
+    except Exception:
+        pass

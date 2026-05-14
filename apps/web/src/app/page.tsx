@@ -1,9 +1,9 @@
 import Image from "next/image";
-import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { Footer } from "@/components/site/Footer";
 import { Nav } from "@/components/site/Nav";
+import { HeroDemoVideo } from "@/components/site/HeroDemoVideo";
 import { PhoneFrame } from "@/components/site/PhoneFrame";
 import { Reveal } from "@/components/site/Reveal";
 import { SeeTheAppLink } from "@/components/site/SeeTheAppLink";
@@ -17,11 +17,8 @@ const IMG = {
   session: "/assets/IMG_4967.PNG",
 } as const;
 
-const TEAM = [
-  { src: "/assets/team/jacob.jpg", name: "Jacob" },
-  { src: "/assets/team/nirv.png", name: "Nirv" },
-  { src: "/assets/team/nuno.png", name: "Nuno" },
-] as const;
+const HERO_DEMO_MP4 = "/assets/my-workout.mp4";
+const STRIP_LOGO = "/assets/logo.png";
 
 export default function LandingPage() {
   return (
@@ -30,7 +27,6 @@ export default function LandingPage() {
       <main id="top" className="relative flex flex-1 flex-col">
         <Hero />
         <VisualStrip />
-        <Team />
         <Closer />
       </main>
       <Reveal when="load" delay={920} variant="up" className="w-full shrink-0">
@@ -49,11 +45,11 @@ function Hero() {
       />
 
       <div
-        className={`mx-auto flex w-full flex-col items-center gap-12 px-4 sm:gap-14 sm:px-6 lg:flex-row lg:items-center lg:justify-center lg:gap-12 xl:gap-14 ${LANDING_CONTENT_MAX}`}
+        className={`mx-auto flex w-full flex-col items-center gap-9 px-4 sm:gap-10 sm:px-6 lg:flex-row lg:items-center lg:justify-center lg:gap-16 xl:gap-24 2xl:gap-28 ${LANDING_CONTENT_MAX}`}
       >
         <div className="w-full max-w-xl lg:max-w-[26rem]">
           <div
-            className="animate-blur-fade-up glass-pill mb-4 inline-flex items-center gap-2 rounded-full px-3 py-1.5"
+            className="animate-blur-fade-up glass-pill mb-6 inline-flex items-center gap-2 rounded-full px-3 py-1.5 sm:mb-7"
             style={{ animationDelay: "60ms" }}
           >
             <span
@@ -66,19 +62,18 @@ function Hero() {
           </div>
 
           <h1
-            className="animate-blur-fade-up text-[clamp(2.1rem,5.2vw,3.85rem)] font-semibold leading-[0.98] tracking-[-0.035em] text-white"
+            className="animate-blur-fade-up flex flex-col gap-3 text-[clamp(2.1rem,5.2vw,3.85rem)] font-semibold leading-[1.05] tracking-[-0.035em] text-white sm:gap-[0.875rem]"
             style={{
               fontFamily: "var(--font-display)",
               animationDelay: "140ms",
             }}
           >
-            Stop just watching.
-            <br />
-            <span className="text-[var(--primary-bright)]">Start lifting it.</span>
+            <span>Stop watching.</span>
+            <span className="text-[var(--primary-bright)]">Start lifting.</span>
           </h1>
 
           <p
-            className="animate-blur-fade-up mt-4 max-w-[440px] text-[15px] font-medium leading-snug text-white/82 sm:text-[16px]"
+            className="animate-blur-fade-up mt-7 max-w-[440px] text-[15px] font-normal leading-relaxed text-white/82 sm:mt-8 sm:text-[16px]"
             style={{ animationDelay: "240ms" }}
           >
             Your TikToks &amp; Reels → a real workout in the app.
@@ -86,7 +81,7 @@ function Hero() {
           </p>
 
           <div
-            className="animate-blur-fade-up mt-8 flex flex-col gap-4 sm:flex-row sm:items-center"
+            className="animate-blur-fade-up mt-11 flex flex-col gap-5 sm:mt-12 sm:flex-row sm:items-center sm:gap-6"
             style={{ animationDelay: "360ms" }}
           >
             <a
@@ -112,15 +107,11 @@ function Hero() {
           >
             <div
               aria-hidden
-              className="bg-orange-glow glow-breathe pointer-events-none absolute -inset-14 -z-10 scale-110 opacity-90"
+              className="bg-orange-glow glow-breathe pointer-events-none absolute -inset-8 -z-10 scale-[1.06] opacity-90 sm:-inset-10"
             />
-            <PhoneFrame
-              src={IMG.import}
-              alt="Fitfo turning a TikTok workout into sets and reps"
-              width={268}
-              priority
-              float
-              rotate={-3}
+            <HeroDemoVideo
+              src={HERO_DEMO_MP4}
+              label="Fitfo turning a TikTok workout into sets and reps"
             />
           </div>
         </div>
@@ -155,6 +146,29 @@ function VisualStrip() {
     >
       <div className={`mx-auto ${LANDING_CONTENT_MAX} px-4 sm:px-6`}>
         <Reveal when="load" delay={380} variant="up">
+          <div className="mx-auto mb-5 flex flex-col items-center sm:mb-6">
+            <div className="relative">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute left-1/2 top-1/2 h-[4.5rem] w-[4.5rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--primary-bright)] opacity-[0.12] blur-2xl"
+              />
+              <div className="relative overflow-hidden rounded-full bg-gradient-to-b from-white/[0.09] to-transparent p-px shadow-[0_14px_36px_-20px_rgba(0,0,0,0.75)] ring-1 ring-white/[0.14]">
+                <div className="relative overflow-hidden rounded-full bg-black/90">
+                  <Image
+                    src={STRIP_LOGO}
+                    alt="Fitfo"
+                    width={52}
+                    height={52}
+                    className="h-[52px] w-[52px] object-cover"
+                  />
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
           <p className="text-center text-[11px] font-bold uppercase tracking-[0.34em] text-[var(--primary-bright)]">
             Why it feels unfair
           </p>
@@ -231,70 +245,12 @@ function VisualStrip() {
   );
 }
 
-function Team() {
-  return (
-    <section
-      id="team"
-      className="scroll-mt-20 border-t border-white/[0.06] bg-black/[0.18] py-14 sm:py-16 lg:py-20"
-    >
-      <div className={`mx-auto ${LANDING_CONTENT_MAX} px-4 sm:px-6`}>
-        <Reveal when="load" delay={660} variant="up">
-          <h2
-            className="mx-auto max-w-xl px-2 text-center text-[clamp(1.05rem,3.4vw,1.35rem)] font-semibold leading-snug tracking-[-0.035em] text-white sm:max-w-none"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Used by your{" "}
-            <span className="text-[var(--primary-bright)] drop-shadow-[0_0_32px_rgba(255,106,44,0.35)]">
-              favorite fitness influencers
-            </span>
-          </h2>
-        </Reveal>
-        <div className="mx-auto mt-12 grid max-w-2xl grid-cols-1 gap-12 sm:max-w-none sm:grid-cols-3 sm:gap-10">
-          {TEAM.map((member, i) => (
-            <Reveal
-              key={member.name}
-              when="load"
-              delay={730 + i * 90}
-              variant="up"
-              className="flex flex-col items-center text-center"
-            >
-              <div className="relative mb-4">
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 -z-10 scale-110 rounded-full opacity-35 blur-2xl"
-                  style={{
-                    background:
-                      "radial-gradient(circle at 50% 50%, rgba(255,106,44,0.32), transparent 70%)",
-                  }}
-                />
-                <Image
-                  src={member.src}
-                  alt=""
-                  width={160}
-                  height={160}
-                  className="h-40 w-40 rounded-full border border-white/[0.1] object-cover shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
-                />
-              </div>
-              <p
-                className="text-lg font-semibold tracking-[-0.02em] text-white"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                {member.name}
-              </p>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function Closer() {
   return (
-    <section id="download" className="scroll-mt-20 pb-20 pt-8 sm:pb-24">
+    <section id="download" className="scroll-mt-20 pb-12 pt-8 sm:pb-14">
       <div className={`mx-auto ${LANDING_CONTENT_MAX} px-4 sm:px-6`}>
         <Reveal when="load" delay={960} variant="scale">
-          <div className="relative overflow-hidden rounded-[28px] border border-white/[0.08] p-8 sm:p-11 lg:p-14">
+          <div className="relative overflow-hidden rounded-[28px] border border-white/[0.08] px-8 pb-8 pt-9 sm:px-11 sm:pb-9 sm:pt-10 lg:px-14 lg:pb-10 lg:pt-11">
             <div
               aria-hidden
               className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[rgba(255,90,20,0.12)] via-transparent to-black/80"
@@ -314,7 +270,7 @@ function Closer() {
                 <span className="text-[var(--primary-bright)]">Fitfo</span>.
               </h2>
               <p className="mt-4 text-[15px] leading-relaxed text-white/68">
-                Takes a minute to install. Your next workout might already be
+                Takes a second to install. Your next workout might already be
                 in your FYP.
               </p>
               <a
@@ -329,19 +285,6 @@ function Closer() {
                   strokeWidth={2.5}
                 />
               </a>
-              <p className="mt-6 text-[12px] text-white/40">
-                <Link href="/privacy" className="underline-offset-4 hover:text-white/55 hover:underline">
-                  Privacy
-                </Link>
-                {" · "}
-                <Link href="/terms" className="underline-offset-4 hover:text-white/55 hover:underline">
-                  Terms
-                </Link>
-                {" · "}
-                <Link href="/support" className="underline-offset-4 hover:text-white/55 hover:underline">
-                  Help
-                </Link>
-              </p>
             </div>
           </div>
         </Reveal>

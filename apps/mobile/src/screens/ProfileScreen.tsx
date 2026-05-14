@@ -19,6 +19,7 @@ import { usePostHog } from "posthog-react-native";
 
 import { ApiError } from "../lib/api";
 import { useTabBarScrollPadding } from "../lib/tabBarLayout";
+import { ProfileAvatarCircle } from "../components/ProfileAvatarCircle";
 import { getTheme, type ThemeMode } from "../theme";
 import type { UserProfile } from "../types";
 
@@ -30,6 +31,10 @@ interface ProfileScreenProps {
   /** When set, the Settings dark-mode toggle persists via App and updates the shell. */
   onThemeModeChange?: (mode: ThemeMode) => void;
   onUpdateFullName: (fullName: string) => Promise<void>;
+  /** Opens photo options (library / camera / remove). Optional so older shells keep working during rollout. */
+  onManageProfilePhoto?: () => void;
+  /** True while uploading or deleting the profile photo. */
+  isProfilePhotoBusy?: boolean;
   isDeletingAccount?: boolean;
   profile: UserProfile;
   themeMode?: ThemeMode;
@@ -42,6 +47,8 @@ export function ProfileScreen({
   onManageSubscription,
   onThemeModeChange,
   onUpdateFullName,
+  onManageProfilePhoto,
+  isProfilePhotoBusy = false,
   isDeletingAccount = false,
   profile,
   themeMode = "dark",
@@ -180,21 +187,49 @@ export function ProfileScreen({
       </View>
 
       <View style={styles.profileHero}>
-          <Pressable
-            accessibilityHint="Opens a screen to edit your display name."
-            accessibilityLabel={`Name, ${profile.full_name}`}
-            accessibilityRole="button"
-            disabled={isSavingName}
-            onPress={() => setIsNameModalOpen(true)}
-            style={styles.profileIdentity}
-          >
+          <View style={styles.profileIdentity}>
             <View style={styles.avatarRing}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{initials || "F"}</Text>
-              </View>
+              <Pressable
+                accessibilityHint={
+                  onManageProfilePhoto
+                    ? "Choose a photo from your library or camera."
+                    : undefined
+                }
+                accessibilityLabel="Profile photo"
+                accessibilityRole={onManageProfilePhoto ? "button" : "image"}
+                disabled={isProfilePhotoBusy || !onManageProfilePhoto}
+                hitSlop={8}
+                onPress={onManageProfilePhoto}
+                style={({ pressed }) => [
+                  styles.avatar,
+                  pressed && onManageProfilePhoto ? styles.avatarPressed : null,
+                  isProfilePhotoBusy ? styles.avatarMuted : null,
+                ]}
+              >
+                <ProfileAvatarCircle
+                  diameter={62}
+                  fallbackInitials={initials || "F"}
+                  initialsBackgroundColor={theme.colors.surface}
+                  initialsColor={theme.colors.primary}
+                  revision={profile.updated_at}
+                  uri={profile.avatar_url}
+                />
+                {isProfilePhotoBusy ? (
+                  <View style={styles.avatarBusyOverlay}>
+                    <ActivityIndicator color={theme.colors.surface} />
+                  </View>
+                ) : null}
+              </Pressable>
             </View>
 
-            <View style={styles.profileCopy}>
+            <Pressable
+              accessibilityHint="Opens a screen to edit your display name."
+              accessibilityLabel={`Name, ${profile.full_name}`}
+              accessibilityRole="button"
+              disabled={isSavingName}
+              onPress={() => setIsNameModalOpen(true)}
+              style={[styles.profileCopy, styles.profileNamePress]}
+            >
               <View style={styles.nameRow}>
                 <Text style={styles.profileName} numberOfLines={2}>
                   {profile.full_name}
@@ -202,8 +237,8 @@ export function ProfileScreen({
                 <Ionicons color={theme.colors.primary} name="pencil" size={18} />
               </View>
               <Text style={styles.profilePhone}>{profile.phone ?? ""}</Text>
-            </View>
-          </Pressable>
+            </Pressable>
+          </View>
       </View>
 
       <View style={styles.infoList}>
@@ -481,13 +516,24 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: theme.colors.surface,
+      overflow: "hidden",
     },
-    avatarText: {
-      color: theme.colors.primary,
-      fontSize: 22,
-      fontFamily: "Satoshi-Black",
-      fontWeight: "900",
-      letterSpacing: -0.8,
+    avatarPressed: {
+      opacity: 0.9,
+      transform: [{ scale: 0.98 }],
+    },
+    avatarMuted: {
+      opacity: 0.82,
+    },
+    avatarBusyOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(0,0,0,0.38)",
+      borderRadius: 999,
+    },
+    profileNamePress: {
+      flex: 1,
     },
     profileCopy: {
       flex: 1,

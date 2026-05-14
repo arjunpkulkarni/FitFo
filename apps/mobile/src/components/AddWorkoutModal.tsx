@@ -15,7 +15,7 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { FitfoLoadingAnimation } from "./FitfoLoadingAnimation";
 import { getCreatorDisplayLabel } from "../lib/fitfo";
 import { getStatusInfo } from "../lib/status";
-import { getTheme, type ThemeMode } from "../theme";
+import { getTheme, lightColors, type ThemeMode } from "../theme";
 import type { JobResponse, SavedRoutinePreview } from "../types";
 
 interface AddWorkoutModalProps {
@@ -726,8 +726,21 @@ export function AddWorkoutModal({
   );
 }
 
-const createStyles = (theme: ReturnType<typeof getTheme>) =>
-  StyleSheet.create({
+const createStyles = (theme: ReturnType<typeof getTheme>) => {
+  const previewTextPrimary =
+    theme.mode === "dark" ? lightColors.textPrimary : theme.colors.textPrimary;
+  const previewTextSecondary =
+    theme.mode === "dark" ? lightColors.textSecondary : theme.colors.textSecondary;
+  const previewTextMuted =
+    theme.mode === "dark" ? lightColors.textMuted : theme.colors.textMuted;
+  const previewChipBg =
+    theme.mode === "dark" ? "#F2F2F2" : theme.colors.surfaceMuted;
+  const previewDaySurface =
+    theme.mode === "dark" ? lightColors.surface : theme.colors.surface;
+  const previewDayBorder =
+    theme.mode === "dark" ? lightColors.borderSoft : theme.colors.borderSoft;
+
+  return StyleSheet.create({
     overlay: {
       flex: 1,
       alignItems: "center",
@@ -1019,9 +1032,12 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     previewCard: {
       marginTop: 18,
       borderRadius: 24,
-      backgroundColor: theme.colors.surfaceMuted,
+      backgroundColor: "#FFFFFF",
+      borderWidth: theme.mode === "dark" ? 1 : 0,
+      borderColor: "rgba(0, 0, 0, 0.08)",
       padding: 16,
       gap: 8,
+      ...theme.shadows.softCard,
     },
     // Wrap the thumbnail in its own clipped container so we can keep the
     // outer card's padding while the image bleeds to the rounded edge.
@@ -1034,7 +1050,8 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       marginBottom: 4,
       borderRadius: 18,
       overflow: "hidden",
-      backgroundColor: theme.colors.surface,
+      backgroundColor:
+        theme.mode === "dark" ? theme.colors.surface : theme.colors.surfaceMuted,
       aspectRatio: 16 / 9,
       maxHeight: 220,
     },
@@ -1057,7 +1074,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       textTransform: "uppercase",
     },
     previewTitle: {
-      color: theme.colors.textPrimary,
+      color: previewTextPrimary,
       fontSize: 24,
       lineHeight: 29,
       fontFamily: "Satoshi-Bold",
@@ -1065,12 +1082,12 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       letterSpacing: -1,
     },
     previewDescription: {
-      color: theme.colors.textSecondary,
+      color: previewTextSecondary,
       fontSize: 15,
       lineHeight: 21,
     },
     previewAiNote: {
-      color: theme.colors.textMuted,
+      color: previewTextMuted,
       fontSize: 12,
       lineHeight: 16,
       fontStyle: "italic",
@@ -1083,7 +1100,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     previewChip: {
       maxWidth: "100%",
       borderRadius: 999,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: previewChipBg,
       paddingHorizontal: 12,
       paddingVertical: 8,
       flexDirection: "row",
@@ -1121,7 +1138,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       borderColor: theme.colors.primary,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.colors.surface,
+      backgroundColor: "#FFFFFF",
     },
     tertiaryActionText: {
       color: theme.colors.primary,
@@ -1141,7 +1158,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       alignItems: "flex-end",
     },
     schedulerEyebrow: {
-      color: theme.colors.textMuted,
+      color: previewTextMuted,
       fontSize: 11,
       fontFamily: "Satoshi-Black",
       fontWeight: "900",
@@ -1149,7 +1166,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       textTransform: "uppercase",
     },
     schedulerSelectedText: {
-      color: theme.colors.textPrimary,
+      color: previewTextPrimary,
       fontSize: 15,
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
@@ -1165,16 +1182,16 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       paddingVertical: 10,
       paddingHorizontal: 10,
       alignItems: "center",
-      backgroundColor: theme.colors.surface,
+      backgroundColor: previewDaySurface,
       borderWidth: 1,
-      borderColor: theme.colors.borderSoft,
+      borderColor: previewDayBorder,
     },
     dayPillSelected: {
       backgroundColor: theme.colors.primary,
       borderColor: theme.colors.primary,
     },
     dayPillLabel: {
-      color: theme.colors.textMuted,
+      color: previewTextMuted,
       fontSize: 10,
       fontFamily: "Satoshi-Black",
       fontWeight: "900",
@@ -1185,7 +1202,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     },
     dayPillNumber: {
       marginTop: 2,
-      color: theme.colors.textPrimary,
+      color: previewTextPrimary,
       fontSize: 20,
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
@@ -1195,7 +1212,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     },
     dayPillMonth: {
       marginTop: 2,
-      color: theme.colors.textMuted,
+      color: previewTextMuted,
       fontSize: 11,
       fontFamily: "Satoshi-Bold",
       fontWeight: "700",
@@ -1209,7 +1226,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       paddingVertical: 6,
     },
     schedulerCancelText: {
-      color: theme.colors.textMuted,
+      color: previewTextMuted,
       fontSize: 13,
       fontFamily: "Satoshi-Bold",
       fontWeight: "700",
@@ -1241,3 +1258,4 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       textAlign: "center",
     },
   });
+};

@@ -2010,11 +2010,11 @@ function createAuthStyles(colors: AuthColors) {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     bottom: 0,
-    gap: 13,
+    gap: 7,
     left: 0,
-    paddingBottom: 18,
+    paddingBottom: 14,
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 6,
     position: "absolute",
     right: 0,
     zIndex: 6,
@@ -2024,12 +2024,14 @@ function createAuthStyles(colors: AuthColors) {
     backgroundColor: "#404043",
     borderRadius: 999,
     height: 4,
+    marginBottom: -2,
     width: 42,
   },
   shareSheetHeader: {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
+    marginBottom: -2,
   },
   shareSheetTitle: {
     color: "#FFFFFF",
@@ -2039,11 +2041,12 @@ function createAuthStyles(colors: AuthColors) {
   shareContactRow: {
     flexDirection: "row",
     gap: 11,
+    marginTop: -2,
   },
   shareContact: {
     alignItems: "center",
     flex: 1,
-    gap: 6,
+    gap: 5,
   },
   shareContactAvatar: {
     alignItems: "center",
@@ -2067,11 +2070,12 @@ function createAuthStyles(colors: AuthColors) {
   shareAppRow: {
     flexDirection: "row",
     gap: 10,
+    marginTop: -2,
   },
   shareAppButton: {
     alignItems: "center",
     flex: 1,
-    gap: 6,
+    gap: 5,
   },
   shareAppIcon: {
     alignItems: "center",
@@ -2085,13 +2089,13 @@ function createAuthStyles(colors: AuthColors) {
     fontFamily: F.medium,
     fontSize: 10,
     lineHeight: 12,
-    minHeight: 24,
+    minHeight: 16,
     textAlign: "center",
   },
   fitfoShareButton: {
     alignItems: "center",
     flex: 1,
-    gap: 6,
+    gap: 5,
   },
   fitfoShareIcon: {
     alignItems: "center",

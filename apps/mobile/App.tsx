@@ -63,6 +63,7 @@ import {
   createIngestionJob,
   createScheduledWorkout,
   deleteAccount,
+  deleteProfileAvatar,
   deleteSavedWorkout,
   deleteScheduledWorkout,
   fetchLiftLatestSnapshot,
@@ -78,6 +79,7 @@ import {
   sendOtp,
   updateSavedWorkout,
   updateScheduledWorkout,
+  uploadProfileAvatar,
   verifyOtp,
 } from "./src/lib/api";
 import { humanizeIngestError } from "./src/lib/ingestErrors";
@@ -121,6 +123,7 @@ import {
   isStarterDemoWorkoutTitle,
 } from "./src/lib/starterHubWelcome";
 import * as Notifications from "expo-notifications";
+import * as ImagePicker from "expo-image-picker";
 import {
   cancelGymScheduleNudge,
   cancelWorkoutReminder,
@@ -377,6 +380,7 @@ export default function App() {
   );
   const [isBodyWeightSubmitting, setIsBodyWeightSubmitting] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isAvatarBusy, setIsAvatarBusy] = useState(false);
   const [sharedIngestUrl, setSharedIngestUrl] = useState<string | null>(null);
   const [isShareDrivenIngest, setIsShareDrivenIngest] = useState(false);
   const [scheduledConfirmation, setScheduledConfirmation] = useState<
@@ -2734,6 +2738,130 @@ export default function App() {
     [accessToken],
   );
 
+  const finalizeAvatarProfile = useCallback(
+    async (nextProfile: UserProfile) => {
+      setCurrentUser(nextProfile);
+      if (accessToken) {
+        await storeAuthSession(accessToken, nextProfile);
+      }
+    },
+    [accessToken],
+  );
+
+  const handleManageProfilePhoto = useCallback(() => {
+    if (!accessToken || isAvatarBusy) {
+      return;
+    }
+
+    const runRemoval = async () => {
+      setIsAvatarBusy(true);
+      try {
+        const response = await deleteProfileAvatar(accessToken);
+        await finalizeAvatarProfile(response.profile);
+        posthog.capture("profile_avatar_removed");
+      } catch (error) {
+        Alert.alert(
+          "Couldn't remove photo",
+          error instanceof Error ? error.message : "Something went wrong. Try again.",
+        );
+      } finally {
+        setIsAvatarBusy(false);
+      }
+    };
+
+    const uploadFromLibrary = async () => {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          "Photo library",
+          "Allow photo library access in Settings to pick a profile picture.",
+        );
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.88,
+      });
+      const asset = result.assets?.[0];
+      if (result.canceled || !asset) {
+        return;
+      }
+      setIsAvatarBusy(true);
+      try {
+        const response = await uploadProfileAvatar(accessToken, {
+          mimeType: asset.mimeType,
+          uri: asset.uri,
+        });
+        await finalizeAvatarProfile(response.profile);
+        posthog.capture("profile_avatar_updated");
+      } catch (error) {
+        Alert.alert(
+          "Couldn't update photo",
+          error instanceof Error ? error.message : "Something went wrong. Try again.",
+        );
+      } finally {
+        setIsAvatarBusy(false);
+      }
+    };
+
+    const uploadFromCamera = async () => {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          "Camera",
+          "Allow camera access in Settings to take a profile picture.",
+        );
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.88,
+      });
+      const asset = result.assets?.[0];
+      if (result.canceled || !asset) {
+        return;
+      }
+      setIsAvatarBusy(true);
+      try {
+        const response = await uploadProfileAvatar(accessToken, {
+          mimeType: asset.mimeType,
+          uri: asset.uri,
+        });
+        await finalizeAvatarProfile(response.profile);
+        posthog.capture("profile_avatar_updated");
+      } catch (error) {
+        Alert.alert(
+          "Couldn't update photo",
+          error instanceof Error ? error.message : "Something went wrong. Try again.",
+        );
+      } finally {
+        setIsAvatarBusy(false);
+      }
+    };
+
+    Alert.alert("Profile photo", undefined, [
+      { text: "Choose from library", onPress: () => void uploadFromLibrary() },
+      { text: "Take photo", onPress: () => void uploadFromCamera() },
+      ...(currentUser?.avatar_url
+        ? ([
+            {
+              style: "destructive",
+              text: "Remove photo",
+              onPress: () => void runRemoval(),
+            },
+          ] as const)
+        : []),
+      { style: "cancel", text: "Cancel" },
+    ]);
+  }, [
+    accessToken,
+    currentUser?.avatar_url,
+    finalizeAvatarProfile,
+    isAvatarBusy,
+  ]);
   const handleAddBodyWeightEntry = useCallback(
     async (weightLbs: number) => {
       if (!accessToken) {
@@ -2978,6 +3106,8 @@ export default function App() {
           onClose={() => setIsProfileVisible(false)}
           onLogout={handleLogout}
           onDeleteAccount={handleDeleteAccount}
+          onManageProfilePhoto={handleManageProfilePhoto}
+          isProfilePhotoBusy={isAvatarBusy}
           onManageSubscription={revenueCat.openCustomerCenter}
           onThemeModeChange={handleThemeModeChange}
           onUpdateFullName={handleUpdateFullName}
@@ -3034,6 +3164,8 @@ export default function App() {
           importedWorkouts={savedWorkouts}
           isScheduleLoading={scheduledWorkoutsLoading}
           onAddWorkout={handleOpenAddWorkout}
+          profileAvatarRevision={currentUser?.updated_at ?? null}
+          profileAvatarUrl={currentUser?.avatar_url ?? null}
           onOpenProfile={() => setIsProfileVisible(true)}
           onOpenSavedList={() => setIsSavedLibraryVisible(true)}
           onSavedWorkoutsCardMeasured={(rect) => {

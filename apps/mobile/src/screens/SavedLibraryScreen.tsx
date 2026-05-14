@@ -534,93 +534,84 @@ export function SavedLibraryScreen({
   );
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[
-        styles.content,
-        { paddingBottom: tabBarScrollPad },
-      ]}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.headerNav}>
-        <Pressable
-          onPress={onBack}
-          style={({ pressed }) => [
-            styles.iconRoundButton,
-            pressed ? styles.actionPressed : null,
-          ]}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-        >
+    <View style={styles.container}>
+      <View style={styles.topSection}>
+        <View style={styles.headerNav}>
+          <Pressable
+            onPress={onBack}
+            style={({ pressed }) => [
+              styles.iconRoundButton,
+              pressed ? styles.actionPressed : null,
+            ]}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Ionicons
+              color={theme.colors.textPrimary}
+              name="arrow-back"
+              size={20}
+            />
+          </Pressable>
+          <Pressable
+            onPress={onAddWorkout}
+            style={({ pressed }) => [
+              styles.iconRoundButton,
+              pressed ? styles.actionPressed : null,
+            ]}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Add workout"
+          >
+            <Ionicons color={accent} name="add" size={22} />
+          </Pressable>
+        </View>
+
+        <View style={styles.titleBlock}>
+          <Text style={[styles.eyebrow, { color: accent }]}>LIBRARY</Text>
+          <Text style={styles.title}>Saved Workouts</Text>
+          <Text style={styles.subtitle}>
+            Your saved programs, imports, and drafts.
+          </Text>
+        </View>
+
+        <View style={styles.searchBar}>
           <Ionicons
-            color={theme.colors.textPrimary}
-            name="arrow-back"
-            size={20}
-          />
-        </Pressable>
-        <Pressable
-          onPress={onAddWorkout}
-          style={({ pressed }) => [
-            styles.iconRoundButton,
-            pressed ? styles.actionPressed : null,
-          ]}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel="Add workout"
-        >
-          <Ionicons color={accent} name="add" size={22} />
-        </Pressable>
-      </View>
-
-      <View style={styles.titleBlock}>
-        <Text style={[styles.eyebrow, { color: accent }]}>LIBRARY</Text>
-        <Text style={styles.title}>Saved Workouts</Text>
-        <Text style={styles.subtitle}>
-          Your saved programs, imports, and drafts.
-        </Text>
-      </View>
-
-      
-
-      <View style={styles.searchBar}>
-        <Ionicons
-          color={theme.colors.textMuted}
-          name="search"
-          size={18}
-          style={styles.searchIcon}
-        />
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search saved workouts..."
-          placeholderTextColor={theme.colors.textMuted}
-          style={styles.searchInput}
-          returnKeyType="search"
-          autoCorrect={false}
-        />
-        <Pressable
-          onPress={() => setShowFilters((current) => !current)}
-          hitSlop={6}
-          style={({ pressed }) => [
-            styles.searchFilterButton,
-            pressed ? styles.actionPressed : null,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Toggle filters"
-        >
-          <MaterialCommunityIcons
-            color={
-              showFilters || selectedMuscleFilter !== "all"
-                ? accent
-                : theme.colors.textMuted
-            }
-            name="tune-variant"
+            color={theme.colors.textMuted}
+            name="search"
             size={18}
+            style={styles.searchIcon}
           />
-        </Pressable>
-      </View>
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search saved workouts..."
+            placeholderTextColor={theme.colors.textMuted}
+            style={styles.searchInput}
+            returnKeyType="search"
+            autoCorrect={false}
+          />
+          <Pressable
+            onPress={() => setShowFilters((current) => !current)}
+            hitSlop={6}
+            style={({ pressed }) => [
+              styles.searchFilterButton,
+              pressed ? styles.actionPressed : null,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle filters"
+          >
+            <MaterialCommunityIcons
+              color={
+                showFilters || selectedMuscleFilter !== "all"
+                  ? accent
+                  : theme.colors.textMuted
+              }
+              name="tune-variant"
+              size={18}
+            />
+          </Pressable>
+        </View>
 
       {showFilters && filterChips.length > 1 ? (
         <View style={styles.filterBento}>
@@ -657,8 +648,20 @@ export function SavedLibraryScreen({
           </ScrollView>
         </View>
       ) : null}
+      </View>
 
-      {isLoading ? (
+      <View style={styles.workoutListRoundCap}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+          style={styles.workoutListScroll}
+          contentContainerStyle={[
+            styles.workoutListContent,
+            { paddingBottom: tabBarScrollPad },
+          ]}
+        >
+        {isLoading ? (
         <FeedbackCard
           body="Pulling your saved routines from your Fitfo account."
           isLoading
@@ -740,7 +743,9 @@ export function SavedLibraryScreen({
           );
         })
       )}
-    </ScrollView>
+      </ScrollView>
+      </View>
+    </View>
   );
 }
 
@@ -750,10 +755,25 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    content: {
+    topSection: {
       paddingHorizontal: 20,
       paddingTop: 20,
       gap: 14,
+    },
+    workoutListRoundCap: {
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      flex: 1,
+      overflow: "hidden",
+    },
+    workoutListScroll: {
+      flex: 1,
+    },
+    workoutListContent: {
+      flexGrow: 1,
+      gap: 14,
+      paddingHorizontal: 20,
+      paddingTop: 14,
     },
     headerNav: {
       flexDirection: "row",
@@ -876,6 +896,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       backgroundColor: theme.colors.surface,
       paddingVertical: 10,
       paddingHorizontal: 14,
+      marginBottom: 12,
       borderWidth: theme.mode === "dark" ? 1 : 0,
       borderColor: theme.colors.borderSoft,
       ...theme.shadows.softCard,
@@ -898,7 +919,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     },
 
     filterBento: {
-      borderRadius: 20,
+      borderRadius: 28,
       backgroundColor: theme.colors.surface,
       paddingVertical: 8,
       paddingHorizontal: 10,

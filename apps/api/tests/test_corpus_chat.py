@@ -227,7 +227,7 @@ class AnswerTests(unittest.IsolatedAsyncioTestCase):
             await corpus_chat.answer("what should I focus on?", workout=workout)
 
         system_content = capture["json"]["messages"][0]["content"]
-        self.assertIn("CURRENT WORKOUT", system_content)
+        self.assertIn("SESSION SNAPSHOT", system_content)
         self.assertIn("Push Day", system_content)
         self.assertIn("Incline Smith press", system_content)
         self.assertIn("4x 8 reps", system_content)
@@ -329,6 +329,32 @@ class AnswerTests(unittest.IsolatedAsyncioTestCase):
         roles = [m["role"] for m in capture["json"]["messages"]]
         # system + 2 history turns + 1 new user message
         self.assertEqual(roles, ["system", "user", "assistant", "user"])
+
+
+class StripCoachEchoTagsTests(unittest.TestCase):
+    def test_strip_bolds_and_period_variants(self) -> None:
+        raw = (
+            "You're on exercise 1 of 3 — Bench, working on set 1 of 3 "
+            "**[CURRENT WORKOUT].**"
+        )
+        self.assertEqual(
+            corpus_chat._strip_coach_echo_tags(raw),
+            "You're on exercise 1 of 3 — Bench, working on set 1 of 3",
+        )
+
+    def test_plain_brackets_strip(self) -> None:
+        self.assertEqual(
+            corpus_chat._strip_coach_echo_tags(
+                "Set 2 next [CURRENT WORKOUT].",
+            ),
+            "Set 2 next.",
+        )
+
+    def test_does_not_strip_retrieval_citations(self) -> None:
+        self.assertEqual(
+            corpus_chat._strip_coach_echo_tags("Grip the bar **[1]** at shoulder width."),
+            "Grip the bar **[1]** at shoulder width.",
+        )
 
 
 if __name__ == "__main__":
