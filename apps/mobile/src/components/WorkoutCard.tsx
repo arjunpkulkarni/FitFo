@@ -337,7 +337,7 @@ export function WorkoutCard({
           >
             <Ionicons
               color={theme.colors.textPrimary}
-              name="trash-outline"
+              name="close"
               size={20}
             />
           </Pressable>

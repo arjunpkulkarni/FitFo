@@ -815,7 +815,7 @@ export function AuthLandingScreen({
                             {exercise.sets}x{exercise.reps}
                           </Text>
                           <View style={styles.importedTrash}>
-                            <Ionicons color={colors.accent} name="trash-outline" size={16} />
+                            <Ionicons color={colors.accent} name="close" size={16} />
                           </View>
                         </View>
                       ))}
@@ -1272,7 +1272,7 @@ function FeatureCard({ title, type }: { title?: string; type: "calendar" | "coac
       <View style={[styles.coachDemoFrame, { height: coachDemoHeight }]}>
         <Image
           accessibilityIgnoresInvertColors
-          accessibilityLabel="Preview of the in-workout Fitfo AI Coach chat"
+          accessibilityLabel="Preview of the in-workout Fitfo coach chat"
           resizeMode="contain"
           source={COACH_DEMO}
           style={styles.coachDemoImage}

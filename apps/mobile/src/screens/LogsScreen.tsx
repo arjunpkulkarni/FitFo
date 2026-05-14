@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   Pressable,
@@ -30,6 +31,10 @@ interface LogsScreenProps {
   /** Quick-start practice from hub log row (does not navigate to summary first). */
   onStartFromCompleted?: (workout: CompletedWorkoutRecord) => void;
   schedulingWorkoutId?: string | null;
+  /** Permanently remove a logged session after confirmation. */
+  onDeleteCompletedSession?: (workout: CompletedWorkoutRecord) => Promise<void>;
+  /** Row id matching an in-flight delete (shows spinner instead of trash). */
+  deletingCompletedWorkoutId?: string | null;
   workouts: CompletedWorkoutRecord[];
   themeMode?: ThemeMode;
 }
@@ -85,8 +90,10 @@ function completedWorkoutDayShort(completedAt: string): string {
 
 export function LogsScreen({
   activeWorkout,
+  deletingCompletedWorkoutId = null,
   error,
   isLoading,
+  onDeleteCompletedSession,
   onOpenWorkout,
   onResumeWorkout,
   onRetry,
@@ -279,6 +286,32 @@ export function LogsScreen({
                 workoutPlan: item.workout_plan,
               });
 
+              const confirmDeletePastSession = () => {
+                if (!onDeleteCompletedSession) return;
+                Alert.alert(
+                  "Delete this workout?",
+                  `Remove "${displayTitle}" from your history. This cannot be undone.`,
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Delete",
+                      style: "destructive",
+                      onPress: () => {
+                        void (async () => {
+                          try {
+                            await onDeleteCompletedSession(item);
+                          } catch (err) {
+                            const msg =
+                              err instanceof Error ? err.message : "Try again.";
+                            Alert.alert("Couldn't delete", msg);
+                          }
+                        })();
+                      },
+                    },
+                  ],
+                );
+              };
+
               const isSchedulingThis = schedulingWorkoutId === item.id;
               const sourceTag = completedWorkoutSourceLabel(item.source_url);
               const dayShort = completedWorkoutDayShort(item.completed_at);
@@ -302,6 +335,32 @@ export function LogsScreen({
                         <Text style={styles.sessionMetaLine}>{metaLine}</Text>
                       ) : null}
                     </View>
+                    {onDeleteCompletedSession ? (
+                      <Pressable
+                        accessibilityLabel={`Delete logged workout ${displayTitle}`}
+                        accessibilityHint="Opens a confirmation prompt"
+                        accessibilityRole="button"
+                        disabled={deletingCompletedWorkoutId === item.id}
+                        hitSlop={8}
+                        onPress={confirmDeletePastSession}
+                        style={({ pressed }) => [
+                          styles.sessionDeleteButton,
+                          pressed && deletingCompletedWorkoutId !== item.id
+                            ? styles.sessionDeleteButtonPressed
+                            : null,
+                        ]}
+                      >
+                        {deletingCompletedWorkoutId === item.id ? (
+                          <ActivityIndicator color={theme.colors.error} size="small" />
+                        ) : (
+                          <Ionicons
+                            color={theme.colors.error}
+                            name="close"
+                            size={18}
+                          />
+                        )}
+                      </Pressable>
+                    ) : null}
                   </View>
                   {(onStartFromCompleted || onScheduleAgain) ? (
                     <View style={styles.sessionActions}>
@@ -668,6 +727,19 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       flexDirection: "row",
       alignItems: "flex-start",
       gap: 10,
+      width: "100%",
+    },
+    sessionDeleteButton: {
+      alignSelf: "flex-start",
+      padding: 8,
+      marginTop: 2,
+      marginLeft: -2,
+      marginRight: -4,
+      borderRadius: theme.radii.small,
+    },
+    sessionDeleteButtonPressed: {
+      opacity: 0.72,
+      backgroundColor: theme.colors.surfaceMuted,
     },
     sessionImageShell: {
       width: 42,

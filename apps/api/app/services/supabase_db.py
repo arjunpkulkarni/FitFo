@@ -681,6 +681,23 @@ def get_completed_workout(completed_workout_id: str, *, user_id: str) -> Dict[st
     return result.data
 
 
+def delete_completed_workout(completed_workout_id: str, *, user_id: str) -> None:
+    supa = get_supabase()
+    existing = (
+        supa.table("completed_workouts")
+        .select("id")
+        .eq("id", completed_workout_id)
+        .eq("user_id", user_id)
+        .maybe_single()
+        .execute()
+    )
+    if not existing.data:
+        raise RuntimeError("Completed workout not found")
+    supa.table("completed_workouts").delete().eq("id", completed_workout_id).eq(
+        "user_id", user_id
+    ).execute()
+
+
 def get_profile_by_phone(phone: str) -> Optional[Dict[str, Any]]:
     """Resolve profile from raw user input; canonical E.164 first, then legacy heuristic."""
     supa = get_supabase()

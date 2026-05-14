@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.routers.deps import require_profile_id
 from app.schemas.workout_persistence import (
@@ -70,3 +70,23 @@ def create_completed_workout(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to save completed workout: {exc}") from exc
+
+
+@router.delete("/{completed_workout_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_completed_workout(
+    completed_workout_id: str,
+    profile_id: str = Depends(require_profile_id),
+) -> Response:
+    """Remove one completed-session row (profile-scoped). Lift set logs CASCADE."""
+    try:
+        supabase_db.delete_completed_workout(completed_workout_id, user_id=profile_id)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except supabase_db.SupabaseNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete workout: {exc}",
+        ) from exc

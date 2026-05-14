@@ -56,6 +56,42 @@ const GENERIC_ROUTINE_TITLES = new Set([
   "new tiktok routine",
 ]);
 
+/** When parsing omits per-exercise `rest_sec`, rest UI and timers use this fallback. */
+export const DEFAULT_REST_BETWEEN_SETS_SEC = 90;
+
+/** Prefer plan/log average rest between sets when present; fallback so countdowns aren't blank. */
+export function resolveExerciseRestBaseline(
+  averageRestSeconds: number | null | undefined,
+): number {
+  if (
+    averageRestSeconds != null &&
+    averageRestSeconds > 0 &&
+    Number.isFinite(averageRestSeconds)
+  ) {
+    return Math.round(averageRestSeconds);
+  }
+  return DEFAULT_REST_BETWEEN_SETS_SEC;
+}
+
+function coerceParsedRestSec(
+  value: number | null | undefined,
+  baselineSeconds: number,
+): number {
+  if (value != null && Number.isFinite(value)) {
+    return Math.max(0, Math.round(value));
+  }
+  return baselineSeconds;
+}
+
+function fillMissingExerciseRest(
+  exercises: ActiveExercisePreview[],
+  baselineSeconds: number,
+): ActiveExercisePreview[] {
+  return exercises.map((exercise) =>
+    exercise.restSeconds == null ? { ...exercise, restSeconds: baselineSeconds } : exercise,
+  );
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
@@ -636,7 +672,23 @@ function formatExerciseSummary(exercise: WorkoutExercise): string {
     parts.push(`${exercise.rest_sec}s rest`);
   }
 
-  return parts.join(" • ") || "Follow coach notes";
+  const targetLine = parts.join(" • ");
+  const trimmedNotes = exercise.notes?.trim() ?? "";
+  const noteLine = trimmedNotes
+    ? sentenceCase(trimmedNotes) || trimmedNotes
+    : "";
+
+  if (targetLine && noteLine) {
+    return `${targetLine} • ${noteLine}`;
+  }
+  if (targetLine) {
+    return targetLine;
+  }
+  if (noteLine) {
+    return noteLine;
+  }
+
+  return "Follow coach notes";
 }
 
 function createSessionSets(exercise: WorkoutExercise, exerciseIndex: number) {
@@ -655,7 +707,10 @@ function createSessionSets(exercise: WorkoutExercise, exerciseIndex: number) {
   }));
 }
 
-function buildSessionExercises(plan: WorkoutPlan): ActiveExercisePreview[] {
+function buildSessionExercises(
+  plan: WorkoutPlan,
+  restBaselineSeconds: number,
+): ActiveExercisePreview[] {
   return plan.blocks.flatMap((block, blockIndex) =>
     block.exercises.map((exercise, exerciseIndex) => ({
       id: `${blockIndex + 1}-${exerciseIndex + 1}-${exercise.name}`,
@@ -663,7 +718,7 @@ function buildSessionExercises(plan: WorkoutPlan): ActiveExercisePreview[] {
       subtitle: formatExerciseSummary(exercise),
       blockName: block.name ? titleCase(block.name) : null,
       notes: exercise.notes ? sentenceCase(exercise.notes) : null,
-      restSeconds: exercise.rest_sec,
+      restSeconds: coerceParsedRestSec(exercise.rest_sec, restBaselineSeconds),
       sets: createSessionSets(exercise, blockIndex * 100 + exerciseIndex),
     })),
   );
@@ -745,12 +800,16 @@ export function createActiveSessionFromCompletedWorkout(
 
   if (record.exercises.length > 0) {
     const descFinal = sentenceCase(description) || description;
+    const replayBaseline = resolveExerciseRestBaseline(record.average_rest_seconds);
     return {
       title,
       description: descFinal,
       startedAt: Date.now(),
-      averageRestSeconds: record.average_rest_seconds ?? null,
-      exercises: exercisesFromCompletedLog(record.exercises),
+      averageRestSeconds: replayBaseline,
+      exercises: fillMissingExerciseRest(
+        exercisesFromCompletedLog(record.exercises),
+        replayBaseline,
+      ),
       sourceWorkoutId: record.workout_id ?? null,
       sourceJobId: record.job_id ?? null,
       sourceUrl: record.source_url ?? null,
@@ -865,13 +924,15 @@ export function createActiveSessionFromPlan(
     plan.notes ||
     `Structured ${plan.workout_type.toLowerCase()} session tuned from your TikTok reference.`;
   const description = sentenceCase(rawDescription) || rawDescription;
-  const exercises = buildSessionExercises(plan);
+  const planAverageRest = computeAverageRestSeconds(plan);
+  const restBaseline = resolveExerciseRestBaseline(planAverageRest);
+  const exercises = buildSessionExercises(plan, restBaseline);
 
   return {
     title,
     description,
     startedAt: Date.now(),
-    averageRestSeconds: computeAverageRestSeconds(plan),
+    averageRestSeconds: restBaseline,
     exercises,
     scheduledWorkoutId: overrides?.scheduledWorkoutId ?? undefined,
     sourceWorkoutId: overrides?.sourceWorkoutId ?? null,

@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -21,6 +22,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { usePostHog } from "posthog-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   ChatApiError,
@@ -75,6 +77,12 @@ function resolveCoachCitationTapUrl(
   return undefined;
 }
 
+function clipReferenceSnippet(snippet: string, maxLen: number): string {
+  const s = snippet.replace(/\s+/g, " ").trim();
+  if (s.length <= maxLen) return s;
+  return `${s.slice(0, maxLen - 1)}…`;
+}
+
 export default function CoachSheet({
   visible,
   onClose,
@@ -85,7 +93,16 @@ export default function CoachSheet({
 }: CoachSheetProps) {
   const posthog = usePostHog();
   const theme = getTheme(themeMode);
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  /** Modals occasionally read 0 inset; stay clear of the home indicator on tall iPhones. */
+  const composerBottomInset = Math.max(
+    insets.bottom,
+    Platform.OS === "ios" ? 20 : 12,
+  );
+  const styles = useMemo(
+    () => createStyles(theme, composerBottomInset),
+    [theme, composerBottomInset],
+  );
 
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
@@ -95,6 +112,35 @@ export default function CoachSheet({
   useEffect(() => {
     workoutRef.current = workout;
   }, [workout]);
+
+  const coachStatusBlink = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!visible) {
+      coachStatusBlink.setValue(1);
+      return;
+    }
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(coachStatusBlink, {
+          toValue: 0.28,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(coachStatusBlink, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    loop.start();
+    return () => {
+      loop.stop();
+      coachStatusBlink.setValue(1);
+    };
+  }, [visible, coachStatusBlink]);
 
   useEffect(() => {
     if (!visible) return;
@@ -175,28 +221,25 @@ export default function CoachSheet({
           workoutRef.current?.source_url,
           cite?.source_url,
         );
-        const canOpen = Boolean(url);
-        if (canOpen && url) {
-          return (
-            <Text
-              accessibilityLabel={`Reference ${inline.index}, opens source`}
-              accessibilityRole="link"
-              key={key}
-              onPress={() => {
-                void Linking.openURL(url);
-              }}
-              style={styles.citationBadge}
-            >
-              <Ionicons
-                name="link"
-                size={12}
-                color={theme.colors.primaryBright}
-              />
-              <Text> view here</Text>
-            </Text>
-          );
-        }
-        return null;
+        const label = `[${inline.index}]`;
+        return (
+          <Text
+            key={key}
+            accessibilityHint={url ? "Opens creator source" : undefined}
+            accessibilityLabel={`Reference ${inline.index}${url ? ", link" : ""}`}
+            accessibilityRole={url ? "link" : "text"}
+            onPress={
+              url
+                ? () => {
+                    void Linking.openURL(url);
+                  }
+                : undefined
+            }
+            style={[styles.assistantText, url ? styles.citationBadge : styles.citationMutedInline]}
+          >
+            {label}
+          </Text>
+        );
       }
       return <Text key={key}>{inline.value}</Text>;
     });
@@ -257,8 +300,10 @@ export default function CoachSheet({
             <View style={styles.handle} />
             <View style={styles.header}>
               <View style={styles.headerTitleRow}>
-                <View style={styles.statusDot} />
-                <Text style={styles.headerTitle}>Personal Coach</Text>
+                <Animated.View
+                  style={[styles.statusDot, { opacity: coachStatusBlink }]}
+                />
+                <Text style={styles.headerTitle}>Coach</Text>
               </View>
               <Pressable
                 onPress={onClose}
@@ -276,7 +321,12 @@ export default function CoachSheet({
             <ScrollView
               ref={scrollRef}
               style={styles.messages}
-              contentContainerStyle={styles.messagesContent}
+              contentContainerStyle={[
+                styles.messagesContent,
+                messages.length === 0 && !pending
+                  ? styles.messagesContentIntro
+                  : null,
+              ]}
               keyboardShouldPersistTaps="handled"
             >
               {messages.length === 0 && !pending && (
@@ -311,10 +361,73 @@ export default function CoachSheet({
                     </View>
                   );
                 }
+                const sortedAssistantCitations =
+                  message.citations && message.citations.length > 0
+                    ? [...message.citations].sort((a, b) => a.index - b.index)
+                    : [];
                 return (
                   <View key={idx} style={styles.assistantRow}>
                     <View style={styles.assistantBubble}>
                       {renderMarkdown(message.content, `m${idx}`, message.citations)}
+                      {sortedAssistantCitations.length > 0 ? (
+                        <>
+                          <View style={styles.refsDivider} />
+                          <Text style={styles.refsHeading}>References</Text>
+                          {sortedAssistantCitations.map((cite) => {
+                            const tapUrl = resolveCoachCitationTapUrl(
+                              workoutRef.current?.source_url,
+                              cite.source_url,
+                            );
+                            const preview = clipReferenceSnippet(cite.snippet ?? "", 200);
+                            return (
+                              <Pressable
+                                key={`m${idx}-ref-${cite.index}`}
+                                accessibilityLabel={`Reference ${cite.index}. Open source`}
+                                accessibilityRole={tapUrl ? "link" : "button"}
+                                disabled={!tapUrl}
+                                hitSlop={10}
+                                onPress={
+                                  tapUrl
+                                    ? () => {
+                                        posthog.capture("coach_reference_open", {
+                                          citation_index: cite.index,
+                                        });
+                                        void Linking.openURL(tapUrl);
+                                      }
+                                    : undefined
+                                }
+                                style={[
+                                  styles.refRow,
+                                  !tapUrl && styles.refRowDisabled,
+                                ]}
+                              >
+                                <View style={styles.refIndexBadge}>
+                                  <Text style={styles.refIndexBadgeText}>
+                                    {cite.index}
+                                  </Text>
+                                </View>
+                                <View style={styles.refMiddle}>
+                                  <Text style={styles.refSnippetText} numberOfLines={4}>
+                                    {preview || cite.source_url || "Creator coaching tip"}
+                                  </Text>
+                                  {tapUrl ? (
+                                    <View style={styles.refOpenRow}>
+                                      <Ionicons
+                                        color={theme.colors.primary}
+                                        name="open-outline"
+                                        size={14}
+                                      />
+                                      <Text style={styles.refOpenLink}>Open reel</Text>
+                                    </View>
+                                  ) : (
+                                    <Text style={styles.refNoLinkText}>No link for this cite</Text>
+                                  )}
+                                </View>
+                              </Pressable>
+                            );
+                          })}
+                        </>
+                      ) : null}
                     </View>
                   </View>
                 );
@@ -372,7 +485,7 @@ export default function CoachSheet({
   );
 }
 
-function createStyles(theme: ReturnType<typeof getTheme>) {
+function createStyles(theme: ReturnType<typeof getTheme>, composerBottomInset: number) {
   const { colors } = theme;
   return StyleSheet.create({
     backdrop: {
@@ -390,8 +503,8 @@ function createStyles(theme: ReturnType<typeof getTheme>) {
       backgroundColor: colors.surface,
       borderTopLeftRadius: 28,
       borderTopRightRadius: 28,
-      paddingBottom: Platform.OS === "ios" ? 34 : 16,
-      minHeight: "65%",
+      paddingBottom: 0,
+      minHeight: "52%",
       maxHeight: "96%",
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.borderSoft,
@@ -423,7 +536,7 @@ function createStyles(theme: ReturnType<typeof getTheme>) {
       width: 7,
       height: 7,
       borderRadius: 4,
-      backgroundColor: colors.primary,
+      backgroundColor: colors.success,
     },
     headerTitle: {
       color: colors.textPrimary,
@@ -449,6 +562,12 @@ function createStyles(theme: ReturnType<typeof getTheme>) {
       paddingTop: 8,
       paddingBottom: 4,
       gap: 10,
+    },
+    /** Without chat history we don't consume the full viewport — tighter intro layout. */
+    messagesContentIntro: {
+      flexGrow: 0,
+      justifyContent: "flex-start",
+      paddingBottom: 12,
     },
     emptyState: {
       paddingVertical: 6,
@@ -550,16 +669,83 @@ function createStyles(theme: ReturnType<typeof getTheme>) {
     },
     citationBadge: {
       color: colors.primaryBright,
-      fontFamily: F.semiBold,
-      fontSize: 13,
-      lineHeight: 21,
+      fontFamily: F.bold,
       textDecorationLine: "underline",
     },
-    citationMuted: {
+    citationMutedInline: {
       color: colors.textMuted,
       fontFamily: F.medium,
-      fontSize: 13,
-      lineHeight: 21,
+    },
+    refsDivider: {
+      marginTop: 12,
+      marginBottom: 8,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.borderSoft,
+    },
+    refsHeading: {
+      color: colors.textMuted,
+      fontFamily: F.bold,
+      fontSize: 11,
+      letterSpacing: 0.14,
+      textTransform: "uppercase",
+      marginBottom: 8,
+    },
+    refRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 10,
+      paddingVertical: 8,
+      borderRadius: radii.medium,
+      backgroundColor: colors.background,
+      paddingHorizontal: 10,
+      marginBottom: 6,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
+    },
+    refRowDisabled: {
+      opacity: 0.92,
+    },
+    refIndexBadge: {
+      minWidth: 28,
+      height: 28,
+      borderRadius: 8,
+      backgroundColor: colors.surfaceStrong,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSoft,
+    },
+    refIndexBadgeText: {
+      color: colors.textPrimary,
+      fontFamily: F.bold,
+      fontSize: 12,
+    },
+    refMiddle: {
+      flex: 1,
+      minWidth: 0,
+      gap: 4,
+    },
+    refSnippetText: {
+      color: colors.textSecondary,
+      fontFamily: F.regular,
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    refOpenRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      alignSelf: "flex-start",
+    },
+    refOpenLink: {
+      color: colors.primary,
+      fontFamily: F.bold,
+      fontSize: 12,
+    },
+    refNoLinkText: {
+      color: colors.textMuted,
+      fontFamily: F.medium,
+      fontSize: 11,
     },
     thinking: {
       flexDirection: "row",
@@ -589,6 +775,7 @@ function createStyles(theme: ReturnType<typeof getTheme>) {
       gap: 8,
       paddingHorizontal: 14,
       paddingTop: 6,
+      paddingBottom: composerBottomInset + 2,
       flexShrink: 0,
       borderTopColor: colors.borderSoft,
       borderTopWidth: StyleSheet.hairlineWidth,

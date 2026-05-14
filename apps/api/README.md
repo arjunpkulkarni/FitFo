@@ -100,6 +100,7 @@ These endpoints require the backend bearer token in `Authorization: Bearer <toke
 - `GET /completed-workouts`
 - `GET /completed-workouts/{completed_workout_id}`
 - `POST /completed-workouts`
+- `DELETE /completed-workouts/{completed_workout_id}`
 - `GET /body-weight`
 - `POST /body-weight`
 

@@ -520,7 +520,7 @@ export function SavedWorkoutDetailScreen({
           >
             <Ionicons
               color={theme.colors.error}
-              name="trash-outline"
+              name="close"
               size={22}
             />
           </Pressable>

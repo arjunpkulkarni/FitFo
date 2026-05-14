@@ -433,7 +433,7 @@ function LibraryWorkoutCard({
             >
               <Ionicons
                 color={theme.colors.textPrimary}
-                name="trash-outline"
+                name="close"
                 size={16}
               />
             </Pressable>

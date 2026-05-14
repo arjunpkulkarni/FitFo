@@ -33,7 +33,18 @@ function tokenizeInline(text: string): MarkdownInline[] {
     }
     const token = match[0];
     if (token.startsWith("**") && token.endsWith("**")) {
-      out.push({ kind: "bold", value: token.slice(2, -2) });
+      const inner = token.slice(2, -2);
+      const wrappedCite = /^\[(\d+)\]$/.exec(inner);
+      if (wrappedCite) {
+        const num = Number(wrappedCite[1]);
+        if (Number.isFinite(num)) {
+          out.push({ kind: "citation", index: num });
+        } else {
+          out.push({ kind: "bold", value: inner });
+        }
+      } else {
+        out.push({ kind: "bold", value: inner });
+      }
     } else {
       const num = Number(token.slice(1, -1));
       if (Number.isFinite(num)) {

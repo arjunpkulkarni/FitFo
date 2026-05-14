@@ -63,6 +63,7 @@ import {
   createIngestionJob,
   createScheduledWorkout,
   deleteAccount,
+  deleteCompletedWorkout,
   deleteProfileAvatar,
   deleteSavedWorkout,
   deleteScheduledWorkout,
@@ -354,12 +355,6 @@ export default function App() {
   const [isSchedulingAgain, setIsSchedulingAgain] = useState(false);
   const [scheduleAgainError, setScheduleAgainError] = useState<string | null>(null);
   const [isSavingImportedWorkout, setIsSavingImportedWorkout] = useState(false);
-  const [isSavingActiveSession, setIsSavingActiveSession] = useState(false);
-  // Tracks the startedAt of any active session that was just persisted to the
-  // saved library, so the in-session button can flip to "Saved" without
-  // letting the athlete accidentally re-save the same session twice.
-  const [savedActiveSessionStartedAt, setSavedActiveSessionStartedAt] =
-    useState<number | null>(null);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkoutRecord[]>(
     [],
   );
@@ -368,6 +363,8 @@ export default function App() {
   const [completedWorkoutsError, setCompletedWorkoutsError] = useState<string | null>(
     null,
   );
+  const [deletingCompletedWorkoutId, setDeletingCompletedWorkoutId] =
+    useState<string | null>(null);
   const [latestLiftSnapshots, setLatestLiftSnapshots] = useState<LiftLatestSetSnapshot[]>(
     [],
   );
@@ -393,7 +390,7 @@ export default function App() {
   const [hubTourCoachRect, setHubTourCoachRect] = useState<CoachmarkRect | null>(null);
   const hubTourStepRef = useRef<HubTourStep | null>(null);
 
-  // One-time overlay teaching users where the AI Coach button lives.
+  // One-time overlay teaching users where the Coach entry point lives.
   const [coachCoachmarkVisible, setCoachCoachmarkVisible] = useState(false);
   const [coachCoachmarkRect, setCoachCoachmarkRect] =
     useState<CoachmarkRect | null>(null);
@@ -994,6 +991,29 @@ export default function App() {
     }
   }, []);
 
+  const handleDeleteCompletedWorkoutRecord = useCallback(
+    async (record: CompletedWorkoutRecord) => {
+      if (!accessToken) {
+        throw new Error("You need to be signed in to delete workouts.");
+      }
+      setDeletingCompletedWorkoutId(record.id);
+      try {
+        await deleteCompletedWorkout(accessToken, record.id);
+        setCompletedWorkouts((curr) =>
+          curr.filter((row) => row.id !== record.id),
+        );
+        setSelectedCompletedWorkout((curr) =>
+          curr?.id === record.id ? null : curr,
+        );
+        setCompletedWorkoutsError(null);
+        await loadLatestLiftSnapshots(accessToken);
+      } finally {
+        setDeletingCompletedWorkoutId(null);
+      }
+    },
+    [accessToken, loadLatestLiftSnapshots],
+  );
+
   const loadBodyWeightEntries = useCallback(async (token: string) => {
     setBodyWeightEntriesLoading(true);
     setBodyWeightEntriesError(null);
@@ -1039,6 +1059,7 @@ export default function App() {
       setCompletedWorkouts([]);
       setCompletedWorkoutsLoaded(false);
       setCompletedWorkoutsError(null);
+      setDeletingCompletedWorkoutId(null);
       setLatestLiftSnapshots([]);
       setBodyWeightEntries([]);
       setBodyWeightEntriesError(null);
@@ -1882,101 +1903,6 @@ export default function App() {
       });
     },
     [],
-  );
-
-  const handleRequestScheduleAgainForActiveSession = useCallback(
-    (session: ActiveSessionPreview) => {
-      const setCount = getCompletedWorkoutSetCount(session.exercises);
-      const metaLeft = session.workoutPlan?.workout_type
-        ? session.workoutPlan.workout_type.replace(/_/g, " ")
-        : "Workout";
-      const metaRight = `${setCount} ${setCount === 1 ? "set" : "sets"}`;
-      const displayTitle = getRoutineDisplayTitle({
-        sourceUrl: session.sourceUrl ?? null,
-        title: session.title,
-        workoutPlan: session.workoutPlan ?? null,
-      });
-      setScheduleAgainError(null);
-      setScheduleAgainTarget({
-        id: `active-${session.startedAt}`,
-        title: displayTitle,
-        description: session.description,
-        workoutId: session.sourceWorkoutId ?? null,
-        jobId: session.sourceJobId ?? null,
-        sourceUrl: session.sourceUrl ?? null,
-        workoutPlan: session.workoutPlan ?? null,
-        metaLeft,
-        metaRight,
-        badgeLabel: "Scheduled",
-        savedWorkoutId: null,
-      });
-    },
-    [],
-  );
-
-  // Persist the in-progress session to the saved library so the athlete
-  // can re-run the same routine later. Mirrors handleSaveImportedWorkout
-  // but reads from the active session's snapshot — including any
-  // exercises edits made during the session — instead of the most
-  // recent import preview.
-  const handleSaveActiveSession = useCallback(
-    async (session: ActiveSessionPreview) => {
-      if (!accessToken) {
-        return;
-      }
-
-      setIsSavingActiveSession(true);
-      try {
-        const setCount = getCompletedWorkoutSetCount(session.exercises);
-        const metaLeft = session.workoutPlan?.workout_type
-          ? session.workoutPlan.workout_type.replace(/_/g, " ")
-          : "Workout";
-        const metaRight = `${setCount} ${setCount === 1 ? "set" : "sets"}`;
-        const displayTitle = getRoutineDisplayTitle({
-          sourceUrl: session.sourceUrl ?? null,
-          title: session.title,
-          workoutPlan: session.workoutPlan ?? null,
-        });
-
-        const saved = await saveWorkoutForLater(accessToken, {
-          workout_id: session.sourceWorkoutId ?? null,
-          job_id: session.sourceJobId ?? null,
-          source_url: session.sourceUrl ?? null,
-          thumbnail_url: null,
-          title: displayTitle,
-          description: session.description || null,
-          meta_left: metaLeft,
-          meta_right: metaRight,
-          badge_label: "Saved",
-          workout_plan: session.workoutPlan ?? null,
-        });
-        const savedPreview = createSavedRoutinePreviewFromRecord(saved);
-        setSavedWorkouts((current) => {
-          const withoutDuplicate = current.filter(
-            (item) => item.id !== savedPreview.id,
-          );
-          return [savedPreview, ...withoutDuplicate];
-        });
-
-        posthog.capture("workout_saved", {
-          saved_workout_id: savedPreview.id,
-          title: savedPreview.title ?? null,
-          source_url: savedPreview.sourceUrl ?? null,
-          source: "active_session",
-        });
-        setSavedWorkoutsError(null);
-        setSavedActiveSessionStartedAt(session.startedAt);
-      } catch (error) {
-        setSavedWorkoutsError(
-          error instanceof Error
-            ? error.message
-            : "Unable to save this workout right now.",
-        );
-      } finally {
-        setIsSavingActiveSession(false);
-      }
-    },
-    [accessToken, posthog],
   );
 
   // Schedule a workout that's already in the user's saved library. The
@@ -3008,20 +2934,6 @@ export default function App() {
             }
           }}
           onHubTourFinishButtonVisible={handleHubTourFinishButtonVisible}
-          onScheduleAgain={() =>
-            handleRequestScheduleAgainForActiveSession(activeSession)
-          }
-          isSchedulingAgain={
-            isSchedulingAgain &&
-            scheduleAgainTarget?.id === `active-${activeSession.startedAt}`
-          }
-          onSave={(latestSession) =>
-            void handleSaveActiveSession(latestSession)
-          }
-          isSaving={isSavingActiveSession}
-          hasSaved={
-            savedActiveSessionStartedAt === activeSession.startedAt
-          }
           resolveLastLiftLabel={resolveLastLiftLabel}
           themeMode={themeMode}
         />
@@ -3201,8 +3113,10 @@ export default function App() {
       return (
         <LogsScreen
           activeWorkout={activeSession}
+          deletingCompletedWorkoutId={deletingCompletedWorkoutId}
           error={completedWorkoutsError}
           isLoading={completedWorkoutsLoading}
+          onDeleteCompletedSession={handleDeleteCompletedWorkoutRecord}
           onOpenWorkout={handleOpenCompletedWorkout}
           onResumeWorkout={handleResumeActiveWorkout}
           onRetry={() => {
@@ -3467,7 +3381,7 @@ export default function App() {
                   }}
                   rect={coachCoachmarkRect}
                   themeMode={themeMode}
-                  title="AI Coach"
+                  title="Coach"
                   visible={
                     Boolean(
                       currentUser?.id &&

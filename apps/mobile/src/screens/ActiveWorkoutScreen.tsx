@@ -12,7 +12,6 @@ import DraggableFlatList, {
   type RenderItemParams,
 } from "react-native-draggable-flatlist";
 import {
-  ActivityIndicator,
   Image,
   Linking,
   Platform,
@@ -25,7 +24,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 
 import CoachSheet, { type CoachChatMessage } from "../components/CoachSheet";
-import { titleCase } from "../lib/fitfo";
+import { resolveExerciseRestBaseline, titleCase } from "../lib/fitfo";
 import type { WorkoutContext as ChatWorkoutContext } from "../lib/chat";
 import { F } from "../lib/fonts";
 import { getTheme, radii, type ThemeMode } from "../theme";
@@ -60,18 +59,6 @@ interface ActiveWorkoutScreenProps {
     height: number;
   } | null) => void;
   onHubTourFinishButtonVisible?: () => void;
-  onScheduleAgain?: () => void;
-  isSchedulingAgain?: boolean;
-  /**
-   * Persist the in-progress session into the saved library so the athlete
-   * can run the same routine again later. Receives the latest exercises
-   * snapshot — same shape `onFinish` uses — so any in-session edits are
-   * captured if the parent decides to derive the saved plan from them.
-   */
-  onSave?: (session: ActiveSessionPreview) => void;
-  isSaving?: boolean;
-  /** When true, render a confirmation state on the save button. */
-  hasSaved?: boolean;
   themeMode?: ThemeMode;
   /**
    * Resolve persisted “last time” label for this exercise name + 1-based set index.
@@ -199,9 +186,13 @@ function relabelSets(sets: ActiveSetPreview[]) {
 }
 
 function syncExercise(exercise: ActiveExercisePreview): ActiveExercisePreview {
+  const fromSets = getExerciseSubtitle(exercise.sets);
+  const noteFrag = exercise.notes?.trim() ?? "";
+  const subtitle = noteFrag ? `${fromSets} • ${noteFrag}` : fromSets;
+
   return {
     ...exercise,
-    subtitle: getExerciseSubtitle(exercise.sets),
+    subtitle,
   };
 }
 
@@ -542,7 +533,6 @@ interface ExerciseCardProps {
   exercise: ActiveExercisePreview;
   expanded: boolean;
   onAddSet: (exerciseId: string) => void;
-  onChangeNotes: (exerciseId: string, value: string) => void;
   onChangeRestSeconds: (exerciseId: string, value: number | null) => void;
   onCompleteSet: (exerciseId: string, setId: string) => void;
   onOpenSet: (exerciseId: string, setId: string) => void;
@@ -576,7 +566,6 @@ function ExerciseCard({
   exercise,
   expanded,
   onAddSet,
-  onChangeNotes,
   onChangeRestSeconds,
   onCompleteSet,
   onOpenSet,
@@ -613,7 +602,6 @@ function ExerciseCard({
   const [nameDraft, setNameDraft] = useState(
     titleCase(exercise.name) || exercise.name,
   );
-  const [notesDraft, setNotesDraft] = useState(exercise.notes ?? "");
   const [restDraft, setRestDraft] = useState(
     exercise.restSeconds != null ? String(exercise.restSeconds) : "",
   );
@@ -622,10 +610,6 @@ function ExerciseCard({
   useEffect(() => {
     setNameDraft(titleCase(exercise.name) || exercise.name);
   }, [exercise.name]);
-
-  useEffect(() => {
-    setNotesDraft(exercise.notes ?? "");
-  }, [exercise.notes]);
 
   useEffect(() => {
     setRestDraft(exercise.restSeconds != null ? String(exercise.restSeconds) : "");
@@ -649,12 +633,6 @@ function ExerciseCard({
     }
     if (next !== exercise.name) {
       onRenameExercise(exercise.id, next);
-    }
-  };
-
-  const commitNotes = () => {
-    if ((notesDraft ?? "") !== (exercise.notes ?? "")) {
-      onChangeNotes(exercise.id, notesDraft);
     }
   };
 
@@ -752,33 +730,18 @@ function ExerciseCard({
             </Text>
           </View>
           <Pressable
+            accessibilityLabel="Remove exercise"
+            accessibilityRole="button"
             onPress={() => onRemoveExercise(exercise.id)}
             style={[styles.exerciseIconButton, styles.exerciseDeleteButton]}
           >
-            <Ionicons
-              color={theme.colors.error}
-              name="trash-outline"
-              size={16}
-            />
+            <Ionicons color={theme.colors.error} name="close" size={18} />
           </Pressable>
         </View>
       </View>
 
       {expanded ? (
         <View style={styles.exerciseBody}>
-          <View style={styles.notesCard}>
-            <Text style={styles.notesLabel}>Notes</Text>
-            <TextInput
-              multiline
-              onBlur={commitNotes}
-              onChangeText={setNotesDraft}
-              placeholder="Add notes, cues, tempo..."
-              placeholderTextColor={theme.colors.textMuted}
-              style={styles.notesInput}
-              value={notesDraft}
-            />
-          </View>
-
           <View style={styles.metricToggleCard}>
             <Text style={styles.metricToggleLabel}>Track this exercise by</Text>
             <View style={styles.metricToggleRow}>
@@ -892,11 +855,6 @@ export function ActiveWorkoutScreen({
   onHubTourFinishButtonMeasured,
   onHubTourListViewportMeasured,
   onHubTourFinishButtonVisible,
-  onScheduleAgain,
-  isSchedulingAgain = false,
-  onSave,
-  isSaving = false,
-  hasSaved = false,
   themeMode = "light",
   resolveLastLiftLabel,
 }: ActiveWorkoutScreenProps) {
@@ -1344,16 +1302,6 @@ export function ActiveWorkoutScreen({
     );
   };
 
-  const handleChangeNotes = (exerciseId: string, value: string) => {
-    setExercises((current) =>
-      current.map((exercise) =>
-        exercise.id === exerciseId
-          ? { ...exercise, notes: value.trim() ? value : null }
-          : exercise,
-      ),
-    );
-  };
-
   const handleChangeRestSeconds = (exerciseId: string, value: number | null) => {
     setExercises((current) =>
       current.map((exercise) =>
@@ -1534,7 +1482,7 @@ export function ActiveWorkoutScreen({
 
   const insertExerciseAt = (insertIndex: number) => {
     const newExercise = createExerciseDraft({
-      averageRestSeconds: session.averageRestSeconds,
+      averageRestSeconds: resolveExerciseRestBaseline(session.averageRestSeconds),
       name: "",
       setCount: 3,
       targetReps: DEFAULT_TARGET_REPS,
@@ -1592,7 +1540,6 @@ export function ActiveWorkoutScreen({
           onReorderDrag={drag}
           reorderDragDisabled={isActive}
           onAddSet={handleAddSet}
-          onChangeNotes={handleChangeNotes}
           onChangeRestSeconds={handleChangeRestSeconds}
           onCompleteSet={handleCompleteSet}
           onOpenSet={handleOpenSet}
@@ -1684,13 +1631,8 @@ export function ActiveWorkoutScreen({
                     />
                   </View>
                   <View style={styles.timerCoachTextBlock}>
-                    <Text style={styles.timerCoachEyebrow}>AI Coach</Text>
+                    <Text style={styles.timerCoachEyebrow}>Coach</Text>
                   </View>
-                  <Ionicons
-                    color={theme.colors.primary}
-                    name="chatbubble-outline"
-                    size={20}
-                  />
                 </View>
               </Pressable>
 
@@ -1725,78 +1667,6 @@ export function ActiveWorkoutScreen({
               <Ionicons color={theme.colors.surface} name="add" size={18} />
               <Text style={styles.addExerciseButtonText}>Add Exercise</Text>
             </Pressable>
-      
-            {onScheduleAgain ? (
-              <Pressable
-                disabled={isSchedulingAgain}
-                onPress={onScheduleAgain}
-                style={[
-                  styles.scheduleAgainButton,
-                  isSchedulingAgain ? styles.scheduleAgainButtonDisabled : null,
-                ]}
-              >
-                {isSchedulingAgain ? (
-                  <>
-                    <ActivityIndicator color={theme.colors.primary} size="small" />
-                    <Text style={styles.scheduleAgainButtonText}>Scheduling...</Text>
-                  </>
-                ) : (
-                  <>
-                    <Ionicons
-                      color={theme.colors.primary}
-                      name="calendar-outline"
-                      size={16}
-                    />
-                    <Text style={styles.scheduleAgainButtonText}>
-                      Schedule This Workout Again
-                    </Text>
-                  </>
-                )}
-              </Pressable>
-            ) : null}
-
-            {onSave ? (
-              <Pressable
-                accessibilityLabel="Save this workout to your library"
-                accessibilityRole="button"
-                disabled={isSaving || hasSaved}
-                onPress={() => onSave({ ...session, exercises })}
-                style={[
-                  styles.scheduleAgainButton,
-                  isSaving ? styles.scheduleAgainButtonDisabled : null,
-                  hasSaved ? styles.saveButtonDone : null,
-                ]}
-              >
-                {isSaving ? (
-                  <>
-                    <ActivityIndicator color={theme.colors.primary} size="small" />
-                    <Text style={styles.scheduleAgainButtonText}>Saving...</Text>
-                  </>
-                ) : hasSaved ? (
-                  <>
-                    <Ionicons
-                      color={theme.colors.primary}
-                      name="checkmark-circle"
-                      size={16}
-                    />
-                    <Text style={styles.scheduleAgainButtonText}>
-                      Saved to Library
-                    </Text>
-                  </>
-                ) : (
-                  <>
-                    <Ionicons
-                      color={theme.colors.primary}
-                      name="bookmark-outline"
-                      size={16}
-                    />
-                    <Text style={styles.scheduleAgainButtonText}>
-                      Save Workout
-                    </Text>
-                  </>
-                )}
-              </Pressable>
-            ) : null}
 
             <View
               collapsable={false}
@@ -2408,38 +2278,6 @@ const createStyles = (theme: ActiveWorkoutTheme) =>
       fontFamily: F.medium,
       fontWeight: "500",
     },
-    notesCard: {
-      borderRadius: 16,
-      backgroundColor: theme.colors.surfaceMuted,
-      padding: 12,
-      gap: 4,
-    },
-    notesLabel: {
-      color: theme.colors.primary,
-      fontSize: 10,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 1,
-      textTransform: "uppercase",
-    },
-    notesText: {
-      color: theme.colors.textSecondary,
-      fontSize: 13,
-      lineHeight: 19,
-      fontFamily: F.regular,
-      fontWeight: "400",
-    },
-    notesInput: {
-      color: theme.colors.textSecondary,
-      fontSize: 13,
-      lineHeight: 19,
-      fontFamily: F.regular,
-      fontWeight: "400",
-      paddingVertical: 2,
-      paddingHorizontal: 0,
-      margin: 0,
-      minHeight: 20,
-    },
     metricToggleCard: {
       borderRadius: 16,
       backgroundColor: theme.colors.surfaceMuted,
@@ -2849,31 +2687,5 @@ const createStyles = (theme: ActiveWorkoutTheme) =>
       fontSize: 17,
       fontFamily: "Satoshi-Bold",
       fontWeight: "700",
-    },
-    scheduleAgainButton: {
-      marginTop: 4,
-      minHeight: 54,
-      borderRadius: 18,
-      borderWidth: 1.5,
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.colors.surface,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 10,
-    },
-    scheduleAgainButtonDisabled: {
-      opacity: 0.6,
-    },
-    scheduleAgainButtonText: {
-      color: theme.colors.primary,
-      fontSize: 15,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 0.2,
-    },
-    saveButtonDone: {
-      backgroundColor: theme.colors.surfaceMuted,
-      opacity: 0.92,
     },
   });

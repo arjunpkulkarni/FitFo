@@ -473,6 +473,40 @@ export async function createCompletedWorkout(
   return normalizeCompletedWorkoutRecord(row);
 }
 
+export async function deleteCompletedWorkout(
+  accessToken: string,
+  completedWorkoutId: string,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE}/completed-workouts/${encodeURIComponent(completedWorkoutId)}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    let message = defaultMessageForStatus(response.status);
+    try {
+      const parsed = JSON.parse(body) as { detail?: unknown };
+      const detail = parsed.detail;
+      if (typeof detail === "string" && detail.trim()) {
+        message = looksLikeHtmlPayload(detail)
+          ? defaultMessageForStatus(response.status)
+          : detail.trim();
+      }
+    } catch {
+      message = humanizeErrorPayload(response.status, body);
+    }
+
+    throw new ApiError(response.status, message);
+  }
+}
+
 export async function fetchLiftLatestSnapshot(
   accessToken: string,
 ): Promise<LiftLatestSetSnapshot[]> {
