@@ -4,6 +4,7 @@ import type {
   CompletedWorkoutCreateRequest,
   CompletedWorkoutRecord,
   JobResponse,
+  LiftLatestSetSnapshot,
   SavedWorkoutRecord,
   SavedRoutinePreview,
   ScheduledWorkoutRecord,
@@ -865,6 +866,39 @@ export function createScheduledRoutinePreview(
 function parseNumber(value: string): number | null {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Matches DB lift_set_logs.exercise_key: trimmed lower-case with collapsed whitespace. */
+export function normalizeExerciseKeyForLiftHistory(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function formatWeightForLiftHint(weightLbs: number): string {
+  const rounded = Math.round(weightLbs * 100) / 100;
+  if (Number.isInteger(rounded)) {
+    return String(rounded);
+  }
+  return String(rounded).replace(/\.?0+$/, "");
+}
+
+/** Single-line hint for the tracker (“Last time”) row; aligns with logged set copy style. */
+export function formatLastLiftSnapshotLine(snapshot: LiftLatestSetSnapshot): string {
+  if (snapshot.duration_sec != null && snapshot.duration_sec >= 0) {
+    const weightPart =
+      snapshot.weight_lbs != null && snapshot.weight_lbs > 0
+        ? `${formatWeightForLiftHint(snapshot.weight_lbs)} lb · `
+        : "";
+    return `${weightPart}${snapshot.duration_sec}s`;
+  }
+
+  const parts: string[] = [];
+  if (snapshot.weight_lbs != null && snapshot.weight_lbs > 0) {
+    parts.push(`${formatWeightForLiftHint(snapshot.weight_lbs)} lb`);
+  }
+  if (snapshot.reps != null && snapshot.reps >= 0) {
+    parts.push(`${snapshot.reps} reps`);
+  }
+  return parts.join(" × ");
 }
 
 export function getCompletedWorkoutSetCount(exercises: ActiveExercisePreview[]): number {

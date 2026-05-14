@@ -73,6 +73,14 @@ interface ActiveWorkoutScreenProps {
   /** When true, render a confirmation state on the save button. */
   hasSaved?: boolean;
   themeMode?: ThemeMode;
+  /**
+   * Resolve persisted “last time” label for this exercise name + 1-based set index.
+   * When omitted, set rows omit historical hints.
+   */
+  resolveLastLiftLabel?: (
+    exerciseName: string,
+    setPositionOneBased: number,
+  ) => string | null;
 }
 
 interface SelectedSetState {
@@ -260,6 +268,8 @@ interface SetRowProps {
   ) => void;
   onWeightChange: (exerciseId: string, setId: string, value: string) => void;
   set: ActiveSetPreview;
+  /** Best-effort prior logged numbers from lift history (same exercise + set index). */
+  lastLiftSummary?: string | null;
   styles: ActiveWorkoutStyles;
   theme: ActiveWorkoutTheme;
 }
@@ -269,6 +279,7 @@ function SetRow({
   exerciseName,
   canRemove,
   isActive,
+  lastLiftSummary,
   set,
   onMaybeComplete,
   onOpen,
@@ -472,6 +483,10 @@ function SetRow({
         )}
       </View>
 
+      {lastLiftSummary ? (
+        <Text style={styles.lastLiftHint}>Last time · {lastLiftSummary}</Text>
+      ) : null}
+
       {set.completed ? (
         <Text style={styles.autoAdvanceText}>
           Adjust the numbers here any time and this set will stay saved.
@@ -547,6 +562,10 @@ interface ExerciseCardProps {
   /** Long‑press drag handle for list reorder (card chrome; inner controls capture taps first). */
   onReorderDrag: () => void;
   reorderDragDisabled?: boolean;
+  resolveLastLiftLabel?: (
+    exerciseName: string,
+    setPositionOneBased: number,
+  ) => string | null;
   styles: ActiveWorkoutStyles;
   theme: ActiveWorkoutTheme;
 }
@@ -572,6 +591,7 @@ function ExerciseCard({
   onWeightChange,
   onReorderDrag,
   reorderDragDisabled,
+  resolveLastLiftLabel,
   styles,
   theme,
 }: ExerciseCardProps) {
@@ -815,13 +835,18 @@ function ExerciseCard({
 
           {exercise.sets.length > 0 ? (
             <View style={styles.setList}>
-              {exercise.sets.map((set) => (
+              {exercise.sets.map((set, setIndex) => (
                 <SetRow
                   key={set.id}
                   canRemove={exercise.sets.length > 1}
                   exerciseId={exercise.id}
                   exerciseName={exercise.name}
                   isActive={activeSetId === set.id}
+                  lastLiftSummary={
+                    resolveLastLiftLabel
+                      ? resolveLastLiftLabel(exercise.name, setIndex + 1)
+                      : null
+                  }
                   onMaybeComplete={onCompleteSet}
                   onOpen={onOpenSet}
                   onRepsChange={onRepsChange}
@@ -873,6 +898,7 @@ export function ActiveWorkoutScreen({
   isSaving = false,
   hasSaved = false,
   themeMode = "light",
+  resolveLastLiftLabel,
 }: ActiveWorkoutScreenProps) {
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
@@ -1579,6 +1605,7 @@ export function ActiveWorkoutScreen({
           onTargetDurationChange={handleChangeTargetDuration}
           onToggle={toggleExercise}
           onWeightChange={handleWeightChange}
+          resolveLastLiftLabel={resolveLastLiftLabel}
           styles={styles}
           theme={theme}
         />
@@ -2625,6 +2652,14 @@ const createStyles = (theme: ActiveWorkoutTheme) =>
     inputRow: {
       flexDirection: "row",
       gap: 10,
+    },
+    lastLiftHint: {
+      marginTop: 6,
+      color: theme.colors.textMuted,
+      fontSize: 12,
+      lineHeight: 17,
+      fontFamily: F.regular,
+      fontWeight: "400",
     },
     inputField: {
       flex: 1,

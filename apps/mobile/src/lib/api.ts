@@ -7,6 +7,7 @@ import type {
   BodyWeightEntryRecord,
   CompletedWorkoutCreateRequest,
   CompletedWorkoutRecord,
+  LiftLatestSetSnapshot,
   IngestRequest,
   IngestResponse,
   JobResponse,
@@ -371,6 +372,19 @@ export async function createCompletedWorkout(
     body: JSON.stringify(body),
   });
   return normalizeCompletedWorkoutRecord(row);
+}
+
+export async function fetchLiftLatestSnapshot(
+  accessToken: string,
+): Promise<LiftLatestSetSnapshot[]> {
+  const payload = await request<{ snapshots: LiftLatestSetSnapshot[] }>(
+    "/lift-history/latest-snapshot",
+    {
+      method: "GET",
+      accessToken,
+    },
+  );
+  return payload.snapshots ?? [];
 }
 
 export async function listBodyWeightEntries(

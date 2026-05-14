@@ -18,6 +18,7 @@ from app.routers import (
     completed_workouts,
     ingest,
     jobs,
+    lift_history,
     saved_workouts,
     scheduled_workouts,
     webhooks,
@@ -59,6 +60,7 @@ app.include_router(ingest.router)
 app.include_router(jobs.router)
 app.include_router(saved_workouts.router)
 app.include_router(completed_workouts.router)
+app.include_router(lift_history.router)
 app.include_router(body_weight.router)
 app.include_router(scheduled_workouts.router)
 app.include_router(admin_corpus.router)

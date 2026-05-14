@@ -65,6 +65,7 @@ import {
   deleteAccount,
   deleteSavedWorkout,
   deleteScheduledWorkout,
+  fetchLiftLatestSnapshot,
   getCompletedWorkout,
   getCurrentUser,
   listBodyWeightEntries,
@@ -94,6 +95,8 @@ import {
   getCompletedWorkoutSetCount,
   getCreatorDisplayLabel,
   getRoutineDisplayTitle,
+  normalizeExerciseKeyForLiftHistory,
+  formatLastLiftSnapshotLine,
 } from "./src/lib/fitfo";
 import {
   ensureStarterWorkoutsSeeded,
@@ -155,11 +158,13 @@ import type {
   AuthMode,
   BodyWeightEntryRecord,
   CompletedWorkoutRecord,
+  LiftLatestSetSnapshot,
   OtpIntent,
   PendingOtpChallenge,
   SaveOnboardingRequest,
   SavedRoutinePreview,
   ScheduledWorkoutRecord,
+  SendOtpRequest,
   UserProfile,
   WorkoutPlan,
 } from "./src/types";
@@ -359,6 +364,9 @@ export default function App() {
   const [completedWorkoutsLoaded, setCompletedWorkoutsLoaded] = useState(false);
   const [completedWorkoutsError, setCompletedWorkoutsError] = useState<string | null>(
     null,
+  );
+  const [latestLiftSnapshots, setLatestLiftSnapshots] = useState<LiftLatestSetSnapshot[]>(
+    [],
   );
   const [bodyWeightEntries, setBodyWeightEntries] = useState<BodyWeightEntryRecord[]>(
     [],
@@ -973,6 +981,15 @@ export default function App() {
     }
   }, []);
 
+  const loadLatestLiftSnapshots = useCallback(async (token: string) => {
+    try {
+      const rows = await fetchLiftLatestSnapshot(token);
+      setLatestLiftSnapshots(rows);
+    } catch {
+      setLatestLiftSnapshots([]);
+    }
+  }, []);
+
   const loadBodyWeightEntries = useCallback(async (token: string) => {
     setBodyWeightEntriesLoading(true);
     setBodyWeightEntriesError(null);
@@ -1018,6 +1035,7 @@ export default function App() {
       setCompletedWorkouts([]);
       setCompletedWorkoutsLoaded(false);
       setCompletedWorkoutsError(null);
+      setLatestLiftSnapshots([]);
       setBodyWeightEntries([]);
       setBodyWeightEntriesError(null);
       hubPreviousTabRef.current = "saved";
@@ -1028,12 +1046,14 @@ export default function App() {
     void loadSavedWorkouts(accessToken);
     void loadScheduledWorkouts(accessToken);
     void loadCompletedWorkouts(accessToken);
+    void loadLatestLiftSnapshots(accessToken);
     void loadBodyWeightEntries(accessToken);
   }, [
     accessToken,
     currentUser,
     loadBodyWeightEntries,
     loadCompletedWorkouts,
+    loadLatestLiftSnapshots,
     loadSavedWorkouts,
     loadScheduledWorkouts,
   ]);
@@ -1057,13 +1077,44 @@ export default function App() {
       loadSavedWorkouts(accessToken),
       loadScheduledWorkouts(accessToken),
       loadCompletedWorkouts(accessToken),
+      loadLatestLiftSnapshots(accessToken),
     ]);
   }, [
     accessToken,
     loadCompletedWorkouts,
+    loadLatestLiftSnapshots,
     loadSavedWorkouts,
     loadScheduledWorkouts,
   ]);
+
+  const latestLiftSnapshotLookup = useMemo(() => {
+    const outer = new Map<string, Map<number, LiftLatestSetSnapshot>>();
+    for (const row of latestLiftSnapshots) {
+      let inner = outer.get(row.exercise_key);
+      if (!inner) {
+        inner = new Map();
+        outer.set(row.exercise_key, inner);
+      }
+      inner.set(row.set_position, row);
+    }
+    return outer;
+  }, [latestLiftSnapshots]);
+
+  const resolveLastLiftLabel = useCallback(
+    (exerciseName: string, setPositionOneBased: number): string | null => {
+      const key = normalizeExerciseKeyForLiftHistory(exerciseName);
+      if (!key) {
+        return null;
+      }
+      const snapshot = latestLiftSnapshotLookup.get(key)?.get(setPositionOneBased);
+      if (!snapshot) {
+        return null;
+      }
+      const line = formatLastLiftSnapshotLine(snapshot);
+      return line.trim() ? line : null;
+    },
+    [latestLiftSnapshotLookup],
+  );
 
   const onboardingSex = currentUser?.onboarding?.sex ?? null;
   const starterDemoTitle = getStarterDemoTitleForSex(onboardingSex);
@@ -2194,6 +2245,7 @@ export default function App() {
         setCompletedWorkouts((current) => [completed, ...current]);
         setCompletedWorkoutsLoaded(true);
         setCompletedWorkoutsError(null);
+        void loadLatestLiftSnapshots(accessToken);
         posthog.capture("workout_completed", {
           workout_id: completed.id,
           title: completed.title ?? null,
@@ -2232,6 +2284,7 @@ export default function App() {
       completedWorkouts.length,
       completedWorkoutsLoaded,
       currentUser?.id,
+      loadLatestLiftSnapshots,
       loadScheduledWorkouts,
       markHubTourComplete,
       maybeRequestStoreReviewAfterFirstWorkout,
@@ -2342,16 +2395,16 @@ export default function App() {
       phone: string;
       fullName: string | null;
     }) => {
-      const response = await sendOtp({
-        phone,
-        intent,
-        ...(fullName ? { full_name: fullName } : {}),
-      });
+      const body: SendOtpRequest = { phone, intent };
+      if (intent === "signup") {
+        body.full_name = (fullName ?? "").trim();
+      }
+      const response = await sendOtp(body);
 
       setPendingOtpChallenge({
         intent,
         phone: response.normalized_phone,
-        fullName,
+        fullName: intent === "signup" ? (fullName ?? "").trim() || null : null,
         sentAt: Date.now(),
       });
       setAuthMode("otp");
@@ -2841,6 +2894,7 @@ export default function App() {
           hasSaved={
             savedActiveSessionStartedAt === activeSession.startedAt
           }
+          resolveLastLiftLabel={resolveLastLiftLabel}
           themeMode={themeMode}
         />
       );

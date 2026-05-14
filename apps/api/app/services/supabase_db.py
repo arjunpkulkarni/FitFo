@@ -7,7 +7,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
+import phonenumbers
 from dotenv import load_dotenv
+from phonenumbers import NumberParseException, PhoneNumberFormat
 from supabase import Client, create_client
 
 
@@ -46,6 +48,38 @@ def get_supabase() -> Client:
 
 
 def normalize_phone_number(phone: str) -> str:
+    """
+    Normalize to E.164 for Twilio + Supabase. Uses libphonenumber; national-format
+    input is interpreted with PHONE_DEFAULT_REGION (default US).
+
+    Bare digit strings previously became invalid E.164 for many locales (e.g. UK
+    leading 0 kept as '+07…'), which surfaced as Twilio 400 on send-otp.
+    """
+    raw = (phone or "").strip()
+    if not raw:
+        raise ValueError("Phone number is required")
+
+    region = (os.environ.get("PHONE_DEFAULT_REGION") or "US").strip().upper()
+    if len(region) != 2:
+        region = "US"
+
+    try:
+        # Leading + ⇒ international form; ignore default region for parsing.
+        parsed = phonenumbers.parse(raw, None if raw.startswith("+") else region)
+    except NumberParseException:
+        raise ValueError("Enter a valid phone number") from None
+
+    if not phonenumbers.is_valid_number(parsed):
+        raise ValueError("Enter a valid phone number")
+
+    return phonenumbers.format_number(parsed, PhoneNumberFormat.E164)
+
+
+def _legacy_normalize_phone_digits(phone: str) -> str:
+    """
+    Older Fitfo heuristic (pre libphonenumber). Still used only as an alternate
+    lookup key when matching existing profile rows keyed with that format.
+    """
     raw = (phone or "").strip()
     if not raw:
         raise ValueError("Phone number is required")
@@ -60,7 +94,17 @@ def normalize_phone_number(phone: str) -> str:
     raise ValueError("Enter a valid phone number")
 
 
-def _require_bucket() -> str:
+def _profile_phone_lookup_keys(raw_phone: str) -> List[str]:
+    """Ordered keys to try against profiles.phone — canonical first."""
+    canonical = normalize_phone_number(raw_phone)
+    keys: List[str] = [canonical]
+    try:
+        legacy = _legacy_normalize_phone_digits(raw_phone)
+        if legacy not in keys:
+            keys.append(legacy)
+    except ValueError:
+        pass
+    return keys
     bucket = (os.environ.get("SUPABASE_STORAGE_BUCKET") or "").strip()
     return bucket or "raw-media"
 
@@ -537,6 +581,26 @@ def list_completed_workouts(user_id: str) -> List[Dict[str, Any]]:
     return list(result.data or [])
 
 
+def fetch_lift_set_logs_latest_snapshot(user_id: str) -> List[Dict[str, Any]]:
+    """Latest logged weight/reps (or timed duration) per exercise_key + set_position."""
+    supa = get_supabase()
+    result = supa.rpc(
+        "lift_set_logs_latest_snapshot",
+        {"p_user_id": user_id},
+    ).execute()
+    raw = result.data or []
+    normalized: List[Dict[str, Any]] = []
+    for row in raw:
+        if not isinstance(row, dict):
+            continue
+        patch = dict(row)
+        wl = patch.get("weight_lbs")
+        if wl is not None:
+            patch["weight_lbs"] = float(wl)
+        normalized.append(patch)
+    return normalized
+
+
 def create_completed_workout(
     user_id: str,
     *,
@@ -603,18 +667,19 @@ def get_completed_workout(completed_workout_id: str, *, user_id: str) -> Dict[st
 
 
 def get_profile_by_phone(phone: str) -> Optional[Dict[str, Any]]:
+    """Resolve profile from raw user input; canonical E.164 first, then legacy heuristic."""
     supa = get_supabase()
-    normalized_phone = normalize_phone_number(phone)
-    result = (
-        supa.table("profiles")
-        .select(PROFILE_SELECT_FIELDS)
-        .eq("phone", normalized_phone)
-        .limit(1)
-        .execute()
-    )
-    if not result.data:
-        return None
-    return _attach_profile_onboarding(result.data[0])
+    for normalized_phone in _profile_phone_lookup_keys(phone):
+        result = (
+            supa.table("profiles")
+            .select(PROFILE_SELECT_FIELDS)
+            .eq("phone", normalized_phone)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return _attach_profile_onboarding(result.data[0])
+    return None
 
 
 def get_profile_by_id(profile_id: str) -> Optional[Dict[str, Any]]:

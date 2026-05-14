@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -24,6 +25,8 @@ from app.schemas.auth import (
     VerifyOtpResponse,
 )
 from app.services import apple_auth, jwt_auth, supabase_db, twilio_verify
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -61,9 +64,10 @@ def _is_reviewer_request(normalized_phone: str, code: Optional[str] = None) -> b
 
 
 def _normalize_and_lookup(phone: str) -> Tuple[str, Optional[Dict[str, Any]]]:
-    normalized_phone = supabase_db.normalize_phone_number(phone)
-    profile = supabase_db.get_profile_by_phone(normalized_phone)
-    return normalized_phone, profile
+    canonical = supabase_db.normalize_phone_number(phone)
+    # Pass raw input so lookups can fall back to legacy profile.phone keys when needed.
+    profile = supabase_db.get_profile_by_phone(phone)
+    return canonical, profile
 
 
 def _clean_signup_name(full_name: Optional[str]) -> str:
@@ -189,7 +193,13 @@ def send_otp(body: SendOtpRequest) -> SendOtpResponse:
             normalized_phone=normalized_phone,
             message=f"We sent a 6-digit code to {normalized_phone}.",
         )
-    except HTTPException:
+    except HTTPException as exc:
+        logger.warning(
+            "send_otp rejected intent=%s status=%s detail=%s",
+            body.intent,
+            exc.status_code,
+            getattr(exc, "detail", ""),
+        )
         raise
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -201,6 +211,9 @@ def send_otp(body: SendOtpRequest) -> SendOtpResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except TwilioRestException as exc:
         detail = str(exc.msg or exc)
+        logger.warning(
+            "send_otp Twilio failure intent=%s detail=%s", body.intent, detail,
+        )
         raise HTTPException(status_code=400, detail=detail) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to send OTP: {exc}") from exc

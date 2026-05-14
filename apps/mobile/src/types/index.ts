@@ -436,3 +436,14 @@ export interface CompletedWorkoutCreateRequest {
   started_at?: string | null;
   completed_at?: string | null;
 }
+
+/** Latest logged set from lift_set_logs /lift-history/latest-snapshot (per exercise_key + set slot). */
+export interface LiftLatestSetSnapshot {
+  exercise_key: string;
+  exercise_name: string;
+  set_position: number;
+  weight_lbs: number | null;
+  reps: number | null;
+  duration_sec: number | null;
+  recorded_at: string;
+}
