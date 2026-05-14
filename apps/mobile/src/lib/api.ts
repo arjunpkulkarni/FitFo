@@ -212,10 +212,41 @@ export async function checkAccountStatus(
 export async function sendOtp(
   body: SendOtpRequest,
 ): Promise<SendOtpResponse> {
-  return request<SendOtpResponse>("/auth/send-otp", {
-    method: "POST",
-    body: JSON.stringify(body),
+  const digits = body.phone.replace(/\D/g, "");
+  const phoneTail = digits.length >= 4 ? digits.slice(-4) : digits || "?";
+  // Metro / Xcode / adb logcat — use when debugging “send code” failures.
+  console.log("[Fitfo OTP] POST /auth/send-otp →", {
+    intent: body.intent,
+    phoneTail,
+    signupHasFullName:
+      body.intent === "signup"
+        ? Boolean((body.full_name ?? "").trim())
+        : undefined,
+    apiUrl: API_BASE,
   });
+
+  try {
+    const response = await request<SendOtpResponse>("/auth/send-otp", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    console.log("[Fitfo OTP] send-otp OK:", {
+      twilioFlowStatus: response.status,
+      normalized_phone: response.normalized_phone,
+      messagePreview: response.message?.slice(0, 80),
+    });
+    return response;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      console.log("[Fitfo OTP] send-otp FAILED:", {
+        status: error.status,
+        message: error.message,
+      });
+    } else {
+      console.log("[Fitfo OTP] send-otp FAILED:", error);
+    }
+    throw error;
+  }
 }
 
 export async function verifyOtp(

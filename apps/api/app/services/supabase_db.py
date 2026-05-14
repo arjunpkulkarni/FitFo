@@ -7,9 +7,13 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
-import phonenumbers
+try:
+    import phonenumbers
+except ImportError:
+    phonenumbers = None  # type: ignore[assignment,no-redef]
+
+
 from dotenv import load_dotenv
-from phonenumbers import NumberParseException, PhoneNumberFormat
 from supabase import Client, create_client
 
 
@@ -49,30 +53,38 @@ def get_supabase() -> Client:
 
 def normalize_phone_number(phone: str) -> str:
     """
-    Normalize to E.164 for Twilio + Supabase. Uses libphonenumber; national-format
-    input is interpreted with PHONE_DEFAULT_REGION (default US).
+    Normalize to E.164 for Twilio + Supabase.
 
-    Bare digit strings previously became invalid E.164 for many locales (e.g. UK
-    leading 0 kept as '+07…'), which surfaced as Twilio 400 on send-otp.
+    Prefer `phonenumbers` when installed (correct national formats).
+    Fallback to digit heuristics only if the dependency is missing (avoids crashing
+    when deploy pip install was skipped).
+
+    Bare digit strings with the heuristic can still produce odd E.164 for some locales
+    (e.g. UK leading 0) — fix by installing `phonenumbers` per requirements.txt.
     """
     raw = (phone or "").strip()
     if not raw:
         raise ValueError("Phone number is required")
 
-    region = (os.environ.get("PHONE_DEFAULT_REGION") or "US").strip().upper()
-    if len(region) != 2:
-        region = "US"
+    pn = phonenumbers
+    if pn is not None:
+        from phonenumbers import NumberParseException, PhoneNumberFormat
 
-    try:
-        # Leading + ⇒ international form; ignore default region for parsing.
-        parsed = phonenumbers.parse(raw, None if raw.startswith("+") else region)
-    except NumberParseException:
-        raise ValueError("Enter a valid phone number") from None
+        region = (os.environ.get("PHONE_DEFAULT_REGION") or "US").strip().upper()
+        if len(region) != 2:
+            region = "US"
 
-    if not phonenumbers.is_valid_number(parsed):
-        raise ValueError("Enter a valid phone number")
+        try:
+            parsed = pn.parse(raw, None if raw.startswith("+") else region)
+        except NumberParseException:
+            raise ValueError("Enter a valid phone number") from None
 
-    return phonenumbers.format_number(parsed, PhoneNumberFormat.E164)
+        if not pn.is_valid_number(parsed):
+            raise ValueError("Enter a valid phone number")
+
+        return pn.format_number(parsed, PhoneNumberFormat.E164)
+
+    return _legacy_normalize_phone_digits(raw)
 
 
 def _legacy_normalize_phone_digits(phone: str) -> str:
@@ -105,6 +117,9 @@ def _profile_phone_lookup_keys(raw_phone: str) -> List[str]:
     except ValueError:
         pass
     return keys
+
+
+def _require_bucket() -> str:
     bucket = (os.environ.get("SUPABASE_STORAGE_BUCKET") or "").strip()
     return bucket or "raw-media"
 

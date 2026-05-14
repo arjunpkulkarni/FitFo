@@ -3243,7 +3243,11 @@ export default function App() {
       : undefined;
 
   return (
-    <PostHogProvider client={posthog} debug={__DEV__} autocapture={{ captureTouches: true, captureScreens: false }}>
+    <PostHogProvider
+      autocapture={{ captureTouches: true, captureScreens: false }}
+      client={posthog}
+      debug={false}
+    >
     <SafeAreaProvider>
     <GestureHandlerRootView style={styles.flexRoot}>
       <SafeAreaView style={styles.safeArea}>

@@ -31,6 +31,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _phone_log_hint(canonical_e164: str) -> str:
+    """Last 4 subscriber digits only — avoids full phone numbers in logs."""
+    digits = "".join(ch for ch in (canonical_e164 or "") if ch.isdigit())
+    if len(digits) >= 4:
+        return f"***{digits[-4:]}"
+    return "***"
+
+
 def _reviewer_credentials() -> Optional[Tuple[str, str]]:
     """
     Return (normalized_phone, code) for the Apple App Review demo account,
@@ -158,13 +166,35 @@ def account_status(body: AccountStatusRequest) -> AccountStatusResponse:
 
 @router.post("/send-otp", response_model=SendOtpResponse)
 def send_otp(body: SendOtpRequest) -> SendOtpResponse:
+    signup_has_name = (
+        bool((body.full_name or "").strip()) if body.intent == "signup" else None
+    )
+    logger.info(
+        "send_otp request intent=%s signup_has_full_name=%s",
+        body.intent,
+        signup_has_name,
+    )
+
+    phone_hint: Optional[str] = None
     try:
         normalized_phone, existing = _normalize_and_lookup(body.phone)
+        phone_hint = _phone_log_hint(normalized_phone)
+        logger.info(
+            "send_otp lookup intent=%s phone_hint=%s profile_exists=%s",
+            body.intent,
+            phone_hint,
+            existing is not None,
+        )
 
         # Apple App Review demo bypass — short-circuit BEFORE the login/signup
         # existence checks so the reviewer can use either flow with the demo
         # phone and never needs SMS delivery to work.
         if _is_reviewer_request(normalized_phone):
+            logger.info(
+                "send_otp outcome=reviewer_bypass intent=%s phone_hint=%s",
+                body.intent,
+                phone_hint,
+            )
             return SendOtpResponse(
                 ok=True,
                 status="approved",
@@ -186,36 +216,68 @@ def send_otp(body: SendOtpRequest) -> SendOtpResponse:
                     detail="You already have an account. Please log in.",
                 )
 
+        logger.info(
+            "send_otp invoking_twilio intent=%s phone_hint=%s",
+            body.intent,
+            phone_hint,
+        )
         verification = twilio_verify.send_sms_otp(normalized_phone)
+        twilio_status = str(getattr(verification, "status", "pending"))
+        logger.info(
+            "send_otp outcome=sms_queued intent=%s phone_hint=%s twilio_status=%s sid=%s",
+            body.intent,
+            phone_hint,
+            twilio_status,
+            getattr(verification, "sid", "") or "",
+        )
         return SendOtpResponse(
             ok=True,
-            status=str(getattr(verification, "status", "pending")),
+            status=twilio_status,
             normalized_phone=normalized_phone,
             message=f"We sent a 6-digit code to {normalized_phone}.",
         )
     except HTTPException as exc:
         logger.warning(
-            "send_otp rejected intent=%s status=%s detail=%s",
+            "send_otp http_error intent=%s phone_hint=%s status=%s detail=%s",
             body.intent,
+            phone_hint or "?",
             exc.status_code,
             getattr(exc, "detail", ""),
         )
         raise
     except ValueError as exc:
+        logger.warning(
+            "send_otp invalid_phone intent=%s detail=%s", body.intent, str(exc),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except (
         supabase_db.SupabaseNotConfiguredError,
         twilio_verify.TwilioNotConfiguredError,
         jwt_auth.JwtNotConfiguredError,
     ) as exc:
+        logger.error(
+            "send_otp misconfigured intent=%s phone_hint=%s err=%s",
+            body.intent,
+            phone_hint or "?",
+            str(exc),
+        )
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except TwilioRestException as exc:
         detail = str(exc.msg or exc)
         logger.warning(
-            "send_otp Twilio failure intent=%s detail=%s", body.intent, detail,
+            "send_otp twilio_rest_error intent=%s phone_hint=%s code=%s detail=%s",
+            body.intent,
+            phone_hint or "?",
+            getattr(exc, "code", ""),
+            detail,
         )
         raise HTTPException(status_code=400, detail=detail) from exc
     except Exception as exc:
+        logger.exception(
+            "send_otp unexpected failure intent=%s phone_hint=%s",
+            body.intent,
+            phone_hint or "?",
+        )
         raise HTTPException(status_code=500, detail=f"Failed to send OTP: {exc}") from exc
 
 
