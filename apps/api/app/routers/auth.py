@@ -265,10 +265,13 @@ def send_otp(body: SendOtpRequest) -> SendOtpResponse:
     except TwilioRestException as exc:
         detail = str(exc.msg or exc)
         logger.warning(
-            "send_otp twilio_rest_error intent=%s phone_hint=%s code=%s detail=%s",
+            "send_otp twilio_rest_error intent=%s phone_hint=%s twilio_code=%s "
+            "http_status=%s uri=%s detail=%s",
             body.intent,
             phone_hint or "?",
             getattr(exc, "code", ""),
+            getattr(exc, "status", ""),
+            getattr(exc, "uri", ""),
             detail,
         )
         raise HTTPException(status_code=400, detail=detail) from exc
@@ -283,6 +286,7 @@ def send_otp(body: SendOtpRequest) -> SendOtpResponse:
 
 @router.post("/verify-otp", response_model=VerifyOtpResponse)
 def verify_otp(body: VerifyOtpRequest) -> VerifyOtpResponse:
+    normalized_phone: Optional[str] = None
     try:
         normalized_phone, existing = _normalize_and_lookup(body.phone)
 
@@ -365,6 +369,18 @@ def verify_otp(body: VerifyOtpRequest) -> VerifyOtpResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except TwilioRestException as exc:
         detail = str(exc.msg or exc)
+        hint = (
+            _phone_log_hint(normalized_phone) if normalized_phone else "?"
+        )
+        logger.warning(
+            "verify_otp twilio_rest_error phone_hint=%s twilio_code=%s "
+            "http_status=%s uri=%s detail=%s",
+            hint,
+            getattr(exc, "code", ""),
+            getattr(exc, "status", ""),
+            getattr(exc, "uri", ""),
+            detail,
+        )
         raise HTTPException(status_code=400, detail=detail) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to verify OTP: {exc}") from exc

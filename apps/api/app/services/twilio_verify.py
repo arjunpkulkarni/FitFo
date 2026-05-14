@@ -4,12 +4,57 @@ import logging
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 from twilio.base.exceptions import TwilioRestException
 from twilio.rest import Client
 
 logger = logging.getLogger(__name__)
+
+
+def log_twilio_rest_exception(
+    operation: str,
+    exc: TwilioRestException,
+    *,
+    to_e164: Optional[str] = None,
+) -> None:
+    """
+    Log Twilio REST failure fields (never auth secrets).
+
+    Codes: https://www.twilio.com/docs/errors/<code>
+    """
+    tail = "?"
+    if to_e164:
+        digits = "".join(c for c in to_e164 if c.isdigit())
+        if len(digits) >= 4:
+            tail = digits[-4:]
+    logger.warning(
+        "twilio %s failed: http_status=%s method=%s uri=%s twilio_code=%s msg=%r "
+        "details=%r to_tail=%s",
+        operation,
+        getattr(exc, "status", None),
+        getattr(exc, "method", None),
+        getattr(exc, "uri", None),
+        getattr(exc, "code", None),
+        getattr(exc, "msg", None),
+        getattr(exc, "details", None),
+        tail,
+    )
+
+
+def _twilio_credential_fingerprint() -> dict[str, Any]:
+    """Non-secret shape of env Twilio vars (wrong SID/token pairing, empty vars)."""
+    sid = (os.environ.get("TWILIO_ACCOUNT_SID") or "").strip()
+    tok = (os.environ.get("TWILIO_AUTH_TOKEN") or "").strip()
+    svc = (os.environ.get("TWILIO_SERVICE_SID") or "").strip()
+    return {
+        "account_sid_len": len(sid),
+        "account_sid_suffix": sid[-6:] if len(sid) >= 6 else sid,
+        "auth_token_len": len(tok),
+        "service_sid_len": len(svc),
+        "service_sid_suffix": svc[-6:] if len(svc) >= 6 else svc,
+    }
 
 
 def _load_env_if_missing() -> None:
@@ -57,6 +102,9 @@ def _friendly_name() -> str:
 def send_sms_otp(phone: str):
     service = _client().verify.v2.services(_service_sid())
     desired_name = _friendly_name()
+    logger.info(
+        "twilio_verify send_sms_otp start fingerprint=%s", _twilio_credential_fingerprint(),
+    )
 
     try:
         return service.verifications.create(
@@ -67,6 +115,7 @@ def send_sms_otp(phone: str):
     except TwilioRestException as exc:
         detail = str(exc.msg or exc).lower()
         if "custom friendly name not allowed" not in detail:
+            log_twilio_rest_exception("verifications.create", exc, to_e164=phone)
             raise
 
         # Some Verify services/accounts reject per-verification branding
@@ -86,14 +135,30 @@ def send_sms_otp(phone: str):
             _service_sid(),
             desired_name,
         )
-        return service.verifications.create(
-            to=phone,
-            channel="sms",
-        )
+        try:
+            return service.verifications.create(
+                to=phone,
+                channel="sms",
+            )
+        except TwilioRestException as exc2:
+            log_twilio_rest_exception(
+                "verifications.create_fallback_no_custom_friendly_name",
+                exc2,
+                to_e164=phone,
+            )
+            raise
 
 
 def check_sms_otp(phone: str, code: str):
-    return _client().verify.v2.services(_service_sid()).verification_checks.create(
-        to=phone,
-        code=code,
-    )
+    try:
+        return _client().verify.v2.services(_service_sid()).verification_checks.create(
+            to=phone,
+            code=code,
+        )
+    except TwilioRestException as exc:
+        log_twilio_rest_exception(
+            "verification_checks.create",
+            exc,
+            to_e164=phone,
+        )
+        raise
