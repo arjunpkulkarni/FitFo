@@ -27,6 +27,13 @@ Add these to `apps/api/.env`:
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_SERVICE_SID`
 - `TWILIO_VERIFY_FRIENDLY_NAME`
+
+To confirm the droplet’s `.env` matches a working Twilio account (does not print secrets):
+
+```bash
+cd apps/api && ./venv/bin/python check_twilio_env.py
+```
+
 - `APP_JWT_SECRET`
 - `APP_JWT_EXPIRES_IN_SECONDS`
 
