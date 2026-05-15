@@ -4,12 +4,14 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   type TextStyle,
@@ -17,12 +19,27 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { VideoView, useVideoPlayer } from "expo-video";
 
 import { AppleSignInButton } from "../components/AppleSignInButton";
 import { isAppleSignInAvailable } from "../lib/appleAuth";
 import { F } from "../lib/fonts";
+import {
+  feetInchesToTotalInches,
+  formatMetricNumber,
+  inchesToMeters,
+  kgToLbs,
+  lbsToKg,
+  metersToInches,
+  totalInchesToFeetInches,
+  type MeasurementUnitSystem,
+} from "../lib/measurementUnits";
+import {
+  getStoredMeasurementUnit,
+  storeMeasurementUnit,
+} from "../lib/measurementUnitStorage";
 import { getTheme, type ThemeMode } from "../theme";
 import type { AuthMode, OnboardingGoal, OnboardingSex, SaveOnboardingRequest } from "../types";
 
@@ -74,6 +91,8 @@ function createAuthColors(mode: ThemeMode) {
     error: theme.colors.error,
     errorSoft: theme.colors.errorSoft,
     noticeSoft: isDark ? "rgba(255, 111, 34, 0.12)" : "rgba(71, 88, 240, 0.10)",
+    track: theme.colors.track,
+    switchThumb: theme.colors.surfaceStrong,
   };
 }
 
@@ -110,6 +129,7 @@ interface AuthLandingScreenProps {
   onLogin: (phone: string) => void;
   onOnboardingPayloadChange?: (payload: SaveOnboardingRequest | null) => void;
   onSelectMode: (mode: Exclude<AuthMode, "otp">) => void;
+  onThemeModeChange?: (mode: ThemeMode) => void;
   themeMode?: ThemeMode;
 }
 
@@ -149,6 +169,7 @@ export function AuthLandingScreen({
   onLogin,
   onOnboardingPayloadChange,
   onSelectMode,
+  onThemeModeChange,
   themeMode = "dark",
 }: AuthLandingScreenProps) {
   const { width, height: windowHeight } = useWindowDimensions();
@@ -181,8 +202,12 @@ export function AuthLandingScreen({
   const [sex, setSex] = useState<OnboardingSex | null>(null);
   const [selectedGoals, setSelectedGoals] = useState<OnboardingGoal[]>([]);
   const [weightLbs, setWeightLbs] = useState("");
+  const [weightKg, setWeightKg] = useState("");
   const [heightFeet, setHeightFeet] = useState("");
   const [heightInches, setHeightInches] = useState("");
+  const [heightMeters, setHeightMeters] = useState("");
+  const [unitSystem, setUnitSystem] = useState<MeasurementUnitSystem>("imperial");
+  const [isThemeModalVisible, setIsThemeModalVisible] = useState(false);
   const [tryStage, setTryStage] = useState<"tiktok" | "share" | "import" | "workout">("tiktok");
   const isNicoletteDemo = sex === "female";
   const tryDemoVideoPlayer = isNicoletteDemo ? nicoletteVideoPlayer : nunoVideoPlayer;
@@ -231,6 +256,21 @@ export function AuthLandingScreen({
   }, []);
 
   useEffect(() => {
+    let alive = true;
+    void getStoredMeasurementUnit().then((storedUnits) => {
+      if (!alive) {
+        return;
+      }
+      if (storedUnits) {
+        setUnitSystem(storedUnits);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!width) {
       return;
     }
@@ -250,17 +290,25 @@ export function AuthLandingScreen({
     return () => clearTimeout(id);
   }, []);
 
+  const parsedHeightFeet = Number.parseInt(heightFeet, 10);
+  const parsedHeightInches = Number.parseInt(heightInches, 10);
+  const parsedHeightMeters = Number.parseFloat(heightMeters);
+  const parsedWeightLbs = Number.parseFloat(weightLbs);
+  const parsedWeightKg = Number.parseFloat(weightKg);
+  const imperialHeightInches = feetInchesToTotalInches(
+    Number.isFinite(parsedHeightFeet) ? parsedHeightFeet : 0,
+    Number.isFinite(parsedHeightInches) ? parsedHeightInches : 0,
+  );
+  const metricHeightInches = metersToInches(parsedHeightMeters);
   const totalHeightInches =
-    Number.parseInt(heightFeet, 10) * 12 + Number.parseInt(heightInches, 10);
-  const numericWeight = Number.parseFloat(weightLbs);
+    unitSystem === "metric" ? metricHeightInches : imperialHeightInches;
+  const numericWeight =
+    unitSystem === "metric" ? kgToLbs(parsedWeightKg) : parsedWeightLbs;
+  const hasValidHeight = Number.isFinite(totalHeightInches) && totalHeightInches > 0;
+  const hasValidWeight = Number.isFinite(numericWeight) && numericWeight > 0;
 
   const onboardingPayload = useMemo<SaveOnboardingRequest | null>(() => {
-    if (
-      !sex ||
-      selectedGoals.length === 0 ||
-      !Number.isFinite(numericWeight) ||
-      !Number.isFinite(totalHeightInches)
-    ) {
+    if (!sex || selectedGoals.length === 0 || !hasValidWeight || !hasValidHeight) {
       return null;
     }
 
@@ -275,7 +323,7 @@ export function AuthLandingScreen({
       custom_split_notes: null,
       weight_lbs: numericWeight,
     };
-  }, [age, numericWeight, selectedGoals, sex, totalHeightInches]);
+  }, [age, hasValidHeight, hasValidWeight, numericWeight, selectedGoals, sex, totalHeightInches]);
 
   useEffect(() => {
     onOnboardingPayloadChange?.(onboardingPayload);
@@ -310,6 +358,52 @@ export function AuthLandingScreen({
   };
   const next = () => goTo(activeIndex + 1);
   const back = () => goTo(activeIndex - 1);
+
+  const handleGetStarted = () => {
+    if (onThemeModeChange) {
+      setIsThemeModalVisible(true);
+      return;
+    }
+    next();
+  };
+
+  const handleThemeModalContinue = () => {
+    setIsThemeModalVisible(false);
+    next();
+  };
+
+  const handleUnitSystemChange = (nextSystem: MeasurementUnitSystem) => {
+    if (nextSystem === unitSystem) {
+      return;
+    }
+
+    if (nextSystem === "metric") {
+      const lbs = Number.parseFloat(weightLbs);
+      const feet = Number.parseInt(heightFeet, 10) || 0;
+      const inches = Number.parseInt(heightInches, 10) || 0;
+      const totalInches = feetInchesToTotalInches(feet, inches);
+      if (Number.isFinite(lbs) && lbs > 0) {
+        setWeightKg(formatMetricNumber(lbsToKg(lbs)));
+      }
+      if (totalInches > 0) {
+        setHeightMeters(formatMetricNumber(inchesToMeters(totalInches), 2));
+      }
+    } else {
+      const kg = Number.parseFloat(weightKg);
+      const meters = Number.parseFloat(heightMeters);
+      if (Number.isFinite(kg) && kg > 0) {
+        setWeightLbs(formatMetricNumber(kgToLbs(kg), 1));
+      }
+      if (Number.isFinite(meters) && meters > 0) {
+        const { feet, inches } = totalInchesToFeetInches(metersToInches(meters));
+        setHeightFeet(String(feet));
+        setHeightInches(String(inches));
+      }
+    }
+
+    setUnitSystem(nextSystem);
+    void storeMeasurementUnit(nextSystem);
+  };
 
   const handleSubmit = () => {
     const phone = phoneNumber.trim();
@@ -419,7 +513,7 @@ export function AuthLandingScreen({
               </View>
             </View>
             <View style={styles.bottomStack}>
-              <PrimaryButton label="Get started" onPress={next} />
+              <PrimaryButton label="Get started" onPress={handleGetStarted} />
               <SecondaryButton label="Log in" onPress={() => onSelectMode("login")} />
               <Text style={styles.welcomeTrust}>Works with TikTok and Instagram.</Text>
               <Text style={styles.welcomeLegal}>By continuing you agree to the Terms and Privacy Policy.</Text>
@@ -524,21 +618,50 @@ export function AuthLandingScreen({
 
         <StepSlide
           back={back}
-          canContinue={Number.isFinite(numericWeight) && Number.isFinite(totalHeightInches)}
+          canContinue={hasValidWeight && hasValidHeight}
           index={4}
           next={next}
           title="Height and weight"
           subtitle="This gives progress charts a baseline. You can edit it any time."
           width={width}
         >
+          <MeasurementUnitsToggle
+            onChange={handleUnitSystemChange}
+            unitSystem={unitSystem}
+          />
           <View style={styles.statsCard}>
-            <View style={styles.fieldGrid}>
-              <StatInput label="Weight" onChange={setWeightLbs} suffix="lb" value={weightLbs} />
-            </View>
-            <View style={styles.fieldGrid}>
-              <StatInput label="Feet" onChange={setHeightFeet} suffix="ft" value={heightFeet} />
-              <StatInput label="Inches" onChange={setHeightInches} suffix="in" value={heightInches} />
-            </View>
+            {unitSystem === "metric" ? (
+              <>
+                <View style={styles.fieldGrid}>
+                  <StatInput
+                    decimal
+                    label="Weight"
+                    onChange={setWeightKg}
+                    suffix="kg"
+                    value={weightKg}
+                  />
+                </View>
+                <View style={styles.fieldGrid}>
+                  <StatInput
+                    decimal
+                    label="Height"
+                    onChange={setHeightMeters}
+                    suffix="m"
+                    value={heightMeters}
+                  />
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.fieldGrid}>
+                  <StatInput label="Weight" onChange={setWeightLbs} suffix="lb" value={weightLbs} />
+                </View>
+                <View style={styles.fieldGrid}>
+                  <StatInput label="Feet" onChange={setHeightFeet} suffix="ft" value={heightFeet} />
+                  <StatInput label="Inches" onChange={setHeightInches} suffix="in" value={heightInches} />
+                </View>
+              </>
+            )}
           </View>
         </StepSlide>
 
@@ -956,7 +1079,74 @@ export function AuthLandingScreen({
         </View>
       </ScrollView>
       </KeyboardAvoidingView>
+      {onThemeModeChange ? (
+        <ThemePreferenceModal
+          onContinue={handleThemeModalContinue}
+          onThemeModeChange={onThemeModeChange}
+          themeMode={themeMode}
+          visible={isThemeModalVisible}
+        />
+      ) : null}
     </AuthThemeContext.Provider>
+  );
+}
+
+function ThemePreferenceModal({
+  onContinue,
+  onThemeModeChange,
+  themeMode,
+  visible,
+}: {
+  onContinue: () => void;
+  onThemeModeChange: (mode: ThemeMode) => void;
+  themeMode: ThemeMode;
+  visible: boolean;
+}) {
+  const { colors, styles } = useAuthTheme();
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent
+      visible={visible}
+      onRequestClose={() => {}}
+    >
+      <View style={styles.themeModalRoot} accessibilityViewIsModal>
+        <BlurView
+          intensity={Platform.OS === "ios" ? 48 : 72}
+          style={styles.themeModalBlur}
+          tint={colors.isDark ? "dark" : "light"}
+        />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.themeModalTint,
+            colors.isDark
+              ? { backgroundColor: "rgba(0, 0, 0, 0.52)" }
+              : { backgroundColor: "rgba(18, 25, 48, 0.28)" },
+          ]}
+        />
+        <View style={styles.themeModalCard}>
+          <Text accessibilityRole="header" style={styles.themeModalTitle}>
+            Choose your look
+          </Text>
+          <Text style={styles.themeModalBody}>
+            Turn on dark mode for a dimmer canvas, or leave it off for light mode.
+          </Text>
+          <AuthSettingToggle
+            accessibilityLabel="Dark mode"
+            body="Easier on the eyes at night."
+            icon="moon-outline"
+            onValueChange={(enabled) => {
+              onThemeModeChange(enabled ? "dark" : "light");
+            }}
+            title="Dark mode"
+            value={themeMode === "dark"}
+          />
+          <PrimaryButton label="Continue" onPress={onContinue} />
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1160,12 +1350,141 @@ function OptionRow({
   );
 }
 
+function AuthSettingToggle({
+  accessibilityLabel,
+  body,
+  icon,
+  onValueChange,
+  title,
+  value,
+}: {
+  accessibilityLabel: string;
+  body?: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  onValueChange: (value: boolean) => void;
+  title: string;
+  value: boolean;
+}) {
+  const { colors, styles } = useAuthTheme();
+  return (
+    <View style={styles.settingToggleRow}>
+      <View style={styles.settingToggleLeading}>
+        <View style={styles.settingToggleIcon}>
+          <Ionicons color={colors.accent} name={icon} size={18} />
+        </View>
+        <View style={styles.settingToggleCopy}>
+          <Text style={styles.settingToggleTitle}>{title}</Text>
+          {body ? <Text style={styles.settingToggleBody}>{body}</Text> : null}
+        </View>
+      </View>
+      <View style={styles.settingToggleSwitchWrap}>
+        <Switch
+          accessibilityLabel={accessibilityLabel}
+          accessibilityRole="switch"
+          ios_backgroundColor={colors.track}
+          onValueChange={onValueChange}
+          thumbColor={value ? colors.switchThumb : "#FFFFFF"}
+          trackColor={{
+            false: colors.track,
+            true: colors.accent,
+          }}
+          value={value}
+        />
+      </View>
+    </View>
+  );
+}
+
+function MeasurementUnitsToggle({
+  onChange,
+  unitSystem,
+}: {
+  onChange: (system: MeasurementUnitSystem) => void;
+  unitSystem: MeasurementUnitSystem;
+}) {
+  const { colors, styles } = useAuthTheme();
+  const isMetric = unitSystem === "metric";
+
+  return (
+    <View style={styles.unitsCard}>
+      <View style={styles.unitsHeader}>
+        <View style={styles.unitsLeading}>
+          <View
+            style={[
+              styles.unitsIcon,
+              isMetric ? styles.unitsIconActive : null,
+            ]}
+          >
+            <Ionicons color={colors.accent} name="scale-outline" size={20} />
+          </View>
+          <View style={styles.unitsCopy}>
+            <Text style={styles.unitsEyebrow}>Units</Text>
+            <Text style={styles.unitsTitle}>Metric</Text>
+            <Text style={styles.unitsHint}>
+              {isMetric
+                ? "Kilograms and meters"
+                : "Pounds and feet / inches"}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.unitsSwitchWrap}>
+          <Switch
+            accessibilityLabel="Metric units"
+            accessibilityRole="switch"
+            ios_backgroundColor={colors.track}
+            onValueChange={(enabled) => {
+              onChange(enabled ? "metric" : "imperial");
+            }}
+            thumbColor={isMetric ? colors.switchThumb : "#FFFFFF"}
+            trackColor={{
+              false: colors.track,
+              true: colors.accent,
+            }}
+            value={isMetric}
+          />
+        </View>
+      </View>
+      <View style={styles.unitsPreviewRow}>
+        <UnitPreviewChip active={!isMetric} label="lb" />
+        <UnitPreviewChip active={!isMetric} label="ft · in" />
+        <View style={styles.unitsPreviewDivider} />
+        <UnitPreviewChip active={isMetric} label="kg" />
+        <UnitPreviewChip active={isMetric} label="m" />
+      </View>
+    </View>
+  );
+}
+
+function UnitPreviewChip({
+  active,
+  label,
+}: {
+  active: boolean;
+  label: string;
+}) {
+  const { colors, styles } = useAuthTheme();
+  return (
+    <View style={[styles.unitsPreviewChip, active && styles.unitsPreviewChipActive]}>
+      <Text
+        style={[
+          styles.unitsPreviewChipText,
+          active && styles.unitsPreviewChipTextActive,
+        ]}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 function StatInput({
+  decimal = false,
   label,
   onChange,
   suffix,
   value,
 }: {
+  decimal?: boolean;
   label: string;
   onChange: (value: string) => void;
   suffix: string;
@@ -1177,8 +1496,13 @@ function StatInput({
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.statInputShell}>
         <TextInput
-          keyboardType="number-pad"
-          onChangeText={(text) => onChange(text.replace(/[^0-9.]/g, "").slice(0, 5))}
+          keyboardType={decimal ? "decimal-pad" : "number-pad"}
+          onChangeText={(text) => {
+            const sanitized = decimal
+              ? text.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1")
+              : text.replace(/[^0-9]/g, "");
+            onChange(sanitized.slice(0, decimal ? 6 : 5));
+          }}
           placeholderTextColor={colors.inputPlaceholder}
           style={styles.statInput}
           value={value}
@@ -1364,6 +1688,42 @@ function createAuthStyles(colors: AuthColors) {
   },
   bottomStack: {
     gap: 8,
+  },
+  themeModalRoot: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  themeModalBlur: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  themeModalTint: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  themeModalCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 28,
+    borderWidth: 1,
+    gap: 16,
+    padding: 22,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: colors.isDark ? 0.35 : 0.12,
+    shadowRadius: 28,
+  },
+  themeModalTitle: {
+    color: colors.text,
+    fontFamily: F.display,
+    fontSize: 30,
+    letterSpacing: -0.5,
+    lineHeight: 34,
+  },
+  themeModalBody: {
+    color: colors.textSecondary,
+    fontFamily: F.medium,
+    fontSize: 15,
+    lineHeight: 22,
   },
   welcomeTrust: {
     color: colors.textSecondary,
@@ -1716,6 +2076,162 @@ function createAuthStyles(colors: AuthColors) {
     borderColor: colors.border,
     backgroundColor: colors.surface,
     padding: 18,
+  },
+  settingToggleRow: {
+    alignItems: "center",
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    minHeight: 64,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  settingToggleLeading: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    gap: 12,
+    minWidth: 0,
+    paddingRight: 8,
+  },
+  settingToggleIcon: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexShrink: 0,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  settingToggleCopy: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+  },
+  settingToggleSwitchWrap: {
+    flexShrink: 0,
+    justifyContent: "center",
+    paddingLeft: 4,
+  },
+  settingToggleTitle: {
+    color: colors.text,
+    fontFamily: F.black,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  settingToggleBody: {
+    color: colors.textSecondary,
+    fontFamily: F.medium,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  unitsCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 14,
+    padding: 16,
+  },
+  unitsHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  unitsLeading: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    gap: 12,
+    minWidth: 0,
+    paddingRight: 10,
+  },
+  unitsIcon: {
+    alignItems: "center",
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexShrink: 0,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  unitsIconActive: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accentBorder,
+  },
+  unitsCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  unitsEyebrow: {
+    color: colors.accent,
+    fontFamily: F.bold,
+    fontSize: 10,
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+  },
+  unitsTitle: {
+    color: colors.text,
+    fontFamily: F.black,
+    fontSize: 17,
+    lineHeight: 22,
+  },
+  unitsHint: {
+    color: colors.textSecondary,
+    fontFamily: F.medium,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  unitsSwitchWrap: {
+    flexShrink: 0,
+    justifyContent: "center",
+  },
+  unitsPreviewRow: {
+    alignItems: "center",
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  unitsPreviewChip: {
+    alignItems: "center",
+    borderRadius: 999,
+    flex: 1,
+    justifyContent: "center",
+    minHeight: 32,
+    opacity: 0.45,
+    paddingHorizontal: 8,
+  },
+  unitsPreviewChipActive: {
+    backgroundColor: colors.surface,
+    borderColor: colors.accentBorder,
+    borderWidth: 1,
+    opacity: 1,
+  },
+  unitsPreviewChipText: {
+    color: colors.textMuted,
+    fontFamily: F.bold,
+    fontSize: 12,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+  unitsPreviewChipTextActive: {
+    color: colors.accent,
+  },
+  unitsPreviewDivider: {
+    backgroundColor: colors.border,
+    height: 22,
+    width: 1,
   },
   fieldGrid: {
     flexDirection: "row",

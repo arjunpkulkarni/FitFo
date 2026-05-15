@@ -3453,6 +3453,7 @@ export default function App() {
             onCreateAccount={handleCreateAccount}
             onLogin={handleLogin}
             onOnboardingPayloadChange={setAuthLandingOnboardingPayload}
+            onThemeModeChange={handleThemeModeChange}
             onSelectMode={(mode) => {
               setAuthLandingIndex(AUTH_LANDING_AUTH_INDEX);
               setPendingOtpChallenge(null);
