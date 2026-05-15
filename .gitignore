@@ -35,3 +35,5 @@ coverage/
 .expo/
 .metro-health-check*
 web-build/
+ios/Pods/
+ios/build/
