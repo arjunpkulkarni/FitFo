@@ -13,7 +13,7 @@ const STRIP_HIT_CLASS = "see-strip-hit";
 const ARROW_HIT_CLASS = "see-app-link-arrow-hit";
 
 /** Hero “live lifting” ticker — bumps over time to feel credible. */
-const LIVE_COUNT_TARGET = 1438;
+const LIVE_COUNT_TARGET = 3000;
 
 interface SeeTheAppLinkProps {
   className?: string;

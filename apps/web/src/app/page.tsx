@@ -20,11 +20,32 @@ const IMG = {
 const HERO_DEMO_MP4 = "/assets/my-workout.mp4";
 const STRIP_LOGO = "/assets/logo.png";
 
+/** Approx. primary-platform reach (TikTok + IG, etc.). Update from profiles periodically. */
 const TEAM = [
-  { src: "/assets/team/jacob.jpg", name: "Jacob" },
-  { src: "/assets/team/nirv.png", name: "Nirv" },
-  { src: "/assets/team/nuno.png", name: "Nuno" },
+  { src: "/assets/team/jacob.jpg", name: "Jacob", followersApprox: 1_000_000 },
+  { src: "/assets/team/nirv.png", name: "Nirv", followersApprox: 40_000 },
+  { src: "/assets/team/nuno.png", name: "Nuno", followersApprox: 500_000 },
 ] as const;
+
+function sumTeamFollowers(
+  members: readonly { followersApprox: number }[],
+): number {
+  return members.reduce((acc, m) => acc + m.followersApprox, 0);
+}
+
+const TEAM_COMBINED_FOLLOWERS_APPROX = sumTeamFollowers(TEAM);
+
+function formatFollowerShort(n: number): string {
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    const label = m >= 10 ? Math.round(m).toString() : m.toFixed(1).replace(/\.0$/, "");
+    return `${label}M`;
+  }
+  if (n >= 1_000) {
+    return `${Math.round(n / 1_000)}K`;
+  }
+  return `${n}`;
+}
 
 export default function LandingPage() {
   return (
@@ -33,6 +54,7 @@ export default function LandingPage() {
       <main id="top" className="relative flex flex-1 flex-col">
         <Hero />
         <VisualStrip />
+        <CoachSection />
         <Team />
         <Closer />
       </main>
@@ -252,6 +274,103 @@ function VisualStrip() {
   );
 }
 
+function CoachSection() {
+  return (
+    <section
+      id="coach"
+      className="scroll-mt-20 border-t border-white/[0.06] bg-black/[0.12] py-14 sm:py-16 lg:py-20"
+    >
+      <div className={`mx-auto ${LANDING_CONTENT_MAX} px-4 sm:px-6`}>
+        <div className="grid items-center gap-12 lg:grid-cols-[1fr_1.05fr] lg:gap-16">
+          <Reveal when="load" delay={520} variant="up" className="max-w-xl lg:max-w-none">
+            <p className="text-[11px] font-bold uppercase tracking-[0.34em] text-[var(--primary-bright)]">
+              Coach
+            </p>
+            <h2
+              className="mt-3 text-[clamp(1.45rem,3.8vw,2.125rem)] font-semibold leading-tight tracking-[-0.028em] text-white text-balance"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Ask your workout{" "}
+              <span className="text-[var(--primary-bright)]">anything.</span>
+            </h2>
+            <p className="mt-4 text-[15px] leading-relaxed text-white/65 text-pretty">
+              Fitfo Coach is tied to the session on your screen: exercises, sets,
+              rest, and the reel you imported, so cues and swaps actually match
+              what you&apos;re doing right now.
+            </p>
+            <ul className="mt-8 space-y-3 text-[14px] leading-snug text-white/72">
+              <li className="flex gap-2.5">
+                <span
+                  aria-hidden
+                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--primary-bright)]"
+                />
+                Form checks and coaching cues for the lift you&apos;re on
+              </li>
+              <li className="flex gap-2.5">
+                <span
+                  aria-hidden
+                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--primary-bright)]"
+                />
+                Weight, swaps, and &ldquo;what&apos;s next?&rdquo; without
+                leaving the floor
+              </li>
+              <li className="flex gap-2.5">
+                <span
+                  aria-hidden
+                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--primary-bright)]"
+                />
+                Chat history stays with the workout when you come back
+              </li>
+            </ul>
+          </Reveal>
+
+          <Reveal
+            when="load"
+            delay={620}
+            variant="scale"
+            className="relative mx-auto flex w-full max-w-[min(380px,100%)] justify-center lg:mx-0 lg:max-w-none lg:justify-end"
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute left-1/2 top-1/2 h-[min(420px,70vw)] w-[min(420px,90vw)] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-50 blur-3xl"
+              style={{
+                background:
+                  "radial-gradient(circle at 50% 45%, rgba(255,106,44,0.28), transparent 68%)",
+              }}
+            />
+            <div className="relative w-[min(100%,280px)] sm:w-[300px]">
+              <PhoneFrame
+                src={IMG.session}
+                alt=""
+                width={300}
+                float="slow"
+                rotate={5}
+                glow
+                className="mx-auto"
+              />
+              <div className="absolute -bottom-1 left-0 right-0 z-10 sm:-bottom-2 sm:left-[-4%] sm:right-auto sm:max-w-[290px] lg:left-[-8%]">
+                <div className="rounded-2xl border border-white/[0.12] bg-black/65 px-4 py-3.5 shadow-[0_16px_48px_rgba(0,0,0,0.55)] backdrop-blur-md supports-[backdrop-filter]:bg-black/45">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--primary-bright)]">
+                    Coach
+                  </div>
+                  <p className="mt-2 text-[13px] leading-relaxed text-white/88">
+                    Hinge it right: you&apos;re pushing the floor away, bar rides
+                    your legs the whole way.
+                  </p>
+                  <p className="mt-2 text-[13px] leading-relaxed text-white/88">
+                    Low back starts to go? Strip weight, slow the rep, and clean
+                    it up. No ugly grinders.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Team() {
   return (
     <section
@@ -269,6 +388,13 @@ function Team() {
               favorite fitness influencers
             </span>
           </h2>
+          <p className="mx-auto mt-4 max-w-lg text-center text-[13px] tabular-nums text-white/50">
+            <span className="font-semibold text-white/75">
+              ~{formatFollowerShort(TEAM_COMBINED_FOLLOWERS_APPROX)}+
+            </span>{" "}
+            combined followers{" "}
+            <span className="text-white/40">(TikTok, Instagram)</span>
+          </p>
         </Reveal>
         <div className="mx-auto mt-12 grid max-w-2xl grid-cols-1 gap-12 sm:max-w-none sm:grid-cols-3 sm:gap-10">
           {TEAM.map((member, i) => (
@@ -302,6 +428,9 @@ function Team() {
               >
                 {member.name}
               </p>
+              <p className="mt-1.5 text-[13px] font-medium tabular-nums tracking-wide text-white/42">
+                ~{formatFollowerShort(member.followersApprox)}+
+              </p>
             </Reveal>
           ))}
         </div>
@@ -315,16 +444,16 @@ function Closer() {
     <section id="download" className="scroll-mt-20 pb-12 pt-8 sm:pb-14">
       <div className={`mx-auto ${LANDING_CONTENT_MAX} px-4 sm:px-6`}>
         <Reveal when="load" delay={960} variant="scale">
-          <div className="relative overflow-hidden rounded-[28px] border border-white/[0.08] px-8 pb-8 pt-9 sm:px-11 sm:pb-9 sm:pt-10 lg:px-14 lg:pb-10 lg:pt-11">
+          <div className="relative overflow-hidden rounded-[28px] border border-white/[0.08] px-5 pb-8 pt-9 sm:px-8 sm:pb-9 sm:pt-10 lg:px-10 lg:pb-10 lg:pt-11">
             <div
               aria-hidden
               className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[rgba(255,90,20,0.12)] via-transparent to-black/80"
             />
             <div
               aria-hidden
-              className="bg-orange-glow glow-breathe pointer-events-none absolute -bottom-20 left-1/2 h-[280px] w-[min(520px,90vw)] -translate-x-1/2 opacity-60 blur-3xl"
+              className="bg-orange-glow glow-breathe pointer-events-none absolute -bottom-20 left-1/2 h-[280px] w-[min(720px,92vw)] -translate-x-1/2 opacity-60 blur-3xl"
             />
-            <div className="relative mx-auto max-w-[520px] text-center">
+            <div className="relative w-full text-center">
               <h2
                 className="text-[clamp(1.5rem,4vw,2.25rem)] font-semibold leading-tight tracking-[-0.03em] text-white"
                 style={{ fontFamily: "var(--font-display)" }}
@@ -334,7 +463,7 @@ function Closer() {
                 Open{" "}
                 <span className="text-[var(--primary-bright)]">Fitfo</span>.
               </h2>
-              <p className="mt-4 text-[15px] leading-relaxed text-white/68">
+              <p className="mx-auto mt-4 w-full max-w-none text-[15px] leading-relaxed text-white/68">
                 Takes a second to install. Your next workout might already be
                 in your FYP.
               </p>
@@ -342,7 +471,7 @@ function Closer() {
                 href={APP_STORE_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="group glass-cta-primary mt-8 inline-flex min-h-[52px] w-full max-w-[320px] items-center justify-center gap-2 rounded-full px-8 text-[16px] font-bold sm:mx-auto"
+                className="group glass-cta-primary mt-8 inline-flex min-h-[52px] w-full max-w-none items-center justify-center gap-2 rounded-full px-8 text-[16px] font-bold"
               >
                 Get the app
                 <ArrowRight

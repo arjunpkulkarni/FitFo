@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Platform } from "react-native";
 import Purchases, {
   type CustomerInfo,
@@ -21,6 +21,7 @@ import {
   purchaseProductId,
   restoreRevenueCatPurchases,
 } from "../lib/revenueCat";
+import { reportSubscriptionCustomerInfoDiff } from "../lib/subscriptionAnalytics";
 import type { UserProfile } from "../types";
 
 /**
@@ -31,6 +32,7 @@ const REVENUECAT_SDK_DISABLED = process.env.EXPO_PUBLIC_REVENUECAT_DISABLED === 
 
 export function useRevenueCat(profile: UserProfile | null) {
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
+  const customerInfoRef = useRef<CustomerInfo | null>(null);
   const [isConfigured, setIsConfigured] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +41,10 @@ export function useRevenueCat(profile: UserProfile | null) {
     (profile ? hasBillingBypassForUser(profile) : false) ||
     Boolean(profile?.fitfo_pro_bypass);
   const hasPro = accountBypass || hasFitfoPro(customerInfo);
+
+  useEffect(() => {
+    customerInfoRef.current = customerInfo;
+  }, [customerInfo]);
 
   const refreshCustomerInfo = useCallback(async () => {
     if (REVENUECAT_SDK_DISABLED || accountBypass) {
@@ -133,6 +139,10 @@ export function useRevenueCat(profile: UserProfile | null) {
     void setupRevenueCat();
 
     const listener = (updatedCustomerInfo: CustomerInfo) => {
+      reportSubscriptionCustomerInfoDiff(
+        customerInfoRef.current,
+        updatedCustomerInfo,
+      );
       setCustomerInfo(updatedCustomerInfo);
     };
     Purchases.addCustomerInfoUpdateListener(listener);

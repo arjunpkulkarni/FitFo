@@ -23,6 +23,7 @@ import { useFonts } from "expo-font";
 import { PostHogProvider } from "posthog-react-native";
 
 import { posthog } from "./src/lib/posthog";
+import { captureProduct } from "./src/lib/productAnalytics";
 import { applyDefaultFont } from "./src/lib/fonts";
 import { AddWorkoutModal } from "./src/components/AddWorkoutModal";
 import type { CoachChatMessage } from "./src/components/CoachSheet";
@@ -306,6 +307,7 @@ export default function App() {
   const [isResendingOtp, setIsResendingOtp] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>("saved");
   const hubPreviousTabRef = useRef<AppTab>("saved");
+  const appOpenedLoggedRef = useRef(false);
   const [isProfileVisible, setIsProfileVisible] = useState(false);
   const [isSavedLibraryVisible, setIsSavedLibraryVisible] = useState(false);
   const [activeSession, setActiveSession] = useState<ActiveSessionPreview | null>(
@@ -363,6 +365,8 @@ export default function App() {
   const [completedWorkoutsError, setCompletedWorkoutsError] = useState<string | null>(
     null,
   );
+  /** Successful ingest jobs that produced a workout (for paywall / activation context). */
+  const [completedImportJobCount, setCompletedImportJobCount] = useState(0);
   const [deletingCompletedWorkoutId, setDeletingCompletedWorkoutId] =
     useState<string | null>(null);
   const [latestLiftSnapshots, setLatestLiftSnapshots] = useState<LiftLatestSetSnapshot[]>(
@@ -694,7 +698,8 @@ export default function App() {
         job,
       }),
     );
-    posthog.capture("workout_import_completed", {
+    setCompletedImportJobCount((c) => c + 1);
+    captureProduct(posthog, "workout_import_completed", {
       workout_id: workout.id,
       job_id: job?.id ?? null,
       source_url: job?.source_url ?? null,
@@ -1144,6 +1149,26 @@ export default function App() {
   const onboardingSex = currentUser?.onboarding?.sex ?? null;
   const starterDemoTitle = getStarterDemoTitleForSex(onboardingSex);
 
+  const paywallAnalyticsContext = useMemo(
+    () => ({
+      paywall_variant: "fitfo_pro_fullscreen",
+      paywall_timing:
+        completedWorkouts.length === 0 ? "pre_first_completion" : "post_completion",
+      user_has_completed_workout: completedWorkouts.length > 0,
+      completed_workouts_count: completedWorkouts.length,
+      number_of_imports_before_paywall: completedImportJobCount,
+    }),
+    [completedImportJobCount, completedWorkouts.length],
+  );
+
+  useEffect(() => {
+    if (!isAuthReady || appOpenedLoggedRef.current) {
+      return;
+    }
+    appOpenedLoggedRef.current = true;
+    captureProduct(posthog, "app_opened", {});
+  }, [isAuthReady, posthog]);
+
   const markHubTourComplete = useCallback(async () => {
     const userId = currentUser?.id;
     setHubTourStep(null);
@@ -1405,7 +1430,9 @@ export default function App() {
       }
 
       setJobId(response.job_id);
-      posthog.capture("workout_import_initiated", { source_url: url, job_id: response.job_id });
+      const importJobProps = { source_url: url, job_id: response.job_id };
+      captureProduct(posthog, "workout_import_initiated", importJobProps);
+      captureProduct(posthog, "workout_import_started", importJobProps);
     } catch (error) {
       setSubmitError(
         humanizeIngestError(
@@ -1415,7 +1442,7 @@ export default function App() {
     } finally {
       setIsExtractSubmitting(false);
     }
-  }, [accessToken]);
+  }, [accessToken, posthog]);
 
   useSharedIngestUrl(applyIncomingIngestUrl);
 
@@ -1509,7 +1536,7 @@ export default function App() {
         );
       }
 
-      posthog.capture("workout_started", {
+      captureProduct(posthog, "workout_started", {
         title: sourceRoutine?.title ?? null,
         source_url: sourceRoutine?.sourceUrl ?? null,
       });
@@ -1529,7 +1556,7 @@ export default function App() {
         setHubTourCoachRect(null);
       }
     },
-    [latestImportedRoutine, onboardingSex, resetImportFlow],
+    [latestImportedRoutine, onboardingSex, posthog, resetImportFlow],
   );
 
   const handleScheduleImportedWorkout = useCallback(
@@ -2176,13 +2203,31 @@ export default function App() {
         setCompletedWorkoutsLoaded(true);
         setCompletedWorkoutsError(null);
         void loadLatestLiftSnapshots(accessToken);
-        posthog.capture("workout_completed", {
+        if (completedWorkouts.length >= 1) {
+          captureProduct(posthog, "second_workout_completed", {
+            workout_id: completed.id,
+          });
+        }
+        const totalSets = session.exercises.reduce(
+          (acc, ex) => acc + ex.sets.length,
+          0,
+        );
+        captureProduct(posthog, "workout_completed", {
           workout_id: completed.id,
           title: completed.title ?? null,
+          workout_duration: session
+            ? Math.round((Date.now() - session.startedAt) / 1000)
+            : null,
           duration_seconds: session
             ? Math.round((Date.now() - session.startedAt) / 1000)
             : null,
           exercise_count: completed.exercises?.length ?? null,
+          number_of_exercises: session.exercises.length,
+          number_of_sets: totalSets,
+          workout_difficulty: null,
+          muscle_group: session.workoutPlan?.muscle_groups?.join(",") ?? null,
+          workout_type: session.workoutPlan?.workout_type ?? null,
+          user_experience_level: currentUser?.onboarding?.experience_level ?? null,
         });
         if (shouldPromptForReview && currentUser?.id) {
           void maybeRequestStoreReviewAfterFirstWorkout(currentUser.id);
@@ -2214,10 +2259,12 @@ export default function App() {
       completedWorkouts.length,
       completedWorkoutsLoaded,
       currentUser?.id,
+      currentUser?.onboarding?.experience_level,
       loadLatestLiftSnapshots,
       loadScheduledWorkouts,
       markHubTourComplete,
       maybeRequestStoreReviewAfterFirstWorkout,
+      posthog,
     ],
   );
 
@@ -2331,7 +2378,7 @@ export default function App() {
       }
       const response = await sendOtp(body);
 
-      setPendingOtpChallenge({
+      captureProduct(posthog, "otp_sent", {
         intent,
         phone: response.normalized_phone,
         fullName: intent === "signup" ? (fullName ?? "").trim() || null : null,
@@ -2340,7 +2387,7 @@ export default function App() {
       setAuthMode("otp");
       setAuthNotice(response.message);
     },
-    [],
+    [posthog],
   );
 
   const handleAppleSignIn = useCallback(async () => {
@@ -2444,6 +2491,7 @@ export default function App() {
           fullName,
         });
         posthog.capture("sign_up_initiated");
+        captureProduct(posthog, "signup_started", {});
       } catch (error) {
         setAuthError(
           error instanceof Error ? error.message : "Unable to send the signup code.",
@@ -2488,6 +2536,12 @@ export default function App() {
           pendingOtpChallenge.intent === "signup" ? "sign_up_completed" : "login_completed",
           { user_id: profile.id },
         );
+        captureProduct(posthog, "otp_verified", {
+          intent: pendingOtpChallenge.intent,
+        });
+        if (pendingOtpChallenge.intent === "signup") {
+          captureProduct(posthog, "account_created", { user_id: profile.id });
+        }
       } catch (error) {
         setAuthError(
           error instanceof Error ? error.message : "Unable to verify that code.",
@@ -2918,6 +2972,12 @@ export default function App() {
               : null
           }
           onBack={() => {
+            if (activeSession) {
+              captureProduct(posthog, "workout_quit", {
+                session_started_at_ms: activeSession.startedAt,
+                exercise_count: activeSession.exercises.length,
+              });
+            }
             // Keep the session alive so the user can resume from the Logs tab.
             setIsActiveWorkoutVisible(false);
             setActiveTab("logs");
@@ -3349,6 +3409,7 @@ export default function App() {
               />
             ) : (
               <PaywallScreen
+                analyticsContext={paywallAnalyticsContext}
                 error={revenueCat.error}
                 isLoading={revenueCat.isLoading}
                 onManageSubscription={revenueCat.openCustomerCenter}
