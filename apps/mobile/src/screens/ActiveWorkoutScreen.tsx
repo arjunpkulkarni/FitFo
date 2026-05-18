@@ -22,8 +22,10 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { usePostHog } from "posthog-react-native";
 
 import CoachSheet, { type CoachChatMessage } from "../components/CoachSheet";
+import { captureProduct } from "../lib/productAnalytics";
 import { resolveExerciseRestBaseline, titleCase } from "../lib/fitfo";
 import type { WorkoutContext as ChatWorkoutContext } from "../lib/chat";
 import { F } from "../lib/fonts";
@@ -858,6 +860,7 @@ export function ActiveWorkoutScreen({
   themeMode = "light",
   resolveLastLiftLabel,
 }: ActiveWorkoutScreenProps) {
+  const posthog = usePostHog();
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
   const listViewportRef = useRef<View | null>(null);
@@ -866,6 +869,9 @@ export function ActiveWorkoutScreen({
   const lastCoachOpenRequestIdRef = useRef(0);
   const previousCompletedSetCountRef = useRef(0);
   const lastElapsedTickRef = useRef(Date.now());
+  const elapsedSecondsRef = useRef(0);
+  const exerciseStartedIdsRef = useRef<Set<string>>(new Set());
+  const exerciseCompletedIdsRef = useRef<Set<string>>(new Set());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isTimerPaused, setIsTimerPaused] = useState(false);
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(
@@ -898,6 +904,8 @@ export function ActiveWorkoutScreen({
     setElapsedSeconds(Math.max(0, Math.floor((Date.now() - session.startedAt) / 1000)));
     setIsTimerPaused(false);
     lastElapsedTickRef.current = Date.now();
+    exerciseStartedIdsRef.current.clear();
+    exerciseCompletedIdsRef.current.clear();
   }, [session]);
 
   const measureCoachButton = useCallback(() => {
@@ -1049,10 +1057,48 @@ export function ActiveWorkoutScreen({
     return () => clearInterval(interval);
   }, [isTimerPaused, restCountdownSeconds]);
 
+  useEffect(() => {
+    elapsedSecondsRef.current = elapsedSeconds;
+  }, [elapsedSeconds]);
+
   const totalSetCount = useMemo(
     () => exercises.reduce((count, exercise) => count + exercise.sets.length, 0),
     [exercises],
   );
+
+  const sessionAnalyticsBase = useMemo(
+    () => ({
+      workout_session_title: session.title,
+      number_of_exercises: exercises.length,
+      number_of_sets: totalSetCount,
+      workout_type: session.workoutPlan?.workout_type ?? null,
+      muscle_group: session.workoutPlan?.muscle_groups?.join(",") ?? null,
+      source_url: session.sourceUrl ?? null,
+    }),
+    [
+      exercises.length,
+      session.title,
+      session.workoutPlan?.muscle_groups,
+      session.workoutPlan?.workout_type,
+      session.sourceUrl,
+      totalSetCount,
+    ],
+  );
+
+  const ensureExerciseStartedTracked = (exerciseId: string) => {
+    if (!posthog || exerciseStartedIdsRef.current.has(exerciseId)) {
+      return;
+    }
+    exerciseStartedIdsRef.current.add(exerciseId);
+    const exIdx = exercises.findIndex((e) => e.id === exerciseId);
+    const exercise = exIdx >= 0 ? exercises[exIdx] : undefined;
+    captureProduct(posthog, "exercise_started", {
+      ...sessionAnalyticsBase,
+      exercise_id: exerciseId,
+      exercise_index: exIdx >= 0 ? exIdx : null,
+      exercise_name: exercise?.name ?? null,
+    });
+  };
 
   const completedSetCount = useMemo(
     () =>
@@ -1264,7 +1310,43 @@ export function ActiveWorkoutScreen({
       return;
     }
 
+    ensureExerciseStartedTracked(exerciseId);
+
+    const setIndex = matchingExercise.sets.findIndex((set) => set.id === setId);
+    if (posthog) {
+      captureProduct(posthog, "set_completed", {
+        ...sessionAnalyticsBase,
+        exercise_id: exerciseId,
+        exercise_index: exerciseIndex,
+        exercise_name: matchingExercise.name,
+        set_id: setId,
+        set_index: setIndex >= 0 ? setIndex : null,
+        workout_duration_seconds: elapsedSecondsRef.current,
+        rest_follows_set: Boolean(
+          matchingExercise.restSeconds != null && matchingExercise.restSeconds > 0,
+        ),
+      });
+    }
+
     updateSet(exerciseId, setId, (set) => ({ ...set, completed: true }));
+
+    const allSetsInExerciseComplete = matchingExercise.sets.every((set) =>
+      set.id === setId ? true : set.completed,
+    );
+    if (
+      posthog &&
+      allSetsInExerciseComplete &&
+      !exerciseCompletedIdsRef.current.has(exerciseId)
+    ) {
+      exerciseCompletedIdsRef.current.add(exerciseId);
+      captureProduct(posthog, "exercise_completed", {
+        ...sessionAnalyticsBase,
+        exercise_id: exerciseId,
+        exercise_index: exerciseIndex,
+        exercise_name: matchingExercise.name,
+        workout_duration_seconds: elapsedSecondsRef.current,
+      });
+    }
 
     if (matchingExercise.restSeconds != null && matchingExercise.restSeconds > 0) {
       setRestCountdownSeconds(matchingExercise.restSeconds);
@@ -1290,6 +1372,7 @@ export function ActiveWorkoutScreen({
   };
 
   const handleOpenSet = (exerciseId: string, setId: string) => {
+    ensureExerciseStartedTracked(exerciseId);
     setExpandedExerciseId(exerciseId);
     setSelectedSet({ exerciseId, setId });
   };
@@ -1516,7 +1599,16 @@ export function ActiveWorkoutScreen({
   };
 
   const handleToggleTimerPaused = () => {
-    setIsTimerPaused((current) => !current);
+    setIsTimerPaused((current) => {
+      const next = !current;
+      if (posthog) {
+        captureProduct(posthog, next ? "workout_paused" : "workout_resumed", {
+          ...sessionAnalyticsBase,
+          workout_duration_seconds: elapsedSecondsRef.current,
+        });
+      }
+      return next;
+    });
   };
 
   const toggleExercise = (exerciseId: string) => {
