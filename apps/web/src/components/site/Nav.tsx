@@ -20,10 +20,10 @@ export function Nav() {
 
   return (
     <header
-      className={`sticky top-0 z-40 animate-blur-fade-up transition-[background-color,backdrop-filter,border-color] duration-300 ease-out ${
+      className={`sticky top-0 z-40 transition-[background-color,backdrop-filter,border-color,box-shadow] duration-300 ease-out ${
         scrolled
           ? "border-b border-white/[0.06] bg-black/55 backdrop-blur-xl supports-[backdrop-filter]:backdrop-saturate-150"
-          : "border-b border-transparent bg-transparent"
+          : "border-b border-transparent bg-transparent shadow-none backdrop-blur-none"
       }`}
     >
       <div

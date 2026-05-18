@@ -24,34 +24,32 @@ const satoshi = localFont({
 const LOGO_URL_PATH = SITE_LOGO_SRC;
 const OG_IMAGE_PATH = "/og-image.png";
 const DESCRIPTION =
-  "TikTok & Reels → workouts you train for real. Tap share, hit the gym. Free on iPhone.";
+  "Turn workout videos into plans you actually train. Tap share, hit the gym. Free on iPhone.";
 const OG_TITLE = "Fitfo — stop watching, start lifting";
 const SHARE_DESCRIPTION =
   "Turn the fitness videos on your feed into workouts you actually do. Fitfo on iPhone.";
 const KEYWORDS = [
   "Fitfo",
-  "TikTok workout app",
-  "save TikTok workouts",
-  "Instagram Reel workout tracker",
+  "workout video to plan",
+  "import workout from video",
   "AI workout from video",
-  "how to save workouts from TikTok",
   "fitness app",
   "workout app",
   "AI workout app",
-  "Instagram Reels workout app",
   "turn fitness videos into workouts",
   "workout tracker",
   "workout planner",
   "iOS fitness app",
   "exercise parser",
   "AI fitness",
+  "share sheet workout",
 ];
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   applicationName: "Fitfo",
   title: {
-    default: "Fitfo — TikTok & Reels to real workouts · iPhone",
+    default: "Fitfo — workout videos you train for real · iPhone",
     template: "%s · Fitfo",
   },
   description: DESCRIPTION,
@@ -91,7 +89,7 @@ export const metadata: Metadata = {
         url: OG_IMAGE_PATH,
         width: 1200,
         height: 630,
-        alt: "Fitfo: TikTok and Instagram workouts turned into structured training on iPhone",
+        alt: "Fitfo: workout videos turned into structured training on iPhone",
       },
     ],
   },
@@ -162,7 +160,7 @@ const structuredData = {
       applicationCategory: "HealthApplication",
       applicationSubCategory: "Workout tracker",
       description:
-        "Share any TikTok or Instagram Reel workout to Fitfo. AI extracts exercises, sets, and reps into a trainable workout.",
+        "Share a public workout video to Fitfo. AI extracts exercises, sets, and reps into a trainable workout.",
       image: `${SITE_URL}${OG_IMAGE_PATH}`,
       publisher: { "@id": `${SITE_URL}/#organization` },
       offers: {
@@ -171,7 +169,7 @@ const structuredData = {
         priceCurrency: "USD",
       },
       featureList: [
-        "Import public TikTok and Instagram workout videos",
+        "Import public workout videos from the share sheet",
         "Extract exercises, sets, reps, rest, and notes with AI",
         "Save, schedule, edit, and log workouts on iPhone",
         "Track workout history without ads",

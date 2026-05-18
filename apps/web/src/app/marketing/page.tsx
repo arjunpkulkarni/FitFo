@@ -78,18 +78,17 @@ export default function MarketingPage() {
             <div className="space-y-4 text-[14px] leading-relaxed text-[var(--text-secondary)] text-pretty">
               <p>
                 <strong className="text-[var(--text-primary)]">Fitfo</strong> is
-                a fitness app that turns TikTok and Instagram workout videos
-                into structured, followable training plans. Users share a
-                public video straight from TikTok or Reels into Fitfo, just
-                like sending it to a friend, and get back a clean card with
-                exercises, sets, reps, rest times, and notes, ready to save,
-                schedule, edit, and log.
+                a fitness app that turns short workout videos into structured,
+                followable training plans. Users share a public clip straight
+                from another app into Fitfo, just like sending it to a friend,
+                and get back a clean card with exercises, sets, reps, rest
+                times, and notes, ready to save, schedule, edit, and log.
               </p>
               <p>
                 The product sits at the intersection of three behaviors most
                 fitness apps ignore: people already follow creators on short
                 video, already take screenshots of workouts, and already feel
-                overwhelmed trying to reverse-engineer reels into real plans.
+                overwhelmed trying to reverse-engineer clips into real plans.
                 Fitfo closes the loop between &ldquo;inspiration&rdquo; and
                 &ldquo;execution.&rdquo;
               </p>

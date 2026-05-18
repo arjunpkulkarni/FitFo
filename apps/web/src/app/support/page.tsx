@@ -8,7 +8,7 @@ import { FITFO_PRODUCT_FAQ } from "@/content/fitfoProductFaq";
 export const metadata: Metadata = {
   title: "Support, FAQ, and Account Help",
   description:
-    "Fitfo FAQ: TikTok and Instagram imports, logging, AI coach, scheduling, free trial and pricing. Plus SMS sign-in, account deletion, creator takedowns, and privacy.",
+    "Fitfo FAQ: video imports, logging, AI coach, scheduling, free trial and pricing. Plus SMS sign-in, account deletion, creator takedowns, and privacy.",
   alternates: {
     canonical: "/support",
   },
@@ -50,7 +50,7 @@ const ACCOUNT_FAQS: { q: string; a: ReactNode }[] = [
           workouts, so short, heavily-edited, or music-only videos can be tough.
         </p>
         <ul className="mt-3 list-disc space-y-1.5 pl-5">
-          <li>Make sure the source post is public (TikTok or Instagram Reels).</li>
+          <li>Make sure the source post is public in the app you shared from.</li>
           <li>
             Longer videos with clear voice-over or visible text work best. Think
             creator explanations rather than 10-second montages.
@@ -122,9 +122,7 @@ const ACCOUNT_FAQS: { q: string; a: ReactNode }[] = [
           Yes. Fitfo does not host or redistribute any third-party video
           content. When you share a video into Fitfo, we extract factual
           exercise data (names, sets, reps) and always link back to the
-          original post via the &ldquo;View on TikTok&rdquo; or &ldquo;View on
-          Instagram&rdquo; button on every imported workout. If you&apos;re a
-          creator and want your content removed, email{" "}
+          original post on every imported workout. If you&apos;re a creator and want your content removed, email{" "}
           <a
             href="mailto:nirv@fitfo.app"
             className="text-[var(--primary-bright)] underline underline-offset-2"
@@ -171,15 +169,6 @@ const PRODUCT_FAQ_ENTRIES: { q: string; a: ReactNode }[] =
             rel="noopener noreferrer"
           >
             @fitfo.app on Instagram
-          </a>{" "}
-          and{" "}
-          <a
-            href="https://www.tiktok.com/@fitfo.app"
-            className="text-[var(--primary-bright)] underline underline-offset-2"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            @fitfo.app on TikTok
           </a>{" "}
           and you&apos;ll see it the moment it ships.
         </p>

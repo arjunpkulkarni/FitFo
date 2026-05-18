@@ -58,9 +58,10 @@ export default function OpenAppLanding() {
           Get the Fitfo app
         </h1>
         <p className="text-pretty text-text-secondary">
-          If Fitfo doesn&apos;t open automatically, tap the button below. On
-          TikTok-style browsers, HTTPS links behave more reliably than custom
-          URL schemes—that&apos;s why you landed here before the App&nbsp;Store.
+          If Fitfo doesn&apos;t open automatically, tap the button below.
+          Embedded and in-app browsers often handle HTTPS links more reliably
+          than custom URL schemes—that&apos;s why you landed here before the
+          App&nbsp;Store.
         </p>
       </div>
 

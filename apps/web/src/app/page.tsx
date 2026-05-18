@@ -20,7 +20,7 @@ const IMG = {
 const HERO_DEMO_MP4 = "/assets/my-workout.mp4";
 const STRIP_LOGO = "/assets/logo.png";
 
-/** Approx. primary-platform reach (TikTok + IG, etc.). Update from profiles periodically. */
+/** Approx. combined reach on social. Update from profiles periodically. */
 const TEAM = [
   { src: "/assets/team/jacob.jpg", name: "Jacob", followersApprox: 1_000_000 },
   { src: "/assets/team/nirv.png", name: "Nirv", followersApprox: 40_000 },
@@ -56,7 +56,6 @@ export default function LandingPage() {
         <VisualStrip />
         <CoachSection />
         <Team />
-        <Closer />
       </main>
       <Reveal when="load" delay={920} variant="up" className="w-full shrink-0">
         <Footer />
@@ -105,7 +104,7 @@ function Hero() {
             className="animate-blur-fade-up mt-7 max-w-[440px] text-[15px] font-normal leading-relaxed text-white/82 sm:mt-8 sm:text-[16px]"
             style={{ animationDelay: "240ms" }}
           >
-            Your TikToks &amp; Reels → a real workout in the app.
+            Videos from your feed → a real workout in the app.
             Tap share. Train it. Done.
           </p>
 
@@ -140,7 +139,7 @@ function Hero() {
             />
             <HeroDemoVideo
               src={HERO_DEMO_MP4}
-              label="Fitfo turning a TikTok workout into sets and reps"
+              label="Fitfo turning a workout video into sets and reps"
             />
           </div>
         </div>
@@ -295,7 +294,7 @@ function CoachSection() {
             </h2>
             <p className="mt-4 text-[15px] leading-relaxed text-white/65 text-pretty">
               Fitfo Coach is tied to the session on your screen: exercises, sets,
-              rest, and the reel you imported, so cues and swaps actually match
+              rest, and the video you imported, so cues and swaps actually match
               what you&apos;re doing right now.
             </p>
             <ul className="mt-8 space-y-3 text-[14px] leading-snug text-white/72">
@@ -393,7 +392,7 @@ function Team() {
               ~{formatFollowerShort(TEAM_COMBINED_FOLLOWERS_APPROX)}+
             </span>{" "}
             combined followers{" "}
-            <span className="text-white/40">(TikTok, Instagram)</span>
+            <span className="text-white/40">(social)</span>
           </p>
         </Reveal>
         <div className="mx-auto mt-12 grid max-w-2xl grid-cols-1 gap-12 sm:max-w-none sm:grid-cols-3 sm:gap-10">
@@ -434,54 +433,6 @@ function Team() {
             </Reveal>
           ))}
         </div>
-      </div>
-    </section>
-  );
-}
-
-function Closer() {
-  return (
-    <section id="download" className="scroll-mt-20 pb-12 pt-8 sm:pb-14">
-      <div className={`mx-auto ${LANDING_CONTENT_MAX} px-4 sm:px-6`}>
-        <Reveal when="load" delay={960} variant="scale">
-          <div className="relative overflow-hidden rounded-[28px] border border-white/[0.08] px-5 pb-8 pt-9 sm:px-8 sm:pb-9 sm:pt-10 lg:px-10 lg:pb-10 lg:pt-11">
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[rgba(255,90,20,0.12)] via-transparent to-black/80"
-            />
-            <div
-              aria-hidden
-              className="bg-orange-glow glow-breathe pointer-events-none absolute -bottom-20 left-1/2 h-[280px] w-[min(720px,92vw)] -translate-x-1/2 opacity-60 blur-3xl"
-            />
-            <div className="relative w-full text-center">
-              <h2
-                className="text-[clamp(1.5rem,4vw,2.25rem)] font-semibold leading-tight tracking-[-0.03em] text-white"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                Already saw the TikTok?
-                <br />
-                Open{" "}
-                <span className="text-[var(--primary-bright)]">Fitfo</span>.
-              </h2>
-              <p className="mx-auto mt-4 w-full max-w-none text-[15px] leading-relaxed text-white/68">
-                Takes a second to install. Your next workout might already be
-                in your FYP.
-              </p>
-              <a
-                href={APP_STORE_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="group glass-cta-primary mt-8 inline-flex min-h-[52px] w-full max-w-none items-center justify-center gap-2 rounded-full px-8 text-[16px] font-bold"
-              >
-                Get the app
-                <ArrowRight
-                  className="h-4 w-4 transition-transform group-hover:translate-x-1"
-                  strokeWidth={2.5}
-                />
-              </a>
-            </div>
-          </div>
-        </Reveal>
       </div>
     </section>
   );
