@@ -23,8 +23,8 @@ export function Footer() {
               />
             </Link>
             <p className="mt-4 text-[13px] leading-relaxed text-white/65 text-pretty">
-              TikTok &amp; Reels → real workouts on your phone. Tap share. Hit
-              the gym.
+              Workout videos → real training on your phone. Tap share. Hit the
+              gym.
             </p>
           </div>
 

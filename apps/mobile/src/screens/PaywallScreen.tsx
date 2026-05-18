@@ -15,6 +15,7 @@ import { usePostHog } from "posthog-react-native";
 import type { PurchasesPackage } from "react-native-purchases";
 
 import { PRIVACY_URL, TERMS_URL } from "../lib/legal";
+import { captureProduct } from "../lib/productAnalytics";
 import {
   getPaywallPackages,
   isRevenueCatNativePaywallSupported,
@@ -45,6 +46,8 @@ interface PaywallScreenProps {
   onRestorePurchases: () => Promise<boolean>;
   /** Called when entitlements unlock (success or restore). Parent should refresh + route Home. */
   onUnlocked: () => void;
+  /** Optional breakdown dimensions (variant, timing, imports, etc.). */
+  analyticsContext?: Record<string, unknown>;
   themeMode?: ThemeMode;
 }
 
@@ -88,6 +91,7 @@ export function PaywallScreen({
   onPurchasePackage,
   onRestorePurchases,
   onUnlocked,
+  analyticsContext,
   themeMode = "dark",
 }: PaywallScreenProps) {
   const posthog = usePostHog();
@@ -115,7 +119,24 @@ export function PaywallScreen({
       return;
     }
     tracked.current = true;
-    posthog.capture("paywall_viewed");
+    captureProduct(posthog, "paywall_viewed", {
+      ...analyticsContext,
+      default_plan: "annual",
+    });
+  }, [analyticsContext, posthog]);
+
+  const analyticsRef = useRef(analyticsContext);
+  const selectedPlanRef = useRef(selectedPlan);
+  analyticsRef.current = analyticsContext;
+  selectedPlanRef.current = selectedPlan;
+
+  useEffect(() => {
+    return () => {
+      captureProduct(posthog, "paywall_closed", {
+        ...analyticsRef.current,
+        selected_plan: selectedPlanRef.current,
+      });
+    };
   }, [posthog]);
 
   // Fetch live App Store pricing via RevenueCat. Extracted so the "Retry"
@@ -196,8 +217,12 @@ export function PaywallScreen({
       return;
     }
     pricingUnavailableTracked.current = true;
-    posthog.capture("paywall_pricing_unavailable");
-  }, [pricingFailedToLoad, posthog]);
+    captureProduct(posthog, "paywall_pricing_unavailable", analyticsContext ?? {});
+    captureProduct(posthog, "paywall_error", {
+      ...analyticsContext,
+      reason: "pricing_unavailable",
+    });
+  }, [analyticsContext, pricingFailedToLoad, posthog]);
 
   const trialEndLabel = useMemo(() => formatTrialEndDate(TRIAL_DAYS), []);
 
@@ -211,6 +236,12 @@ export function PaywallScreen({
     if (busy) {
       return;
     }
+
+    captureProduct(posthog, "paywall_cta_tapped", {
+      ...analyticsContext,
+      plan: selectedPlan,
+    });
+
     if (!sdkOk) {
       Alert.alert(
         "Subscriptions unavailable",
@@ -233,10 +264,16 @@ export function PaywallScreen({
     try {
       const unlocked = await onPurchasePackage(selectedPackage);
       if (unlocked) {
-        posthog.capture("subscription_started", {
+        captureProduct(posthog, "subscription_started", {
+          ...analyticsContext,
           plan: selectedPlan,
           package_id: selectedPackage.identifier,
           product_id: selectedPackage.product.identifier,
+        });
+        captureProduct(posthog, "trial_started", {
+          ...analyticsContext,
+          plan: selectedPlan,
+          trial_days: TRIAL_DAYS,
         });
         // Entitlements update inside `onPurchasePackage` before this continuation
         // runs, so the parent may switch to the main app and unmount this screen
@@ -246,6 +283,11 @@ export function PaywallScreen({
         setPurchaseSucceeded(true);
       }
     } catch {
+      captureProduct(posthog, "paywall_error", {
+        ...analyticsContext,
+        reason: "purchase_exception",
+        plan: selectedPlan,
+      });
       Alert.alert(
         "Purchase failed",
         "Something went wrong. Please try again or use Restore purchases.",
@@ -259,11 +301,12 @@ export function PaywallScreen({
     if (busy) {
       return;
     }
+    captureProduct(posthog, "restore_purchase_tapped", analyticsContext ?? {});
     setPurchasingId("restore");
     try {
       const unlocked = await onRestorePurchases();
       if (unlocked) {
-        posthog.capture("subscription_restored");
+        captureProduct(posthog, "subscription_restored", analyticsContext ?? {});
         onUnlocked();
         setPurchaseSucceeded(true);
         return;
@@ -454,7 +497,10 @@ export function PaywallScreen({
           accessibilityState={{ selected: selectedPlan === "annual" }}
           accessibilityLabel="Select annual plan"
           disabled={busy}
-          onPress={() => setSelectedPlan("annual")}
+          onPress={() => {
+            setSelectedPlan("annual");
+            captureProduct(posthog, "plan_selected_annual", analyticsContext ?? {});
+          }}
           style={({ pressed }) => [
             styles.planCard,
             selectedPlan === "annual" ? styles.planCardSelected : null,
@@ -513,7 +559,10 @@ export function PaywallScreen({
           accessibilityState={{ selected: selectedPlan === "monthly" }}
           accessibilityLabel="Select monthly plan"
           disabled={busy}
-          onPress={() => setSelectedPlan("monthly")}
+          onPress={() => {
+            setSelectedPlan("monthly");
+            captureProduct(posthog, "plan_selected_monthly", analyticsContext ?? {});
+          }}
           style={({ pressed }) => [
             styles.planCard,
             selectedPlan === "monthly" ? styles.planCardSelected : null,

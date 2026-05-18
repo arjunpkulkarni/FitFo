@@ -4,15 +4,14 @@
  */
 export const FITFO_PRODUCT_FAQ: { question: string; answer: string }[] = [
   {
-    question:
-      "How does Fitfo turn a TikTok or Instagram workout into a trackable workout?",
+    question: "How does Fitfo turn a workout video into a trackable workout?",
     answer:
-      "When you find a workout video on TikTok or Instagram, hit the native share button and pick Fitfo from the share sheet. It's as easy as sending the video to a friend, except you're sending it to Fitfo. Our AI reads the video's audio, on-screen text, and exercise cues, then builds a clean, editable workout with sets, reps, and rest periods in about 30 seconds.",
+      "When you find a workout video in another app, hit the native share button and pick Fitfo from the share sheet. It's as easy as sending the video to a friend, except you're sending it to Fitfo. Our AI reads the video's audio, on-screen text, and exercise cues, then builds a clean, editable workout with sets, reps, and rest periods in about 30 seconds.",
   },
   {
-    question: "Does Fitfo work with both TikTok and Instagram Reels?",
+    question: "Does Fitfo work with videos from different apps?",
     answer:
-      "Yes. Fitfo supports share-to-import from both TikTok and Instagram Reels. Anywhere you can hit the share button on a fitness video, you can send it to Fitfo. You can also create your workouts manually inside the app if you'd rather build them from scratch.",
+      "Yes. Fitfo supports share-to-import wherever you can share a public fitness video into the share sheet. Anywhere you can hit share on a workout clip, you can send it to Fitfo. You can also create your workouts manually inside the app if you'd rather build them from scratch.",
   },
   {
     question: "Is Fitfo free?",
@@ -48,7 +47,7 @@ export const FITFO_PRODUCT_FAQ: { question: string; answer: string }[] = [
     question:
       "How is Fitfo different from Hevy, Strong, Strava, or other workout logger apps?",
     answer:
-      "Hevy and Strong are workout loggers where you build the workout yourself. Strava is for cardio and social. Fitfo is the only app that lets you import a workout directly from a TikTok or Instagram video via the share sheet, then log it. On top of that, our AI coach is trained on your specific workout and on muscle-building principles, so you can ask it questions and it knows exactly what you're doing.",
+      "Hevy and Strong are workout loggers where you build the workout yourself. Strava is for cardio and social. Fitfo is built to import a workout directly from a shareable fitness video, then log it. On top of that, our AI coach is trained on your specific workout and on muscle-building principles, so you can ask it questions and it knows exactly what you're doing.",
   },
   {
     question: "Can I schedule workouts for the week?",
@@ -58,7 +57,7 @@ export const FITFO_PRODUCT_FAQ: { question: string; answer: string }[] = [
   {
     question: "Is Fitfo available on Android?",
     answer:
-      "Not yet. Fitfo is currently iOS-only on the App Store. We don't have a waitlist, but if you want to know when Android launches, follow @fitfo.app on Instagram and TikTok and you'll see it the moment it ships.",
+      "Not yet. Fitfo is currently iOS-only on the App Store. We don't have a waitlist, but if you want to know when Android launches, follow @fitfo.app on Instagram and you'll see it the moment it ships.",
   },
   {
     question: "What kind of workouts work best with Fitfo?",

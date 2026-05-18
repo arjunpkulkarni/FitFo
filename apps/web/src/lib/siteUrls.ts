@@ -13,7 +13,7 @@ export const APP_STORE_URL =
   `https://apps.apple.com/us/app/id${APP_STORE_ID}`;
 
 /**
- * Fallback custom-scheme opener for TikTok / in-app WKWebViews where HTTPS
+ * Fallback custom-scheme opener for in-app browsers / WKWebViews where HTTPS
  * Universal Links fail. Do not expose this bare URL off-site; funnel users
  * through {@link OPEN_APP_WEB_PATH}.
  */
