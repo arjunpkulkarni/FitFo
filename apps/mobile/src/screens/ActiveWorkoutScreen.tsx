@@ -27,12 +27,75 @@ import CoachSheet, { type CoachChatMessage } from "../components/CoachSheet";
 import { resolveExerciseRestBaseline, titleCase } from "../lib/fitfo";
 import type { WorkoutContext as ChatWorkoutContext } from "../lib/chat";
 import { F } from "../lib/fonts";
+import { LiveWorkoutActivity } from "../lib/liveWorkoutActivity";
 import { getTheme, radii, type ThemeMode } from "../theme";
 import type {
   ActiveExercisePreview,
   ActiveSessionPreview,
   ActiveSetPreview,
 } from "../types";
+
+interface LiveActivityProgress {
+  exerciseName: string;
+  currentSet: number;
+  totalSets: number;
+  phase: "active" | "rest" | "ready";
+  restEndAt: number | null;
+  nextSet: number | null;
+}
+
+/**
+ * Pick the exercise the user is currently working through and derive the
+ * 1-based currentSet/totalSets/nextSet that drive the Live Activity payload.
+ *
+ * Strategy: skip exercises whose sets are all completed. For the first
+ * remaining exercise, the current set is the first incomplete set; the next
+ * set is the one after it (or null if it's the last).
+ */
+function deriveLiveActivityProgress(
+  exercises: ActiveExercisePreview[],
+  restTargetSeconds: number | null,
+  restElapsedSeconds: number,
+): LiveActivityProgress | null {
+  if (!exercises.length) return null;
+
+  let active: ActiveExercisePreview | null = null;
+  for (const exercise of exercises) {
+    if (exercise.sets.length === 0) continue;
+    const hasIncomplete = exercise.sets.some((set) => !set.completed);
+    if (hasIncomplete) {
+      active = exercise;
+      break;
+    }
+  }
+  if (!active) {
+    active = exercises[exercises.length - 1];
+  }
+
+  const totalSets = active.sets.length || 1;
+  const incompleteIndex = active.sets.findIndex((set) => !set.completed);
+  const currentSetIndex = incompleteIndex >= 0 ? incompleteIndex : totalSets - 1;
+  const currentSet = currentSetIndex + 1;
+  const nextSetCandidate = currentSetIndex + 1;
+  const nextSet = nextSetCandidate < totalSets ? nextSetCandidate + 1 : null;
+
+  const isResting =
+    restTargetSeconds != null &&
+    restTargetSeconds > 0 &&
+    restElapsedSeconds < restTargetSeconds;
+  const restEndAt = isResting
+    ? Date.now() + Math.max(0, restTargetSeconds! - restElapsedSeconds) * 1000
+    : null;
+
+  return {
+    exerciseName: (active.name || "Exercise").trim() || "Exercise",
+    currentSet,
+    totalSets,
+    phase: isResting ? "rest" : "active",
+    restEndAt,
+    nextSet,
+  };
+}
 
 interface ActiveWorkoutScreenProps {
   session: ActiveSessionPreview;
@@ -950,6 +1013,51 @@ export function ActiveWorkoutScreen({
     lastWorkoutTickRef.current = now;
     lastRestTickRef.current = now;
   }, [session]);
+
+  // Live Activity (iOS Lock Screen / Dynamic Island). The activity keeps running
+  // even when this screen is unmounted (e.g. the athlete backs out to the hub
+  // while still mid-workout), so we only `start` here and let `onFinish` end it.
+  // The native module's `start` is idempotent — it `update`s an existing activity
+  // if one is already in flight, so remounting just resyncs the latest payload.
+  const liveActivityLastPayloadRef = useRef<string | null>(null);
+
+  const liveActivityProgress = useMemo(
+    () =>
+      deriveLiveActivityProgress(exercises, restTargetSeconds, restElapsedSeconds),
+    [exercises, restElapsedSeconds, restTargetSeconds],
+  );
+
+  useEffect(() => {
+    if (!LiveWorkoutActivity.isAvailable() || !liveActivityProgress) {
+      return;
+    }
+    const workoutName = (session.title || "Workout").trim() || "Workout";
+    const payload = {
+      workoutName,
+      exerciseName: liveActivityProgress.exerciseName,
+      currentSet: liveActivityProgress.currentSet,
+      totalSets: liveActivityProgress.totalSets,
+      phase: liveActivityProgress.phase,
+      restEndAt: liveActivityProgress.restEndAt,
+      nextSet: liveActivityProgress.nextSet,
+    } as const;
+
+    // Bucket `restEndAt` to the nearest second so we don't push a new payload
+    // every render — the widget renders the countdown natively from the same
+    // end-time, so jitter at sub-second granularity doesn't matter.
+    const key = JSON.stringify({
+      ...payload,
+      restEndAt: payload.restEndAt
+        ? Math.floor((payload.restEndAt as number) / 1000)
+        : null,
+    });
+    if (liveActivityLastPayloadRef.current === key) {
+      return;
+    }
+    liveActivityLastPayloadRef.current = key;
+
+    void LiveWorkoutActivity.start(payload);
+  }, [liveActivityProgress, session.title]);
 
   const measureCoachButton = useCallback(() => {
     if (!onCoachButtonMeasured) {

@@ -82,6 +82,7 @@ export default {
         },
       ],
       "./plugins/withIosShareExtensionManualInfoPlist.js",
+      "./plugins/withFitFoLiveActivity.js",
     ],
     extra: {
       posthogProjectToken: process.env.POSTHOG_PROJECT_TOKEN,

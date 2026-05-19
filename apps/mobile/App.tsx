@@ -97,6 +97,7 @@ import { submitCancelFeedback } from "./src/lib/cancelFeedback";
 import { humanizeIngestError } from "./src/lib/ingestErrors";
 import { openFeatureSuggestion } from "./src/lib/featureSuggestion";
 import { hasBillingBypassForUser } from "./src/lib/billingBypass";
+import { LiveWorkoutActivity } from "./src/lib/liveWorkoutActivity";
 import { signInWithApple } from "./src/lib/appleAuth";
 import {
   buildCompletedWorkoutRequest,
@@ -716,6 +717,7 @@ export default function App() {
     setActiveSession(null);
     setIsActiveWorkoutVisible(false);
     setCoachMessagesByStartedAt({});
+    void LiveWorkoutActivity.end();
     setSelectedCompletedWorkout(null);
     setSelectedSavedRoutine(null);
   }, []);
@@ -2484,6 +2486,7 @@ export default function App() {
       setActiveSession(null);
       setIsActiveWorkoutVisible(false);
       setActiveTab("logs");
+      void LiveWorkoutActivity.end();
 
       if (finishedCoachKey) {
         setCoachMessagesByStartedAt((prev) => {
