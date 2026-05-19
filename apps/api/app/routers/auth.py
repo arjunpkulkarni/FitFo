@@ -18,6 +18,8 @@ from app.schemas.auth import (
     PatchProfileRequest,
     RegisterExpoPushTokenRequest,
     RegisterExpoPushTokenResponse,
+    SaveInstagramHandleRequest,
+    SaveInstagramHandleResponse,
     SaveOnboardingRequest,
     SaveOnboardingResponse,
     SaveUsernameRequest,
@@ -35,6 +37,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 USERNAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9_]{1,18}[a-z0-9])$")
+INSTAGRAM_HANDLE_RE = re.compile(r"^[a-z0-9](?:[a-z0-9._]{0,28}[a-z0-9])?$")
 
 
 def _phone_log_hint(canonical_e164: str) -> str:
@@ -99,6 +102,20 @@ def _clean_username(username: str) -> str:
             detail=(
                 "Username must be 3-20 characters using lowercase letters, "
                 "numbers, and underscores, and cannot start or end with an underscore."
+            ),
+        )
+    return clean
+
+
+def _clean_instagram_handle(handle: str) -> str:
+    clean = (handle or "").strip().lower().lstrip("@")
+    if not INSTAGRAM_HANDLE_RE.fullmatch(clean):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Instagram handle must be 1-30 characters using lowercase letters, "
+                "numbers, periods, and underscores, and cannot start or end with "
+                "a period or underscore."
             ),
         )
     return clean
@@ -612,6 +629,33 @@ def save_username(
     except Exception as exc:
         raise HTTPException(
             status_code=500, detail=f"Failed to save username: {exc}"
+        ) from exc
+
+
+@router.put("/instagram-handle", response_model=SaveInstagramHandleResponse)
+def save_instagram_handle(
+    body: SaveInstagramHandleRequest,
+    profile_id: str = Depends(require_profile_id),
+) -> SaveInstagramHandleResponse:
+    clean = _clean_instagram_handle(body.instagram_handle)
+    try:
+        profile = supabase_db.update_profile_instagram_handle(
+            profile_id, instagram_handle=clean
+        )
+        return SaveInstagramHandleResponse(
+            ok=True,
+            profile=embed_fitfo_pro_bypass(profile),
+            message="Instagram handle saved.",
+        )
+    except supabase_db.ProfileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except supabase_db.SupabaseNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to save Instagram handle: {exc}"
         ) from exc
 
 

@@ -18,7 +18,11 @@
       "bundleIdentifier": "com.fitfo.mobile",
       "buildNumber": "20",
       "icon": "./assets/vector-no-bg.png",
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "CFBundleDisplayName": "Fitfo",
+        "CFBundleName": "Fitfo"
+      }
     },
     "android": {
       "adaptiveIcon": {

@@ -14,6 +14,8 @@ import type {
   JobResponse,
   MeResponse,
   PatchProfileRequest,
+  SaveInstagramHandleRequest,
+  SaveInstagramHandleResponse,
   SaveOnboardingRequest,
   SaveOnboardingResponse,
   SaveUsernameRequest,
@@ -446,6 +448,17 @@ export async function saveUsername(
   body: SaveUsernameRequest,
 ): Promise<SaveUsernameResponse> {
   return request<SaveUsernameResponse>("/auth/username", {
+    method: "PUT",
+    accessToken,
+    body: JSON.stringify(body),
+  });
+}
+
+export async function saveInstagramHandle(
+  accessToken: string,
+  body: SaveInstagramHandleRequest,
+): Promise<SaveInstagramHandleResponse> {
+  return request<SaveInstagramHandleResponse>("/auth/instagram-handle", {
     method: "PUT",
     accessToken,
     body: JSON.stringify(body),

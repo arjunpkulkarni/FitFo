@@ -81,6 +81,7 @@ export interface UserProfile {
   id: string;
   full_name: string;
   username?: string | null;
+  instagram_handle?: string | null;
   phone: string | null;
   email: string | null;
   apple_user_id: string | null;
@@ -211,6 +212,16 @@ export interface UsernameCheckResponse {
 }
 
 export interface SaveUsernameResponse {
+  ok: boolean;
+  profile: UserProfile;
+  message: string;
+}
+
+export interface SaveInstagramHandleRequest {
+  instagram_handle: string;
+}
+
+export interface SaveInstagramHandleResponse {
   ok: boolean;
   profile: UserProfile;
   message: string;

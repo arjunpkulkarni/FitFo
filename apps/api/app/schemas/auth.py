@@ -44,6 +44,7 @@ class UserProfileResponse(BaseModel):
     id: str
     full_name: str
     username: Optional[str] = None
+    instagram_handle: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     apple_user_id: Optional[str] = None
@@ -118,6 +119,16 @@ class SaveUsernameRequest(BaseModel):
 
 
 class SaveUsernameResponse(BaseModel):
+    ok: bool
+    profile: UserProfileResponse
+    message: str
+
+
+class SaveInstagramHandleRequest(BaseModel):
+    instagram_handle: str = Field(..., min_length=1, max_length=30)
+
+
+class SaveInstagramHandleResponse(BaseModel):
     ok: bool
     profile: UserProfileResponse
     message: str

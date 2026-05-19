@@ -860,6 +860,22 @@ def update_profile_username(profile_id: str, *, username: str) -> Dict[str, Any]
     return _attach_profile_onboarding(result.data[0])
 
 
+def update_profile_instagram_handle(
+    profile_id: str, *, instagram_handle: str
+) -> Dict[str, Any]:
+    clean = instagram_handle.strip().lower().lstrip("@")
+    supa = get_supabase()
+    result = (
+        supa.table("profiles")
+        .update({"instagram_handle": clean})
+        .eq("id", profile_id)
+        .execute()
+    )
+    if not result.data:
+        raise ProfileNotFoundError(f"Profile {profile_id} not found")
+    return _attach_profile_onboarding(result.data[0])
+
+
 # Tables that own per-user rows and must be purged when a profile is deleted.
 # Order is child-first so foreign keys don't block the cascade even if
 # individual FK constraints aren't `on delete cascade` in the DB.

@@ -26,6 +26,10 @@ import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "./src/lib/posthog";
 import { applyDefaultFont } from "./src/lib/fonts";
 import { AddWorkoutModal } from "./src/components/AddWorkoutModal";
+import {
+  CancellationFeedbackModal,
+  type CancellationFeedbackSubmit,
+} from "./src/components/CancellationFeedbackModal";
 import type { CoachChatMessage } from "./src/components/CoachSheet";
 import { FirstHubTipModal } from "./src/components/FirstHubTipModal";
 import { PostPaywallWelcomeModal } from "./src/components/PostPaywallWelcomeModal";
@@ -77,6 +81,7 @@ import {
   listSavedWorkouts,
   listScheduledWorkouts,
   patchProfile,
+  saveInstagramHandle,
   saveOnboarding,
   saveUsername,
   saveWorkoutForLater,
@@ -86,6 +91,9 @@ import {
   uploadProfileAvatar,
   verifyOtp,
 } from "./src/lib/api";
+import * as Application from "expo-application";
+
+import { submitCancelFeedback } from "./src/lib/cancelFeedback";
 import { humanizeIngestError } from "./src/lib/ingestErrors";
 import { openFeatureSuggestion } from "./src/lib/featureSuggestion";
 import { hasBillingBypassForUser } from "./src/lib/billingBypass";
@@ -151,6 +159,7 @@ import { LogsScreen } from "./src/screens/LogsScreen";
 import { OtpVerificationScreen } from "./src/screens/OtpVerificationScreen";
 import { PaywallScreen } from "./src/screens/PaywallScreen";
 import { TrialExplainerScreen } from "./src/screens/TrialExplainerScreen";
+import { InstagramHandleScreen } from "./src/screens/InstagramHandleScreen";
 import { UsernameScreen } from "./src/screens/UsernameScreen";
 import { ProfileScreen } from "./src/screens/ProfileScreen";
 import { ProgressChartsScreen } from "./src/screens/ProgressChartsScreen";
@@ -301,6 +310,10 @@ export default function App() {
     useState<PendingOtpChallenge | null>(null);
   const [isUsernameSubmitting, setIsUsernameSubmitting] = useState(false);
   const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [pendingInstagramOnboarding, setPendingInstagramOnboarding] =
+    useState(false);
+  const [isInstagramSubmitting, setIsInstagramSubmitting] = useState(false);
+  const [instagramError, setInstagramError] = useState<string | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isMinSplashDone, setIsMinSplashDone] = useState(false);
   useEffect(() => {
@@ -398,6 +411,10 @@ export default function App() {
   const [csvImportStatus, setCsvImportStatus] = useState<
     { kind: "success" | "error"; message: string } | null
   >(null);
+  const [isCancellationFeedbackVisible, setIsCancellationFeedbackVisible] =
+    useState(false);
+  const [isCancellationFeedbackSubmitting, setIsCancellationFeedbackSubmitting] =
+    useState(false);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkoutRecord[]>(
     [],
   );
@@ -1917,6 +1934,98 @@ export default function App() {
     }
   }, [accessToken, isImportingCsv]);
 
+  /**
+   * Wraps RevenueCat's customer-center entry point with a "why are you
+   * canceling?" intermediary. The modal is only shown for users who actually
+   * have an active Fitfo Pro subscription — for everyone else (restore-
+   * purchase taps, expired subs, bypass accounts) we fall straight through.
+   *
+   * Both modal CTAs (Submit and Skip) end up at the same place, the native
+   * customer center, in line with Apple's guideline that we must not block
+   * cancellation on collecting feedback.
+   */
+  const proceedToCustomerCenter = useCallback(async (): Promise<boolean> => {
+    try {
+      return await revenueCat.openCustomerCenter();
+    } catch (error) {
+      console.warn("[Fitfo] openCustomerCenter failed", error);
+      return false;
+    }
+  }, [revenueCat]);
+
+  const handleManageSubscription = useCallback(async (): Promise<boolean> => {
+    if (!revenueCat.hasPro) {
+      return proceedToCustomerCenter();
+    }
+    setIsCancellationFeedbackVisible(true);
+    return true;
+  }, [proceedToCustomerCenter, revenueCat.hasPro]);
+
+  const handleCancellationFeedbackSubmit = useCallback(
+    async ({ reason, freeText }: CancellationFeedbackSubmit) => {
+      if (isCancellationFeedbackSubmitting) {
+        return;
+      }
+      setIsCancellationFeedbackSubmitting(true);
+
+      // Capture the local PostHog event regardless of webhook outcome — that
+      // way analytics stays accurate even if the Google Sheet write hiccups.
+      posthog.capture("trial_cancellation_feedback_submitted", {
+        reason,
+        has_free_text: freeText.length > 0,
+        free_text_length: freeText.length,
+      });
+
+      const sent = await submitCancelFeedback({
+        reason,
+        freeText,
+        user: {
+          id: currentUser?.id ?? null,
+          email: currentUser?.email ?? null,
+          username: currentUser?.username ?? null,
+        },
+        appVersion: Application.nativeApplicationVersion ?? null,
+      });
+
+      if (!sent) {
+        // Don't block the user. Log so we can spot a broken webhook in
+        // PostHog (the "submitted" event has no companion "delivered" event
+        // when the webhook fails).
+        console.warn(
+          "[Fitfo] cancel feedback webhook did not confirm delivery",
+        );
+      }
+
+      setIsCancellationFeedbackSubmitting(false);
+      setIsCancellationFeedbackVisible(false);
+      await proceedToCustomerCenter();
+    },
+    [
+      currentUser?.email,
+      currentUser?.id,
+      currentUser?.username,
+      isCancellationFeedbackSubmitting,
+      proceedToCustomerCenter,
+    ],
+  );
+
+  const handleCancellationFeedbackSkip = useCallback(() => {
+    if (isCancellationFeedbackSubmitting) {
+      return;
+    }
+    posthog.capture("trial_cancellation_feedback_skipped");
+    setIsCancellationFeedbackVisible(false);
+    void proceedToCustomerCenter();
+  }, [isCancellationFeedbackSubmitting, proceedToCustomerCenter]);
+
+  const handleCancellationFeedbackClose = useCallback(() => {
+    if (isCancellationFeedbackSubmitting) {
+      return;
+    }
+    posthog.capture("trial_cancellation_feedback_dismissed");
+    setIsCancellationFeedbackVisible(false);
+  }, [isCancellationFeedbackSubmitting]);
+
   const handleUnscheduleWorkout = useCallback(
     (
       scheduledWorkoutId: string,
@@ -2471,6 +2580,104 @@ export default function App() {
     [resetPostLoginState],
   );
 
+  const shouldShowInstagramOnboarding = useCallback(
+    (profile: UserProfile) =>
+      Boolean(authLandingOnboardingPayload && !profile.onboarding),
+    [authLandingOnboardingPayload],
+  );
+
+  const finalizeAuthSession = useCallback(
+    async (profile: UserProfile, token: string) => {
+      if (shouldShowInstagramOnboarding(profile)) {
+        await storeAuthSession(token, profile);
+        applyAuthenticatedSession(profile, token);
+        setPendingInstagramOnboarding(true);
+        return profile;
+      }
+
+      const updated = await applyAuthLandingOnboarding(profile, token);
+      await storeAuthSession(token, updated);
+      applyAuthenticatedSession(updated, token);
+      setPendingInstagramOnboarding(false);
+      return updated;
+    },
+    [
+      applyAuthLandingOnboarding,
+      applyAuthenticatedSession,
+      shouldShowInstagramOnboarding,
+    ],
+  );
+
+  const completeSignupOnboardingAfterInstagram = useCallback(async (
+    profileOverride?: UserProfile,
+  ) => {
+    const baseProfile = profileOverride ?? currentUser;
+    if (!accessToken || !baseProfile) {
+      return;
+    }
+
+    setIsInstagramSubmitting(true);
+    setInstagramError(null);
+
+    try {
+      const finalProfile = await applyAuthLandingOnboarding(
+        baseProfile,
+        accessToken,
+      );
+      await storeAuthSession(accessToken, finalProfile);
+      setCurrentUser(finalProfile);
+      setPendingInstagramOnboarding(false);
+    } catch (error) {
+      setInstagramError(
+        error instanceof Error
+          ? error.message
+          : "Unable to finish setup right now.",
+      );
+    } finally {
+      setIsInstagramSubmitting(false);
+    }
+  }, [accessToken, applyAuthLandingOnboarding, currentUser]);
+
+  const handleInstagramOnboardingContinue = useCallback(
+    async (handle: string) => {
+      if (!accessToken || !currentUser) {
+        setInstagramError("You need to be signed in to save your Instagram handle.");
+        return;
+      }
+
+      setIsInstagramSubmitting(true);
+      setInstagramError(null);
+
+      try {
+        const response = await saveInstagramHandle(accessToken, {
+          instagram_handle: handle,
+        });
+        posthog.capture("instagram_handle_added", {
+          user_id: response.profile.id,
+          instagram_handle: handle,
+        });
+        await completeSignupOnboardingAfterInstagram(response.profile);
+      } catch (error) {
+        setInstagramError(
+          error instanceof Error
+            ? error.message
+            : "Unable to save that Instagram handle right now.",
+        );
+        setIsInstagramSubmitting(false);
+      }
+    },
+    [accessToken, completeSignupOnboardingAfterInstagram, currentUser],
+  );
+
+  const handleInstagramOnboardingSkip = useCallback(async () => {
+    if (!accessToken || !currentUser) {
+      return;
+    }
+
+    posthog.capture("instagram_handle_skipped", { user_id: currentUser.id });
+    await completeSignupOnboardingAfterInstagram();
+  }, [accessToken, completeSignupOnboardingAfterInstagram, currentUser]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -2596,12 +2803,10 @@ export default function App() {
         email: credential.email ?? undefined,
       });
 
-      const profile = await applyAuthLandingOnboarding(
+      const profile = await finalizeAuthSession(
         response.profile,
         response.access_token,
       );
-      await storeAuthSession(response.access_token, profile);
-      applyAuthenticatedSession(profile, response.access_token);
       posthog.identify(profile.id, {
         $set: { name: profile.full_name, phone: profile.phone },
         $set_once: { first_sign_in_date: new Date().toISOString() },
@@ -2616,7 +2821,7 @@ export default function App() {
     } finally {
       setAuthSubmittingMode(null);
     }
-  }, [applyAuthLandingOnboarding, applyAuthenticatedSession]);
+  }, [finalizeAuthSession]);
 
   const handleLogin = useCallback(
     async (phone: string) => {
@@ -2708,12 +2913,10 @@ export default function App() {
             : {}),
         });
 
-        const profile = await applyAuthLandingOnboarding(
+        const profile = await finalizeAuthSession(
           response.profile,
           response.access_token,
         );
-        await storeAuthSession(response.access_token, profile);
-        applyAuthenticatedSession(profile, response.access_token);
         posthog.identify(profile.id, {
           $set: { name: profile.full_name, phone: profile.phone },
           $set_once: { first_sign_in_date: new Date().toISOString() },
@@ -2730,7 +2933,7 @@ export default function App() {
         setAuthSubmittingMode(null);
       }
     },
-    [applyAuthLandingOnboarding, applyAuthenticatedSession, pendingOtpChallenge],
+    [finalizeAuthSession, pendingOtpChallenge],
   );
 
   const handleResendOtp = useCallback(async () => {
@@ -2798,6 +3001,9 @@ export default function App() {
     setAuthPrefillPhone("");
     setAuthPrefillFullName("");
     setAuthSubmittingMode(null);
+    setPendingInstagramOnboarding(false);
+    setIsInstagramSubmitting(false);
+    setInstagramError(null);
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -3261,7 +3467,7 @@ export default function App() {
           onDeleteAccount={handleDeleteAccount}
           onManageProfilePhoto={handleManageProfilePhoto}
           isProfilePhotoBusy={isAvatarBusy}
-          onManageSubscription={revenueCat.openCustomerCenter}
+          onManageSubscription={handleManageSubscription}
           onThemeModeChange={handleThemeModeChange}
           onUpdateFullName={handleUpdateFullName}
           isDeletingAccount={isDeletingAccount}
@@ -3550,7 +3756,15 @@ export default function App() {
             />
           </View>
         ) : currentUser ? (
-          needsUsername ? (
+          pendingInstagramOnboarding ? (
+            <InstagramHandleScreen
+              error={instagramError}
+              isSubmitting={isInstagramSubmitting}
+              onContinue={handleInstagramOnboardingContinue}
+              onSkip={handleInstagramOnboardingSkip}
+              themeMode={themeMode}
+            />
+          ) : needsUsername ? (
             <UsernameScreen
               error={usernameError}
               isSubmitting={isUsernameSubmitting}
@@ -3599,7 +3813,7 @@ export default function App() {
               <PaywallScreen
                 error={revenueCat.error}
                 isLoading={revenueCat.isLoading}
-                onManageSubscription={revenueCat.openCustomerCenter}
+                onManageSubscription={handleManageSubscription}
                 onPurchasePackage={revenueCat.purchasePackage}
                 onRestorePurchases={revenueCat.restorePurchases}
                 onUnlocked={() => {
@@ -3741,6 +3955,15 @@ export default function App() {
         routine={latestImportedRoutine}
         themeMode={themeMode}
         visible={hasBillingAccess && isAddWorkoutVisible}
+      />
+
+      <CancellationFeedbackModal
+        isSubmitting={isCancellationFeedbackSubmitting}
+        onClose={handleCancellationFeedbackClose}
+        onSkip={handleCancellationFeedbackSkip}
+        onSubmit={handleCancellationFeedbackSubmit}
+        themeMode={themeMode}
+        visible={isCancellationFeedbackVisible}
       />
 
       <ScheduleAgainModal

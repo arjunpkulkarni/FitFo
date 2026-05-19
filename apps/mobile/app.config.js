@@ -24,6 +24,8 @@ export default {
       usesAppleSignIn: true,
       associatedDomains: [`applinks:${universalLinkHost}`],
       infoPlist: {
+        CFBundleDisplayName: "Fitfo",
+        CFBundleName: "Fitfo",
         LSApplicationQueriesSchemes: ["instagram", "tiktok", "snssdk1180"],
       },
     },
