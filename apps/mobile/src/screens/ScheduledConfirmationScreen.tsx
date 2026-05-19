@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef } from "react";
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { formatScheduleDateAndTime } from "../lib/scheduleTime";
 import { getTheme, type ThemeMode } from "../theme";
 
 interface ScheduledConfirmationScreenProps {
   title: string;
   scheduledFor: string;
+  scheduledTimeMinutes: number;
   origin: "share" | "manual";
   onDismiss: () => void;
   themeMode?: ThemeMode;
@@ -33,34 +35,10 @@ function pickLine(origin: "share" | "manual"): string {
   return bank[Math.floor(Math.random() * bank.length)];
 }
 
-function formatScheduledCopy(scheduledFor: string): string {
-  const parsed = new Date(scheduledFor);
-  if (Number.isNaN(parsed.getTime())) {
-    return scheduledFor;
-  }
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const reference = new Date(parsed);
-  reference.setHours(0, 0, 0, 0);
-  const diffDays = Math.round(
-    (reference.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-  );
-
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Tomorrow";
-  if (diffDays > 1 && diffDays < 7) {
-    return parsed.toLocaleDateString(undefined, { weekday: "long" });
-  }
-
-  return parsed.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
-
 export function ScheduledConfirmationScreen({
   title,
   scheduledFor,
+  scheduledTimeMinutes,
   origin,
   onDismiss,
   themeMode = "dark",
@@ -70,8 +48,8 @@ export function ScheduledConfirmationScreen({
 
   const punchline = useMemo(() => pickLine(origin), [origin]);
   const scheduledLabel = useMemo(
-    () => formatScheduledCopy(scheduledFor),
-    [scheduledFor],
+    () => formatScheduleDateAndTime(scheduledFor, scheduledTimeMinutes),
+    [scheduledFor, scheduledTimeMinutes],
   );
 
   const checkScale = useRef(new Animated.Value(0)).current;

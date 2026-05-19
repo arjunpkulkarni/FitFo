@@ -80,6 +80,7 @@ export interface WorkoutRow {
 export interface UserProfile {
   id: string;
   full_name: string;
+  username?: string | null;
   phone: string | null;
   email: string | null;
   apple_user_id: string | null;
@@ -198,6 +199,23 @@ export interface PatchProfileRequest {
   full_name: string;
 }
 
+export interface SaveUsernameRequest {
+  username: string;
+}
+
+export interface UsernameCheckResponse {
+  ok: boolean;
+  username: string;
+  available: boolean;
+  message: string;
+}
+
+export interface SaveUsernameResponse {
+  ok: boolean;
+  profile: UserProfile;
+  message: string;
+}
+
 export interface SaveOnboardingRequest {
   goals: OnboardingGoal[];
   sex: OnboardingSex;
@@ -250,6 +268,8 @@ export interface SavedRoutinePreview {
   jobId?: string | null;
   sourceUrl?: string | null;
   scheduledFor?: string;
+  /** Minutes from local midnight (0–1439) when this workout is planned. */
+  scheduledTimeMinutes?: number;
   title: string;
   description: string;
   metaLeft: string;
@@ -344,6 +364,42 @@ export interface SavedWorkoutUpdateRequest {
   source_url?: string | null;
 }
 
+export interface CsvImportedSet {
+  set_index: number | null;
+  set_type: string | null;
+  weight_lbs: number | null;
+  reps: number | null;
+  distance_miles: number | null;
+  duration_seconds: number | null;
+  rpe: number | null;
+}
+
+export interface CsvImportedExercise {
+  name: string;
+  notes: string | null;
+  superset_id: string | null;
+  sets: CsvImportedSet[];
+}
+
+export interface CsvImportedWorkout {
+  title: string;
+  start_time: string | null;
+  end_time: string | null;
+  description: string | null;
+  exercises: CsvImportedExercise[];
+  workout_plan: WorkoutPlan | null;
+  saved_workout: SavedWorkoutRecord;
+}
+
+export interface CsvImportResponse {
+  success: boolean;
+  source_app: "hevy" | "strong" | "generic_csv" | string;
+  source_file_name: string | null;
+  imported_workouts_count: number;
+  imported_sets_count: number;
+  workouts: CsvImportedWorkout[];
+}
+
 export type ScheduledWorkoutStatus =
   | "scheduled"
   | "completed"
@@ -360,6 +416,7 @@ export interface ScheduledWorkoutRecord {
   /** Present after API migration `013_saved_scheduled_thumbnail`. */
   thumbnail_url?: string | null;
   scheduled_for: string;
+  scheduled_time_minutes?: number | null;
   status: ScheduledWorkoutStatus;
   title: string;
   description: string | null;
@@ -378,6 +435,7 @@ export interface ScheduledWorkoutCreateRequest {
   source_url?: string | null;
   thumbnail_url?: string | null;
   scheduled_for: string;
+  scheduled_time_minutes?: number;
   title: string;
   description?: string | null;
   meta_left?: string | null;
@@ -388,6 +446,7 @@ export interface ScheduledWorkoutCreateRequest {
 
 export interface ScheduledWorkoutUpdateRequest {
   scheduled_for?: string;
+  scheduled_time_minutes?: number;
   status?: ScheduledWorkoutStatus;
   title?: string;
   description?: string | null;
@@ -447,4 +506,8 @@ export interface LiftLatestSetSnapshot {
   reps: number | null;
   duration_sec: number | null;
   recorded_at: string;
+  last_session_recorded_at?: string | null;
+  personal_record_weight_lbs?: number | null;
+  personal_record_reps?: number | null;
+  personal_record_recorded_at?: string | null;
 }

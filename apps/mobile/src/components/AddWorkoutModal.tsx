@@ -13,7 +13,12 @@ import {
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 
 import { FitfoLoadingAnimation } from "./FitfoLoadingAnimation";
+import {
+  ScheduleTimePicker,
+  useDefaultScheduleTimeMinutes,
+} from "./ScheduleTimePicker";
 import { getCreatorDisplayLabel } from "../lib/fitfo";
+import { formatScheduleDateAndTime } from "../lib/scheduleTime";
 import { getStatusInfo } from "../lib/status";
 import { getTheme, lightColors, type ThemeMode } from "../theme";
 import type { JobResponse, SavedRoutinePreview } from "../types";
@@ -23,6 +28,10 @@ interface AddWorkoutModalProps {
   isSubmitting: boolean;
   isScheduling?: boolean;
   isSaving?: boolean;
+  /** True while a CSV file upload+parse is in flight. Disables the CSV button + URL form. */
+  isImportingCsv?: boolean;
+  /** Inline status banner shown under the CSV button (success or error). */
+  csvImportStatus?: { kind: "success" | "error"; message: string } | null;
   job: JobResponse | null;
   /** Canonical job id we're polling (must match job.id whenever job is shown). */
   ingestionJobId?: string | null;
@@ -43,8 +52,13 @@ interface AddWorkoutModalProps {
   onClose: () => void;
   onSubmit: (url: string) => void;
   onCreateManual: () => void;
+  /** Open Apple Files / DocumentPicker and upload the selected CSV. */
+  onImportFromCsv?: () => void;
   onSaveImported: () => void;
-  onScheduleImported: (scheduledFor: string) => void;
+  onScheduleImported: (
+    scheduledFor: string,
+    scheduledTimeMinutes: number,
+  ) => void;
   onStartImported: () => void;
   themeMode?: ThemeMode;
 }
@@ -122,12 +136,15 @@ export function AddWorkoutModal({
   isSubmitting,
   isScheduling = false,
   isSaving = false,
+  isImportingCsv = false,
+  csvImportStatus = null,
   job,
   routine,
   error,
   onClose,
   onSubmit,
   onCreateManual,
+  onImportFromCsv,
   onSaveImported,
   onScheduleImported,
   onStartImported,
@@ -141,6 +158,10 @@ export function AddWorkoutModal({
   const [url, setUrl] = useState("");
   const [isPickingDate, setIsPickingDate] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const defaultScheduleTimeMinutes = useDefaultScheduleTimeMinutes();
+  const [scheduledTimeMinutes, setScheduledTimeMinutes] = useState(
+    defaultScheduleTimeMinutes,
+  );
   // Slow-import opt-in card state. `compileStartedAt` flips on when the
   // first compiling render happens; the timer flips `slowImport` true after
   // the threshold. `slowImportDismissed` hides the card if the user picked
@@ -308,20 +329,32 @@ export function AddWorkoutModal({
       return;
     }
     setSelectedDate(defaultDateIso);
+    setScheduledTimeMinutes(defaultScheduleTimeMinutes);
     setIsPickingDate(true);
   };
 
   const handleCancelScheduling = () => {
     setIsPickingDate(false);
     setSelectedDate(null);
+    setScheduledTimeMinutes(defaultScheduleTimeMinutes);
   };
 
   const handleConfirmSchedule = () => {
     if (!activeSelectedDate || isScheduling) {
       return;
     }
-    onScheduleImported(activeSelectedDate);
+    onScheduleImported(activeSelectedDate, scheduledTimeMinutes);
   };
+
+  const scheduleConfirmLabel = useMemo(() => {
+    if (!activeSelectedDate) {
+      return "Schedule workout";
+    }
+    return `Schedule for ${formatScheduleDateAndTime(
+      activeSelectedDate,
+      scheduledTimeMinutes,
+    )}`;
+  }, [activeSelectedDate, scheduledTimeMinutes]);
 
   return (
     <Modal
@@ -477,11 +510,11 @@ export function AddWorkoutModal({
                   </View>
 
                   <Pressable
-                    disabled={!trimmedUrl}
+                    disabled={!trimmedUrl || isImportingCsv}
                     onPress={() => onSubmit(trimmedUrl)}
                     style={({ pressed }) => [
                       styles.primaryButton,
-                      !trimmedUrl && styles.primaryButtonDisabled,
+                      (!trimmedUrl || isImportingCsv) && styles.primaryButtonDisabled,
                       pressed ? styles.primaryButtonPressed : null,
                     ]}
                   >
@@ -668,6 +701,12 @@ export function AddWorkoutModal({
                         })}
                       </ScrollView>
 
+                      <ScheduleTimePicker
+                        value={scheduledTimeMinutes}
+                        onChange={setScheduledTimeMinutes}
+                        themeMode={themeMode}
+                      />
+
                       <Pressable
                         disabled={!activeSelectedDate || isScheduling}
                         onPress={handleConfirmSchedule}
@@ -688,7 +727,7 @@ export function AddWorkoutModal({
                           </View>
                         ) : (
                           <Text style={styles.secondaryActionText}>
-                            Schedule for {readableSelectedDate}
+                            {scheduleConfirmLabel}
                           </Text>
                         )}
                       </Pressable>
@@ -713,6 +752,59 @@ export function AddWorkoutModal({
                   <Text style={styles.orText}>or</Text>
                   <View style={styles.orLine} />
                 </View>
+
+                {onImportFromCsv ? (
+                  <>
+                    <Pressable
+                      disabled={isImportingCsv}
+                      onPress={onImportFromCsv}
+                      style={({ pressed }) => [
+                        styles.csvImportButton,
+                        isImportingCsv ? styles.csvImportButtonDisabled : null,
+                        pressed ? styles.csvImportButtonPressed : null,
+                      ]}
+                    >
+                      <View style={styles.buttonRow}>
+                        {isImportingCsv ? (
+                          <ActivityIndicator
+                            color={theme.colors.primary}
+                            size="small"
+                          />
+                        ) : (
+                          <Ionicons
+                            color={theme.colors.primary}
+                            name="cloud-upload-outline"
+                            size={18}
+                          />
+                        )}
+                        <Text style={styles.csvImportButtonText}>
+                          {isImportingCsv ? "Importing CSV…" : "Import from CSV"}
+                        </Text>
+                      </View>
+                    </Pressable>
+                    {csvImportStatus ? (
+                      <View
+                        style={[
+                          styles.csvStatusCard,
+                          csvImportStatus.kind === "success"
+                            ? styles.csvStatusCardSuccess
+                            : styles.csvStatusCardError,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.csvStatusText,
+                            csvImportStatus.kind === "success"
+                              ? styles.csvStatusTextSuccess
+                              : styles.csvStatusTextError,
+                          ]}
+                        >
+                          {csvImportStatus.message}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </>
+                ) : null}
 
                 <Pressable onPress={onCreateManual}>
                   <Text style={styles.linkButton}>Create manually instead</Text>
@@ -1256,6 +1348,55 @@ const createStyles = (theme: ReturnType<typeof getTheme>) => {
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
       textAlign: "center",
+    },
+    csvImportButton: {
+      marginTop: 16,
+      minHeight: 52,
+      borderRadius: 999,
+      backgroundColor: theme.colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: theme.colors.borderSoft,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 18,
+    },
+    csvImportButtonDisabled: {
+      opacity: 0.65,
+    },
+    csvImportButtonPressed: {
+      opacity: 0.85,
+    },
+    csvImportButtonText: {
+      color: theme.colors.primary,
+      fontSize: 16,
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "800",
+    },
+    csvStatusCard: {
+      marginTop: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+    },
+    csvStatusCardSuccess: {
+      backgroundColor: theme.colors.surfaceMuted,
+      borderColor: theme.colors.borderSoft,
+    },
+    csvStatusCardError: {
+      backgroundColor: "rgba(220, 38, 38, 0.08)",
+      borderColor: "rgba(220, 38, 38, 0.35)",
+    },
+    csvStatusText: {
+      fontSize: 14,
+      lineHeight: 20,
+      fontFamily: "satoshi",
+    },
+    csvStatusTextSuccess: {
+      color: theme.colors.textPrimary,
+    },
+    csvStatusTextError: {
+      color: theme.colors.error,
     },
   });
 };

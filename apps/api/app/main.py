@@ -16,6 +16,7 @@ from app.routers import (
     body_weight,
     chat,
     completed_workouts,
+    csv_imports,
     ingest,
     jobs,
     lift_history,
@@ -59,6 +60,7 @@ app.include_router(auth.router)
 app.include_router(ingest.router)
 app.include_router(jobs.router)
 app.include_router(saved_workouts.router)
+app.include_router(csv_imports.router)
 app.include_router(completed_workouts.router)
 app.include_router(lift_history.router)
 app.include_router(body_weight.router)

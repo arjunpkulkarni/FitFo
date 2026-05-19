@@ -59,6 +59,7 @@ def create_scheduled_workout(
         row = supabase_db.create_scheduled_workout(
             profile_id,
             scheduled_for=scheduled_for,
+            scheduled_time_minutes=body.scheduled_time_minutes,
             title=body.title,
             source_workout_id=body.source_workout_id,
             workout_id=body.workout_id,

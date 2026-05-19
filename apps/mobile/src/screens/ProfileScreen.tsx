@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -18,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { usePostHog } from "posthog-react-native";
 
 import { ApiError } from "../lib/api";
+import { openFeatureSuggestion } from "../lib/featureSuggestion";
 import { useTabBarScrollPadding } from "../lib/tabBarLayout";
 import { ProfileAvatarCircle } from "../components/ProfileAvatarCircle";
 import { getTheme, type ThemeMode } from "../theme";
@@ -57,26 +57,7 @@ export function ProfileScreen({
   const posthog = usePostHog();
 
   const handleSuggestFeatures = () => {
-    const subject = encodeURIComponent("Fitfo feature suggestion");
-    const body = encodeURIComponent(
-      [
-        "Tell us what would make Fitfo better for you.",
-        "",
-        "Feature idea:",
-        "",
-        "Why it would help:",
-        "",
-      ].join("\n"),
-    );
-    const mailto = `mailto:suggestions@fitfo.app?subject=${subject}&body=${body}`;
-
-    posthog.capture("feature_suggestion_opened");
-    Linking.openURL(mailto).catch(() => {
-      Alert.alert(
-        "Email unavailable",
-        "Send your feature ideas to suggestions@fitfo.app and we'll use them to improve Fitfo.",
-      );
-    });
+    openFeatureSuggestion((event) => posthog.capture(event));
   };
 
   // Two-step confirmation: App Store reviewers look for this, and it protects

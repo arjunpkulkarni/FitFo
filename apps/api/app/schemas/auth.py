@@ -43,6 +43,7 @@ class UserOnboardingResponse(BaseModel):
 class UserProfileResponse(BaseModel):
     id: str
     full_name: str
+    username: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     apple_user_id: Optional[str] = None
@@ -103,6 +104,23 @@ class PatchProfileRequest(BaseModel):
     """Update mutable profile fields (display name today; extend as needed)."""
 
     full_name: str = Field(..., min_length=1, max_length=120)
+
+
+class UsernameCheckResponse(BaseModel):
+    ok: bool
+    username: str
+    available: bool
+    message: str
+
+
+class SaveUsernameRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=20)
+
+
+class SaveUsernameResponse(BaseModel):
+    ok: bool
+    profile: UserProfileResponse
+    message: str
 
 
 class RegisterExpoPushTokenRequest(BaseModel):

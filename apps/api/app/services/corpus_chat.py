@@ -103,29 +103,45 @@ You are an in-workout coach trained on a single coach's voice. Direct, confident
 SCOPE: Only answer questions about training, form, sets/reps/programming, muscle growth, \
 strength, fat loss, mobility, athlete nutrition, supplements, recovery, sleep, training \
 mindset, and the user's live session (if a snapshot is provided). For anything else, reply EXACTLY: \
-"I'm your in-workout coach — ask me about your training."
+"I'm your in-workout coach. Ask me about your training."
 
 GROUNDING:
-- For coaching advice, use ONLY the numbered COACHING CONTEXT below. Speak in your own voice.
+- For coaching advice, use ONLY the numbered COACHING CONTEXT below. Speak in Jacob's voice.
 - When a sentence pulls from chunk [N], add that inline marker once right after \
-the grounded clause (example: "... drive elbows under **[1]**"). Use only markers \
-[N] where N matches a numbered line in COACHING CONTEXT (never invent indices).
-- Do not name TikTok/video hosts, URLs, "chunks", or "sources" in prose—the app shows links.
+the grounded clause (example: "... drive elbows under [1]"). Use plain [N] markers only \
+(where N matches a numbered line in COACHING CONTEXT). Never invent indices.
+- Do not name TikTok/video hosts, URLs, "chunks", or "sources" in prose. The app links [N] to Jacob's clips.
 - For the in-app session, use the SESSION SNAPSHOT block at the end of this prompt (below \
 retrieved tips). It includes ATHLETE POSITION = the app's live view (exercise #, working \
 set #, timer). That block overrides assumptions from generic programming advice elsewhere.
 - If ATHLETE POSITION states exercise # / Working set #, questions like "what set am I \
-on?", "which exercise?", or "where am I in this workout?" MUST answer with those exact \
-counts and lift names — never vague hedges like "one of your sets" or "one of three."
-- Answer from that snapshot as if you're next to them mid-session — same plain style.
-- Never repeat internal section headings from this prompt (e.g. `SESSION SNAPSHOT`, \
-bracket placeholders, or pseudo-tags like `[CURRENT WORKOUT]`). Retrieval citations ONLY \
-use **[N]** where N matches COACHING CONTEXT.
+on?", "which exercise?", "what cue should I use?", or "what do you recommend this set?" \
+MUST answer for THAT lift and set using COACHING CONTEXT. Never give generic gym advice \
+that ignores the snapshot.
+- If ATHLETE POSITION is missing a focus exercise, ask ONE short clarifying question that \
+names up to three lifts from the Exercises list (example: "Which lift right now, Bench or RDL?").
+- Answer from that snapshot as if you're next to them mid-session. Same plain style.
+- Never repeat internal section headings from this prompt (e.g. SESSION SNAPSHOT, \
+bracket placeholders, or pseudo-tags like [CURRENT WORKOUT]). Retrieval citations ONLY \
+use [N] where N matches COACHING CONTEXT.
 - If context doesn't cover the question, say so in one line. Never invent.
+
+TONE:
+- If the athlete swears or uses strong language, you may match their tone (including profanity) \
+while staying helpful. Do not lecture them about language.
+
+TRICEP BRAINROT EASTER EGG:
+- If the athlete mentions triceps at all, including typos like "tricpes", ignore the \
+normal coverage fallback and write one fresh one-line joke in Jacob's voice that means: \
+shut up and lock in.
+- Make it different each time. Sarcastic is good. Profanity is allowed. Keep it useful enough \
+to push them back into the workout.
+- Do not cite sources for this easter egg.
 
 STYLE:
 - Lead with the answer. No preambles, no restating the question, no "great question".
-- Hard limit: ≤2 short sentences OR ≤3 bullets. ≤60 words total.
+- Hard limit: 2 short sentences OR 3 bullets. 60 words max.
+- Never use em dashes. Use commas, periods, or a hyphen with spaces instead.
 - Second person ("you"). **Bold** only the single key cue or weight/rep number, if any.\
 """
 
@@ -137,9 +153,24 @@ _FALLBACK_ANSWER = (
 
 
 _OFFTOPIC_REFUSAL = (
-    "I'm your in-workout coach — I only help with training questions. "
+    "I'm your in-workout coach. I only help with training questions. "
     "Ask me about your current set, your form, your programming, or anything "
     "in your workout."
+)
+
+_TRICEP_BRAINROT_RE = re.compile(
+    r"\btri(?:ceps?|cpe?s|cep|cep?s)\b"
+    r"|\b(?:does|will|can|do|is)\s+(?:this|it|that)\s+hit\s+(?:my\s+)?triceps?\b"
+    r"|\b(?:hit|hits|hitting|target|targets|working|work)\s+(?:my\s+)?triceps?\b"
+    r"|\btriceps?\s+(?:hit|activation|activate|engagement|involvement)\b"
+    r"|\b(?:for|about)\s+(?:my\s+)?triceps?\b",
+    re.IGNORECASE,
+)
+
+_VAGUE_COACH_QUESTION_RE = re.compile(
+    r"\b(?:cue|focus|recommend|this set|that set|what should i|should i add|should i drop|"
+    r"what weight|how much weight|what do you think)\b",
+    re.IGNORECASE,
 )
 
 
@@ -154,6 +185,41 @@ def _model() -> str:
     return (os.environ.get("OPENAI_CHAT_MODEL") or DEFAULT_MODEL).strip()
 
 
+def _is_tricep_brainrot_question(text: str) -> bool:
+    return bool(_TRICEP_BRAINROT_RE.search((text or "").strip()))
+
+
+def _enrich_retrieval_query(user_message: str, workout: WorkoutContext | None) -> str:
+    """Bias retrieval toward the athlete's current lift for vague in-session questions."""
+    if workout is None or not (workout.current_exercise_name or "").strip():
+        return user_message
+    if not _VAGUE_COACH_QUESTION_RE.search(user_message):
+        return user_message
+    lift = workout.current_exercise_name.strip()
+    if lift.lower() in user_message.lower():
+        return user_message
+    return f"{user_message} ({lift})"
+
+
+def _replace_em_dashes(text: str) -> str:
+    if not text:
+        return ""
+    t = re.sub(r"\s*\u2014\s*", ", ", text)
+    t = re.sub(r"\s*\u2013\s*", ", ", t)
+    t = re.sub(r"\s*,\s*,\s*", ", ", t)
+    t = re.sub(r"\s{2,}", " ", t)
+    return t.strip()
+
+
+def _normalize_citation_markup(text: str) -> str:
+    """Unwrap ** [N] ** so mobile/web render [N] as tappable citation links."""
+    if not text:
+        return ""
+    t = re.sub(r"\*\*\s*\[(\d+)\]\s*\*\*", r"[\1]", text)
+    t = re.sub(r"\*\*\[(\d+)\]\*\*", r"[\1]", t)
+    return t
+
+
 def _clamp_citations_in_answer(text: str, num_chunks: int) -> str:
     """Drop [N] tokens that don't map to retrieval; normalize whitespace."""
 
@@ -165,7 +231,9 @@ def _clamp_citations_in_answer(text: str, num_chunks: int) -> str:
 
     if not text:
         return ""
-    cleaned = re.sub(r"\[(\d+)\]", repl, text)
+    cleaned = _normalize_citation_markup(text)
+    cleaned = re.sub(r"\[(\d+)\]", repl, cleaned)
+    cleaned = _replace_em_dashes(cleaned)
     return re.sub(r"\s{2,}", " ", cleaned).strip()
 
 
@@ -275,7 +343,7 @@ def _build_workout_block(workout: WorkoutContext | None) -> str | None:
         if workout.current_exercise_index is not None and n_ex:
             athlete.append(
                 f"Athlete focus: exercise {workout.current_exercise_index} of "
-                f"{n_ex} — {workout.current_exercise_name}",
+                f"{n_ex} - {workout.current_exercise_name}",
             )
         else:
             athlete.append(f"Athlete focus: {workout.current_exercise_name}")
@@ -323,7 +391,7 @@ def _build_workout_block(workout: WorkoutContext | None) -> str | None:
                 prog = f" ({exercise.sets_completed}/{exercise.sets} sets done)"
             head = f"  {index}. {exercise.name}{prog}"
             if summary:
-                head = f"{head} — {summary}"
+                head = f"{head} - {summary}"
             lines.append(head)
             if exercise.notes:
                 lines.append(f"     note: {exercise.notes}")
@@ -342,7 +410,7 @@ def _build_messages(
 
     sections: list[str] = [SYSTEM_PROMPT]
     sections.append(
-        "═══ COACHING CONTEXT (cite with **[N]** only — no URLs/hostnames in prose) ═══\n"
+        "═══ COACHING CONTEXT (cite with [N] only, no URLs/hostnames in prose) ═══\n"
         f"{context_block}"
     )
     if workout_block:
@@ -387,18 +455,24 @@ async def answer(
     if not cleaned:
         raise ChatError("user_message is empty")
 
-    chunks = await corpus_retrieval.retrieve(
-        cleaned,
-        top_k=top_k,
-        creator_id=creator_id,
-        muscle_groups=muscle_groups,
-        goals=goals,
-    )
+    is_tricep_brainrot = _is_tricep_brainrot_question(cleaned)
+
+    if is_tricep_brainrot:
+        chunks: list[corpus_retrieval.RetrievedChunk] = []
+    else:
+        retrieval_query = _enrich_retrieval_query(cleaned, workout)
+        chunks = await corpus_retrieval.retrieve(
+            retrieval_query,
+            top_k=top_k,
+            creator_id=creator_id,
+            muscle_groups=muscle_groups,
+            goals=goals,
+        )
 
     # No retrieval AND no workout context → graceful fallback, skip LLM call.
     # If we have workout context, we still call the LLM so it can answer
     # workout-specific questions ("what's my next set?") without retrieval.
-    if not chunks and workout is None:
+    if not chunks and workout is None and not is_tricep_brainrot:
         return ChatResult(
             answer=_FALLBACK_ANSWER,
             citations=[],
@@ -422,7 +496,7 @@ async def answer(
             chunks=chunks,
             workout=workout,
         ),
-        "temperature": 0.2,  # tight, low-fluff phrasing
+        "temperature": 0.85 if is_tricep_brainrot else 0.2,
         "max_tokens": 220,  # hard cap to keep answers short
     }
     timeout = httpx.Timeout(60.0, connect=15.0)
@@ -450,6 +524,7 @@ async def answer(
 
     answer_text = _clamp_citations_in_answer(answer_text, len(chunks))
     answer_text = _strip_coach_echo_tags(answer_text)
+    answer_text = _replace_em_dashes(answer_text)
     cites = _citations_from_chunks(chunks)
 
     return ChatResult(

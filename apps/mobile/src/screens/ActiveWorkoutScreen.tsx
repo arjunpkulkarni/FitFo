@@ -68,6 +68,12 @@ interface ActiveWorkoutScreenProps {
     exerciseName: string,
     setPositionOneBased: number,
   ) => string | null;
+  resolveExerciseLiftSummary?: (exerciseName: string) => {
+    lastSessionLabel: string | null;
+    personalRecordLabel: string | null;
+  } | null;
+  userId?: string | null;
+  onOpenSuggestFeatures?: () => void;
 }
 
 interface SelectedSetState {
@@ -340,6 +346,13 @@ function SetRow({
               <Text style={styles.setTarget}>
                 {set.completed ? getLoggedSetCopy(set) : getTargetCopy(set)}
               </Text>
+              {lastLiftSummary && !set.completed ? (
+                <View style={styles.lastLiftPillCompact}>
+                  <Text style={styles.lastLiftPillText}>
+                    ← Last: {lastLiftSummary}
+                  </Text>
+                </View>
+              ) : null}
             </View>
             <View style={styles.setHeaderActions}>
               {set.completed ? (
@@ -402,6 +415,11 @@ function SetRow({
               </View>
             )}
           </View>
+          {lastLiftSummary ? (
+            <View style={styles.lastLiftPill}>
+              <Text style={styles.lastLiftPillText}>← Last: {lastLiftSummary}</Text>
+            </View>
+          ) : null}
         </View>
         <View style={styles.setHeaderActions}>
           {set.completed ? (
@@ -474,10 +492,6 @@ function SetRow({
         )}
       </View>
 
-      {lastLiftSummary ? (
-        <Text style={styles.lastLiftHint}>Last time · {lastLiftSummary}</Text>
-      ) : null}
-
       {set.completed ? (
         <Text style={styles.autoAdvanceText}>
           Adjust the numbers here any time and this set will stay saved.
@@ -531,6 +545,10 @@ interface ExerciseCardProps {
   autoFocusName?: boolean;
   editingSetId: string | null;
   exercise: ActiveExercisePreview;
+  liftSummary?: {
+    lastSessionLabel: string | null;
+    personalRecordLabel: string | null;
+  } | null;
   expanded: boolean;
   onAddSet: (exerciseId: string) => void;
   onChangeRestSeconds: (exerciseId: string, value: number | null) => void;
@@ -564,6 +582,7 @@ function ExerciseCard({
   autoFocusName,
   editingSetId,
   exercise,
+  liftSummary,
   expanded,
   onAddSet,
   onChangeRestSeconds,
@@ -742,6 +761,30 @@ function ExerciseCard({
 
       {expanded ? (
         <View style={styles.exerciseBody}>
+          {liftSummary?.lastSessionLabel || liftSummary?.personalRecordLabel ? (
+            <View style={styles.liftHistoryStrip}>
+              {liftSummary.lastSessionLabel ? (
+                <View style={styles.liftHistoryMeta}>
+                  <Ionicons
+                    color={theme.colors.textMuted}
+                    name="time-outline"
+                    size={15}
+                  />
+                  <Text style={styles.liftHistoryMetaText}>
+                    Last session · {liftSummary.lastSessionLabel}
+                  </Text>
+                </View>
+              ) : null}
+              {liftSummary.personalRecordLabel ? (
+                <View style={styles.personalRecordPill}>
+                  <Text style={styles.personalRecordPillText}>
+                    PR {liftSummary.personalRecordLabel}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
           <View style={styles.metricToggleCard}>
             <Text style={styles.metricToggleLabel}>Track this exercise by</Text>
             <View style={styles.metricToggleRow}>
@@ -857,6 +900,9 @@ export function ActiveWorkoutScreen({
   onHubTourFinishButtonVisible,
   themeMode = "light",
   resolveLastLiftLabel,
+  resolveExerciseLiftSummary,
+  userId = null,
+  onOpenSuggestFeatures,
 }: ActiveWorkoutScreenProps) {
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
@@ -865,8 +911,11 @@ export function ActiveWorkoutScreen({
   const coachButtonRef = useRef<View | null>(null);
   const lastCoachOpenRequestIdRef = useRef(0);
   const previousCompletedSetCountRef = useRef(0);
-  const lastElapsedTickRef = useRef(Date.now());
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const lastWorkoutTickRef = useRef(Date.now());
+  const lastRestTickRef = useRef(Date.now());
+  const [workoutElapsedSeconds, setWorkoutElapsedSeconds] = useState(0);
+  const [restElapsedSeconds, setRestElapsedSeconds] = useState(0);
+  const [restTargetSeconds, setRestTargetSeconds] = useState<number | null>(null);
   const [isTimerPaused, setIsTimerPaused] = useState(false);
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(
     session.exercises[0]?.id || null,
@@ -874,9 +923,6 @@ export function ActiveWorkoutScreen({
   const [exercises, setExercises] = useState(session.exercises);
   const [selectedSet, setSelectedSet] = useState<SelectedSetState | null>(null);
   const [autoFocusExerciseId, setAutoFocusExerciseId] = useState<string | null>(null);
-  const [restCountdownSeconds, setRestCountdownSeconds] = useState<number | null>(
-    null,
-  );
   const [coachOpen, setCoachOpen] = useState(false);
 
   useEffect(() => {
@@ -894,10 +940,15 @@ export function ActiveWorkoutScreen({
     setExpandedExerciseId(session.exercises[0]?.id || null);
     setSelectedSet(null);
     setAutoFocusExerciseId(null);
-    setRestCountdownSeconds(null);
-    setElapsedSeconds(Math.max(0, Math.floor((Date.now() - session.startedAt) / 1000)));
+    setRestElapsedSeconds(0);
+    setRestTargetSeconds(null);
+    setWorkoutElapsedSeconds(
+      Math.max(0, Math.floor((Date.now() - session.startedAt) / 1000)),
+    );
     setIsTimerPaused(false);
-    lastElapsedTickRef.current = Date.now();
+    const now = Date.now();
+    lastWorkoutTickRef.current = now;
+    lastRestTickRef.current = now;
   }, [session]);
 
   const measureCoachButton = useCallback(() => {
@@ -1008,47 +1059,6 @@ export function ActiveWorkoutScreen({
     return () => cancelAnimationFrame(id);
   }, [hubTourStep, measureFinishButton, session.startedAt, exercises.length]);
 
-  useEffect(() => {
-    if (isTimerPaused) {
-      lastElapsedTickRef.current = Date.now();
-      return undefined;
-    }
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const deltaSeconds = Math.floor((now - lastElapsedTickRef.current) / 1000);
-      if (deltaSeconds <= 0) {
-        return;
-      }
-
-      lastElapsedTickRef.current += deltaSeconds * 1000;
-      setElapsedSeconds((current) => current + deltaSeconds);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isTimerPaused]);
-
-  useEffect(() => {
-    if (isTimerPaused || restCountdownSeconds == null || restCountdownSeconds <= 0) {
-      if (restCountdownSeconds === 0) {
-        setRestCountdownSeconds(null);
-      }
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setRestCountdownSeconds((current) => {
-        if (current == null || current <= 1) {
-          return null;
-        }
-
-        return current - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isTimerPaused, restCountdownSeconds]);
-
   const totalSetCount = useMemo(
     () => exercises.reduce((count, exercise) => count + exercise.sets.length, 0),
     [exercises],
@@ -1062,6 +1072,37 @@ export function ActiveWorkoutScreen({
       ),
     [exercises],
   );
+
+  useEffect(() => {
+    if (isTimerPaused) {
+      const now = Date.now();
+      lastWorkoutTickRef.current = now;
+      lastRestTickRef.current = now;
+      return undefined;
+    }
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const workoutDelta = Math.floor((now - lastWorkoutTickRef.current) / 1000);
+      if (workoutDelta > 0) {
+        lastWorkoutTickRef.current += workoutDelta * 1000;
+        setWorkoutElapsedSeconds((current) => current + workoutDelta);
+      }
+
+      if (completedSetCount <= 0) {
+        lastRestTickRef.current = now;
+        return;
+      }
+
+      const restDelta = Math.floor((now - lastRestTickRef.current) / 1000);
+      if (restDelta > 0) {
+        lastRestTickRef.current += restDelta * 1000;
+        setRestElapsedSeconds((current) => current + restDelta);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [completedSetCount, isTimerPaused]);
 
   // Snapshot of workout + athlete position sent on every coach turn so the LLM
   // sees the exact exercise/set. We cannot rely on expandedExerciseId alone: the UI
@@ -1140,7 +1181,7 @@ export function ActiveWorkoutScreen({
         };
       }),
       session_started_at_ms: session.startedAt,
-      elapsed_sec: elapsedSeconds,
+      elapsed_sec: workoutElapsedSeconds,
       timer_paused: isTimerPaused,
       completed_set_count: completedSetCount,
       total_set_count: totalSetCount,
@@ -1156,7 +1197,7 @@ export function ActiveWorkoutScreen({
     };
   }, [
     completedSetCount,
-    elapsedSeconds,
+    workoutElapsedSeconds,
     exercises,
     isTimerPaused,
     selectedSet,
@@ -1266,9 +1307,13 @@ export function ActiveWorkoutScreen({
 
     updateSet(exerciseId, setId, (set) => ({ ...set, completed: true }));
 
-    if (matchingExercise.restSeconds != null && matchingExercise.restSeconds > 0) {
-      setRestCountdownSeconds(matchingExercise.restSeconds);
-    }
+    setRestElapsedSeconds(0);
+    setRestTargetSeconds(
+      matchingExercise.restSeconds != null && matchingExercise.restSeconds > 0
+        ? matchingExercise.restSeconds
+        : null,
+    );
+    lastRestTickRef.current = Date.now();
 
     const nextIncompleteSet = matchingExercise.sets.find(
       (set) => set.id !== setId && !set.completed,
@@ -1536,6 +1581,11 @@ export function ActiveWorkoutScreen({
             selectedSet?.exerciseId === exercise.id ? selectedSet.setId : null
           }
           exercise={exercise}
+          liftSummary={
+            resolveExerciseLiftSummary
+              ? resolveExerciseLiftSummary(exercise.name)
+              : null
+          }
           expanded={expandedExerciseId === exercise.id}
           onReorderDrag={drag}
           reorderDragDisabled={isActive}
@@ -1598,12 +1648,21 @@ export function ActiveWorkoutScreen({
             </View>
       
             <View style={styles.timerCard}>
-              <Text style={styles.timerEyebrow}>Time Elapsed</Text>
-              <Text style={styles.timerValue}>{formatClock(elapsedSeconds)}</Text>
+              <View style={styles.timerTopRow}>
+                <Text style={styles.timerEyebrow}>Rest Time</Text>
+                <Text style={styles.timerWorkoutElapsed}>
+                  Workout {formatClock(workoutElapsedSeconds)}
+                </Text>
+              </View>
+              <Text style={styles.timerValue}>{formatClock(restElapsedSeconds)}</Text>
               <Text style={styles.timerHelper}>
                 {isTimerPaused
-                  ? "Workout paused"
-                  : `${completedSetCount} of ${totalSetCount} sets logged`}
+                  ? "Timers paused"
+                  : completedSetCount === 0
+                    ? "Rest clock starts when you log a set"
+                    : restTargetSeconds != null
+                      ? `Target rest ${formatClock(restTargetSeconds)} · ${completedSetCount} of ${totalSetCount} sets logged`
+                      : `${completedSetCount} of ${totalSetCount} sets logged`}
               </Text>
 
               <Pressable
@@ -1638,7 +1697,7 @@ export function ActiveWorkoutScreen({
 
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={isTimerPaused ? "Resume workout timer" : "Pause workout timer"}
+                accessibilityLabel={isTimerPaused ? "Resume timers" : "Pause timers"}
                 onPress={handleToggleTimerPaused}
                 style={styles.timerPauseButton}
               >
@@ -1651,12 +1710,6 @@ export function ActiveWorkoutScreen({
                   {isTimerPaused ? "Resume Workout" : "Pause Workout"}
                 </Text>
               </Pressable>
-              {restCountdownSeconds != null ? (
-                <Text style={styles.restCountdownText}>
-                  Rest: {formatClock(restCountdownSeconds)}
-                  {isTimerPaused ? " paused" : ""}
-                </Text>
-              ) : null}
             </View>
     </View>
   );
@@ -1751,6 +1804,8 @@ export function ActiveWorkoutScreen({
       onClose={() => setCoachOpen(false)}
       workout={coachWorkoutContext}
       themeMode={themeMode}
+      userId={userId}
+      onOpenSuggestFeatures={onOpenSuggestFeatures}
     />
     </>
   );
@@ -1981,6 +2036,13 @@ const createStyles = (theme: ActiveWorkoutTheme) =>
       alignItems: "center",
       ...theme.shadows.card,
     },
+    timerTopRow: {
+      width: "100%",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    },
     timerEyebrow: {
       color: theme.colors.primarySoftText,
       fontSize: 10,
@@ -1988,6 +2050,13 @@ const createStyles = (theme: ActiveWorkoutTheme) =>
       fontWeight: "800",
       letterSpacing: 1.2,
       textTransform: "uppercase",
+    },
+    timerWorkoutElapsed: {
+      color: theme.colors.primarySoftText,
+      fontSize: 11,
+      fontFamily: "Satoshi-Medium",
+      fontWeight: "600",
+      opacity: 0.92,
     },
     timerValue: {
       marginTop: 10,
@@ -2022,15 +2091,6 @@ const createStyles = (theme: ActiveWorkoutTheme) =>
       fontFamily: "Satoshi-Bold",
       fontWeight: "800",
       letterSpacing: 0.2,
-    },
-    restCountdownText: {
-      marginTop: 10,
-      color: theme.colors.primarySoftText,
-      fontSize: 12,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 0.3,
-      textTransform: "uppercase",
     },
     statGrid: {
       flexDirection: "row",
@@ -2360,6 +2420,44 @@ const createStyles = (theme: ActiveWorkoutTheme) =>
       fontFamily: "Satoshi-Bold",
       fontWeight: "700",
     },
+    liftHistoryStrip: {
+      minHeight: 44,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.colors.borderSoft,
+      backgroundColor: theme.colors.surface,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+    },
+    liftHistoryMeta: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 7,
+      minWidth: 0,
+    },
+    liftHistoryMetaText: {
+      color: theme.colors.textSecondary,
+      fontSize: 12,
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "700",
+    },
+    personalRecordPill: {
+      borderRadius: 999,
+      backgroundColor: theme.colors.successSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    personalRecordPillText: {
+      color: theme.colors.success,
+      fontSize: 12,
+      fontFamily: "Satoshi-Black",
+      fontWeight: "900",
+    },
     setList: {
       gap: 10,
     },
@@ -2440,6 +2538,9 @@ const createStyles = (theme: ActiveWorkoutTheme) =>
     },
     setTargetEditRow: {
       flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      flexWrap: "wrap",
     },
     targetEditPill: {
       flexDirection: "row",
@@ -2514,13 +2615,26 @@ const createStyles = (theme: ActiveWorkoutTheme) =>
       flexDirection: "row",
       gap: 10,
     },
-    lastLiftHint: {
-      marginTop: 6,
-      color: theme.colors.textMuted,
+    lastLiftPill: {
+      alignSelf: "flex-start",
+      borderRadius: 999,
+      backgroundColor: theme.mode === "dark" ? "#E4F1FF" : "#DBECFF",
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+    },
+    lastLiftPillCompact: {
+      alignSelf: "flex-start",
+      marginTop: 2,
+      borderRadius: 999,
+      backgroundColor: theme.mode === "dark" ? "#E4F1FF" : "#DBECFF",
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+    },
+    lastLiftPillText: {
+      color: "#18385F",
       fontSize: 12,
-      lineHeight: 17,
-      fontFamily: F.regular,
-      fontWeight: "400",
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "800",
     },
     inputField: {
       flex: 1,

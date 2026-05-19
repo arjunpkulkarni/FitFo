@@ -976,6 +976,7 @@ export function createScheduledRoutinePreview(
     jobId: record.job_id,
     sourceUrl: record.source_url,
     scheduledFor: record.scheduled_for,
+    scheduledTimeMinutes: record.scheduled_time_minutes ?? undefined,
     title: getRoutineDisplayTitle({
       sourceUrl: record.source_url,
       title: record.title,
@@ -1000,7 +1001,7 @@ export function normalizeExerciseKeyForLiftHistory(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function formatWeightForLiftHint(weightLbs: number): string {
+export function formatWeightForLiftHint(weightLbs: number): string {
   const rounded = Math.round(weightLbs * 100) / 100;
   if (Number.isInteger(rounded)) {
     return String(rounded);
@@ -1028,6 +1029,23 @@ export function formatLastLiftSnapshotLine(snapshot: LiftLatestSetSnapshot): str
   return parts.join(" × ");
 }
 
+export function formatPersonalRecordLiftLine(
+  snapshot: Pick<LiftLatestSetSnapshot, "personal_record_reps" | "personal_record_weight_lbs">,
+): string | null {
+  if (
+    snapshot.personal_record_weight_lbs == null ||
+    snapshot.personal_record_weight_lbs <= 0
+  ) {
+    return null;
+  }
+
+  const weight = `${formatWeightForLiftHint(snapshot.personal_record_weight_lbs)} lb`;
+  if (snapshot.personal_record_reps != null && snapshot.personal_record_reps > 0) {
+    return `${weight} × ${snapshot.personal_record_reps}`;
+  }
+  return weight;
+}
+
 export function getCompletedWorkoutSetCount(exercises: ActiveExercisePreview[]): number {
   return exercises.reduce((count, exercise) => count + exercise.sets.length, 0);
 }
@@ -1046,6 +1064,35 @@ export function getCompletedWorkoutVolume(exercises: ActiveExercisePreview[]): n
       }, 0)
     );
   }, 0);
+}
+
+/** Sum weight × reps across every logged set in completed history (+ optional in-progress session). */
+export function getTotalLoggedLiftVolume(
+  workouts: CompletedWorkoutRecord[],
+  activeWorkout?: ActiveSessionPreview | null,
+): number {
+  const fromHistory = workouts.reduce(
+    (sum, workout) => sum + getCompletedWorkoutVolume(workout.exercises),
+    0,
+  );
+
+  if (!activeWorkout) {
+    return fromHistory;
+  }
+
+  const activeExercises = activeWorkout.exercises.map((exercise) => ({
+    ...exercise,
+    sets: exercise.sets.filter((set) => set.completed),
+  }));
+
+  return fromHistory + getCompletedWorkoutVolume(activeExercises);
+}
+
+export function formatTotalLiftedVolume(lbs: number): string {
+  if (lbs <= 0) {
+    return "0 lb";
+  }
+  return `${Math.round(lbs).toLocaleString()} lb`;
 }
 
 export function formatCompletedWorkoutDate(value: string): string {

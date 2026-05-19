@@ -15,8 +15,7 @@ const NOTIFICATION_MAP_STORAGE_KEY = "@fitfo:scheduled-workout-notification-map"
 // so we can auto-promote slow imports to background mode without re-asking.
 const AUTO_NOTIFY_IMPORTS_STORAGE_KEY = "@fitfo:auto-notify-imports";
 
-// Scheduled workouts currently store a date only. Until users can choose an
-// exact workout time, use stable local reminder times around that date.
+// Fallback reminder times when a scheduled workout has no time-of-day set.
 const DAY_BEFORE_REMINDER_HOUR_24H = 19;
 const DAY_OF_REMINDER_HOUR_24H = 7;
 
@@ -89,7 +88,7 @@ function askUserBeforeSystemPrompt(): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     Alert.alert(
       "Turn on Fitfo alerts?",
-      "Fitfo sends local alerts: reminders the evening before and morning of each workout you schedule, a quick ping when an imported workout finishes building, and—if your calendar has no upcoming workouts—a gentle nudge about every two days to schedule your next session. No marketing, no ads. You can turn them off anytime in iOS Settings.",
+        "Fitfo sends local alerts: reminders the evening before and morning of each workout you schedule, a quick ping when an imported workout finishes building, and, if your calendar has no upcoming workouts, a gentle nudge after 24 hours to schedule your next session. No marketing, no ads. You can turn them off anytime in iOS Settings.",
       [
         {
           text: "Not now",
@@ -178,7 +177,7 @@ export async function requestNotificationPermissionForOnboarding(): Promise<bool
     const userAgreed = await new Promise<boolean>((resolve) => {
       Alert.alert(
         "Get workout reminders?",
-        "We'll remind you the evening before and the morning of each workout you schedule, nudge you about every two days if nothing is on your calendar, and—if an import takes a bit—let you know when your workout is ready to save. You can turn this off anytime in Settings.",
+        "We'll remind you the evening before and the morning of each workout you schedule, nudge you after 24 hours if nothing is on your calendar, and, if an import takes a bit, let you know when your workout is ready to save. You can turn this off anytime in Settings.",
         [
           { text: "Not now", style: "cancel", onPress: () => resolve(false) },
           { text: "Allow", onPress: () => resolve(true) },
@@ -332,8 +331,26 @@ function buildReminderCopy(
  * Parse a YYYY-MM-DD date string into the local reminder timestamps around
  * that workout date. Any timestamp already in the past is skipped.
  */
+function resolveReminderClock(
+  scheduledTimeMinutes: number | null | undefined,
+): { hour: number; minute: number } {
+  if (
+    typeof scheduledTimeMinutes === "number" &&
+    Number.isInteger(scheduledTimeMinutes) &&
+    scheduledTimeMinutes >= 0 &&
+    scheduledTimeMinutes <= 1439
+  ) {
+    return {
+      hour: Math.floor(scheduledTimeMinutes / 60),
+      minute: scheduledTimeMinutes % 60,
+    };
+  }
+  return { hour: DAY_OF_REMINDER_HOUR_24H, minute: 0 };
+}
+
 function buildReminderDates(
   scheduledFor: string,
+  scheduledTimeMinutes?: number | null,
 ): Array<{ kind: ReminderKind; fireAt: Date }> {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(scheduledFor.trim());
   if (!match) {
@@ -350,12 +367,18 @@ function buildReminderDates(
     0,
   );
 
+  const { hour, minute } = resolveReminderClock(scheduledTimeMinutes);
+
   const dayBefore = new Date(scheduledDate);
   dayBefore.setDate(dayBefore.getDate() - 1);
-  dayBefore.setHours(DAY_BEFORE_REMINDER_HOUR_24H, 0, 0, 0);
+  if (typeof scheduledTimeMinutes === "number") {
+    dayBefore.setHours(hour, minute, 0, 0);
+  } else {
+    dayBefore.setHours(DAY_BEFORE_REMINDER_HOUR_24H, 0, 0, 0);
+  }
 
   const dayOf = new Date(scheduledDate);
-  dayOf.setHours(DAY_OF_REMINDER_HOUR_24H, 0, 0, 0);
+  dayOf.setHours(hour, minute, 0, 0);
 
   const now = Date.now();
   return [
@@ -371,7 +394,10 @@ function buildReminderDates(
 export async function scheduleWorkoutReminder(
   routine: ScheduledWorkoutRecord,
 ): Promise<string[] | null> {
-  const reminders = buildReminderDates(routine.scheduled_for);
+  const reminders = buildReminderDates(
+    routine.scheduled_for,
+    routine.scheduled_time_minutes,
+  );
   if (reminders.length === 0) {
     return null;
   }
@@ -469,12 +495,15 @@ export async function reconcileScheduledNotifications(
 
 const GYM_NUDGE_NOTIFICATION_ID_KEY = "@fitfo:gym-schedule-nudge-notification-id";
 
-/** Roughly biweekly ping when nothing is on the training calendar. */
-const GYM_NUDGE_INTERVAL_DAYS = 2;
-const GYM_NUDGE_HOUR_LOCAL = 10;
-const GYM_NUDGE_MINUTE_LOCAL = 0;
+/** 24-hour ping when nothing is on the training calendar after a meaningful action. */
+const NEXT_WORKOUT_NUDGE_DELAY_MS = 24 * 60 * 60 * 1000;
 
 export const GYM_SCHEDULE_NUDGE_NOTIFICATION_KIND = "gym-schedule-nudge";
+
+export type NextWorkoutNudgeReason =
+  | "saved_workout"
+  | "completed_workout"
+  | "calendar_empty";
 
 function localTodayYmd(): string {
   const d = new Date();
@@ -502,15 +531,38 @@ function hasUpcomingScheduledWorkoutOnCalendar(
   );
 }
 
-function computeNextGymNudgeFireDate(): Date {
-  const d = new Date();
-  d.setDate(d.getDate() + GYM_NUDGE_INTERVAL_DAYS);
-  d.setHours(GYM_NUDGE_HOUR_LOCAL, GYM_NUDGE_MINUTE_LOCAL, 0, 0);
-  const nowMs = Date.now();
-  while (d.getTime() <= nowMs) {
-    d.setDate(d.getDate() + 1);
+function computeNextGymNudgeFireDate(nowMs = Date.now()): Date {
+  return new Date(nowMs + NEXT_WORKOUT_NUDGE_DELAY_MS);
+}
+
+function cleanNudgeWorkoutTitle(title: string | null | undefined): string {
+  const trimmed = (title ?? "").trim();
+  return trimmed.length > 0 ? trimmed : "that workout";
+}
+
+function buildNextWorkoutNudgeCopy(args: {
+  reason: NextWorkoutNudgeReason;
+  workoutTitle?: string | null;
+}): { title: string; body: string } {
+  if (args.reason === "saved_workout") {
+    const title = cleanNudgeWorkoutTitle(args.workoutTitle);
+    return {
+      title: "Schedule your next lift.",
+      body: `You saved ${title}. Put it on the calendar for your next lift.`,
+    };
   }
-  return d;
+
+  if (args.reason === "completed_workout") {
+    return {
+      title: "Keep the streak alive.",
+      body: "Nice work. Schedule this workout again or import a new one for your next lift.",
+    };
+  }
+
+  return {
+    title: "Time to go to the gym",
+    body: "You don’t have a workout scheduled. Open Fitfo and plan your next session.",
+  };
 }
 
 async function readGymNudgeNotificationId(): Promise<string | null> {
@@ -548,28 +600,34 @@ export async function cancelGymScheduleNudge(): Promise<void> {
 }
 
 /**
- * Keeps a single local notification ~2 days out when the user has no upcoming
- * scheduled workout (today or later). Cancels when they schedule again.
+ * Keeps a single local notification 24 hours out when the user has no upcoming
+ * scheduled workout (today or later). Contextual actions replace the generic
+ * nudge so "saved workout" / "finished workout" copy is what the user sees.
  */
-export async function syncGymScheduleNudgeIfNeeded(
-  rows: readonly ScheduledWorkoutRecord[],
-): Promise<void> {
+export async function scheduleNextWorkoutNudgeIfNeeded(args: {
+  rows: readonly ScheduledWorkoutRecord[];
+  reason: NextWorkoutNudgeReason;
+  workoutTitle?: string | null;
+  requestPermission?: boolean;
+}): Promise<void> {
   try {
-    const perms = await Notifications.getPermissionsAsync();
-    if (!perms.granted) {
+    if (hasUpcomingScheduledWorkoutOnCalendar(args.rows)) {
+      await cancelGymScheduleNudge();
+      return;
+    }
+
+    const granted = args.requestPermission
+      ? await requestNotificationPermission()
+      : (await Notifications.getPermissionsAsync()).granted;
+    if (!granted) {
       await cancelGymScheduleNudge();
       return;
     }
 
     await ensureReminderNotificationChannel();
 
-    if (hasUpcomingScheduledWorkoutOnCalendar(rows)) {
-      await cancelGymScheduleNudge();
-      return;
-    }
-
     const existingId = await readGymNudgeNotificationId();
-    if (existingId) {
+    if (existingId && args.reason === "calendar_empty") {
       const pending = await Notifications.getAllScheduledNotificationsAsync();
       if (pending.some((n) => n.identifier === existingId)) {
         return;
@@ -579,13 +637,15 @@ export async function syncGymScheduleNudgeIfNeeded(
     await cancelGymScheduleNudge();
 
     const fireAt = computeNextGymNudgeFireDate();
+    const copy = buildNextWorkoutNudgeCopy(args);
     const newId = await Notifications.scheduleNotificationAsync({
       content: {
-        title: "Time to go to the gym",
-        body: "You don’t have a workout scheduled. Open Fitfo and plan your next session.",
+        title: copy.title,
+        body: copy.body,
         sound: "default",
         data: {
           kind: GYM_SCHEDULE_NUDGE_NOTIFICATION_KIND,
+          reason: args.reason,
         },
       },
       trigger: {
@@ -597,6 +657,19 @@ export async function syncGymScheduleNudgeIfNeeded(
   } catch {
     // Non-fatal: scheduling APIs can fail on simulators / permission edge cases.
   }
+}
+
+/**
+ * Backward-compatible generic sync used on app resume / schedule list load.
+ * It only fills in a missing nudge; contextual save/complete nudges replace it.
+ */
+export async function syncGymScheduleNudgeIfNeeded(
+  rows: readonly ScheduledWorkoutRecord[],
+): Promise<void> {
+  await scheduleNextWorkoutNudgeIfNeeded({
+    rows,
+    reason: "calendar_empty",
+  });
 }
 
 /**

@@ -11,6 +11,10 @@ class LiftLatestSnapshotRow(BaseModel):
     reps: Optional[int] = None
     duration_sec: Optional[int] = None
     recorded_at: str
+    last_session_recorded_at: Optional[str] = None
+    personal_record_weight_lbs: Optional[float] = None
+    personal_record_reps: Optional[int] = None
+    personal_record_recorded_at: Optional[str] = None
 
 
 class LiftLatestSnapshotResponse(BaseModel):

@@ -31,6 +31,7 @@ import {
   formatCompletedWorkoutDate,
   getRoutineDisplayTitle,
 } from "../lib/fitfo";
+import { formatScheduleTimeMinutes } from "../lib/scheduleTime";
 import { useTabBarScrollPadding } from "../lib/tabBarLayout";
 import { getTheme, type ThemeMode } from "../theme";
 import type {
@@ -319,22 +320,37 @@ function UpcomingWorkoutRow({
   const styles = createStyles(theme);
   const accent = getBrandAccent(theme);
 
-  const scheduledTime = routine.scheduledFor
-    ? new Date(routine.scheduledFor)
-    : null;
-  const dayLabel = scheduledTime
-    ? DAY_LABELS[scheduledTime.getDay()].toUpperCase()
+  const scheduledDate = useMemo(() => {
+    if (!routine.scheduledFor) {
+      return null;
+    }
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(routine.scheduledFor.trim());
+    if (!match) {
+      return null;
+    }
+    const [, year, month, day] = match;
+    return new Date(
+      Number.parseInt(year, 10),
+      Number.parseInt(month, 10) - 1,
+      Number.parseInt(day, 10),
+      0,
+      0,
+      0,
+      0,
+    );
+  }, [routine.scheduledFor]);
+
+  const dayLabel = scheduledDate
+    ? DAY_LABELS[scheduledDate.getDay()].toUpperCase()
     : "-";
-  const dayNumber = scheduledTime ? `${scheduledTime.getDate()}` : "-";
-  const monthLabel = scheduledTime
-    ? MONTH_LABELS[scheduledTime.getMonth()]
+  const dayNumber = scheduledDate ? `${scheduledDate.getDate()}` : "-";
+  const monthLabel = scheduledDate
+    ? MONTH_LABELS[scheduledDate.getMonth()]
     : "";
-  const timeLabel = scheduledTime
-    ? scheduledTime.toLocaleTimeString(undefined, {
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : null;
+  const timeLabel =
+    typeof routine.scheduledTimeMinutes === "number"
+      ? formatScheduleTimeMinutes(routine.scheduledTimeMinutes)
+      : null;
 
   return (
     <Pressable

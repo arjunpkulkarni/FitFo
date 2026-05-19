@@ -1,8 +1,9 @@
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from twilio.base.exceptions import TwilioRestException
 
 from app.routers.deps import require_access_payload, require_profile_id
@@ -19,8 +20,11 @@ from app.schemas.auth import (
     RegisterExpoPushTokenResponse,
     SaveOnboardingRequest,
     SaveOnboardingResponse,
+    SaveUsernameRequest,
+    SaveUsernameResponse,
     SendOtpRequest,
     SendOtpResponse,
+    UsernameCheckResponse,
     VerifyOtpRequest,
     VerifyOtpResponse,
 )
@@ -29,6 +33,8 @@ from app.services import apple_auth, jwt_auth, supabase_db, twilio_verify
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+USERNAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9_]{1,18}[a-z0-9])$")
 
 
 def _phone_log_hint(canonical_e164: str) -> str:
@@ -83,6 +89,19 @@ def _clean_signup_name(full_name: Optional[str]) -> str:
     if not clean_name:
         raise HTTPException(status_code=400, detail="Full name is required to sign up.")
     return clean_name
+
+
+def _clean_username(username: str) -> str:
+    clean = (username or "").strip().lower()
+    if not USERNAME_RE.fullmatch(clean):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Username must be 3-20 characters using lowercase letters, "
+                "numbers, and underscores, and cannot start or end with an underscore."
+            ),
+        )
+    return clean
 
 
 def _clean_onboarding_payload(body: SaveOnboardingRequest) -> Dict[str, Any]:
@@ -541,6 +560,58 @@ def patch_me(
     except Exception as exc:
         raise HTTPException(
             status_code=500, detail=f"Failed to update profile: {exc}"
+        ) from exc
+
+
+@router.get("/username/check", response_model=UsernameCheckResponse)
+def check_username(
+    username: str = Query(..., min_length=1, max_length=64),
+    profile_id: str = Depends(require_profile_id),
+) -> UsernameCheckResponse:
+    clean = _clean_username(username)
+    try:
+        existing = supabase_db.get_profile_by_username(clean)
+        available = existing is None or str(existing.get("id")) == profile_id
+        return UsernameCheckResponse(
+            ok=True,
+            username=clean,
+            available=available,
+            message="Username is available." if available else "Username is already taken.",
+        )
+    except HTTPException:
+        raise
+    except supabase_db.SupabaseNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to check username: {exc}"
+        ) from exc
+
+
+@router.put("/username", response_model=SaveUsernameResponse)
+def save_username(
+    body: SaveUsernameRequest,
+    profile_id: str = Depends(require_profile_id),
+) -> SaveUsernameResponse:
+    clean = _clean_username(body.username)
+    try:
+        profile = supabase_db.update_profile_username(profile_id, username=clean)
+        return SaveUsernameResponse(
+            ok=True,
+            profile=embed_fitfo_pro_bypass(profile),
+            message="Username saved.",
+        )
+    except supabase_db.UsernameTakenError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except supabase_db.ProfileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except HTTPException:
+        raise
+    except supabase_db.SupabaseNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to save username: {exc}"
         ) from exc
 
 

@@ -25,6 +25,14 @@ import { usePostHog } from "posthog-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
+  buildCoachFeatureFeedbackMessage,
+  COACH_FEATURE_FEEDBACK_LINK_LABEL,
+  incrementCoachLifetimeUserMessageCount,
+  markCoachFeatureFeedbackShown,
+  shouldInjectCoachFeatureFeedback,
+  type CoachFeatureFeedbackTrigger,
+} from "../lib/coachFeatureFeedback";
+import {
   ChatApiError,
   ChatCitation,
   ChatTurn,
@@ -40,6 +48,8 @@ export interface CoachChatMessage {
   content: string;
   /** Populated when the API returns grounding references for this reply. */
   citations?: ChatCitation[];
+  /** One-time in-coach invite to submit product feedback via profile → Suggest features. */
+  variant?: "feature_feedback";
 }
 
 interface CoachSheetProps {
@@ -49,6 +59,10 @@ interface CoachSheetProps {
   messages: CoachChatMessage[];
   setMessages: Dispatch<SetStateAction<CoachChatMessage[]>>;
   themeMode?: ThemeMode;
+  /** Used for lifetime coach engagement + one-time feedback prompt gating. */
+  userId?: string | null;
+  /** Deep link: opens the same mail flow as Profile → Suggest features. */
+  onOpenSuggestFeatures?: () => void;
 }
 
 const SUGGESTIONS = [
@@ -61,7 +75,7 @@ function isLikelyTikTokUrl(raw: string): boolean {
   return raw.toLowerCase().includes("tiktok.com");
 }
 
-/** Prefer opening the workout’s TikTok reel; fallback to TikTok citations, then original reel / citation URLs. */
+/** Open Jacob's corpus clip when available; otherwise the workout source reel. */
 function resolveCoachCitationTapUrl(
   workoutSourceUrl: string | null | undefined,
   citationSourceUrl: string | null | undefined,
@@ -70,10 +84,8 @@ function resolveCoachCitationTapUrl(
   const c = citationSourceUrl?.trim();
   const httpW = w?.startsWith("http") ? w : undefined;
   const httpC = c?.startsWith("http") ? c : undefined;
-  if (httpW && isLikelyTikTokUrl(httpW)) return httpW;
-  if (httpC && isLikelyTikTokUrl(httpC)) return httpC;
-  if (httpW) return httpW;
   if (httpC) return httpC;
+  if (httpW) return httpW;
   return undefined;
 }
 
@@ -83,6 +95,33 @@ function clipReferenceSnippet(snippet: string, maxLen: number): string {
   return `${s.slice(0, maxLen - 1)}…`;
 }
 
+function renderFeatureFeedbackBody(
+  content: string,
+  linkLabel: string,
+  onPressLink: () => void,
+  styles: ReturnType<typeof createStyles>,
+) {
+  const parts = content.split(`"${linkLabel},"`);
+  if (parts.length !== 2) {
+    return <Text style={styles.assistantText}>{content}</Text>;
+  }
+
+  return (
+    <Text style={styles.assistantText}>
+      {parts[0]}"{" "}
+      <Text
+        accessibilityHint="Opens feature suggestion email"
+        accessibilityRole="link"
+        onPress={onPressLink}
+        style={styles.featureFeedbackLink}
+      >
+        {linkLabel}
+      </Text>
+      ,{parts[1]}
+    </Text>
+  );
+}
+
 export default function CoachSheet({
   visible,
   onClose,
@@ -90,6 +129,8 @@ export default function CoachSheet({
   messages,
   setMessages,
   themeMode = "dark",
+  userId = null,
+  onOpenSuggestFeatures,
 }: CoachSheetProps) {
   const posthog = usePostHog();
   const theme = getTheme(themeMode);
@@ -167,6 +208,16 @@ export default function CoachSheet({
       content: m.content,
     }));
 
+    let lifetimeUserMessageCount = 0;
+    if (userId) {
+      try {
+        lifetimeUserMessageCount =
+          await incrementCoachLifetimeUserMessageCount(userId);
+      } catch {
+        lifetimeUserMessageCount = updated.filter((m) => m.role === "user").length;
+      }
+    }
+
     try {
       const result = await sendChatMessage({
         message: trimmed,
@@ -174,15 +225,40 @@ export default function CoachSheet({
         workout: workoutRef.current ?? undefined,
         top_k: 8,
       });
-      setMessages([
-        ...updated,
-        {
-          role: "assistant",
-          content: result.answer,
-          citations:
-            result.citations.length > 0 ? [...result.citations] : undefined,
-        },
-      ]);
+      const assistantReply: CoachChatMessage = {
+        role: "assistant",
+        content: result.answer,
+        citations:
+          result.citations.length > 0 ? [...result.citations] : undefined,
+      };
+
+      let feedbackTrigger: CoachFeatureFeedbackTrigger | null = null;
+      if (userId && onOpenSuggestFeatures) {
+        try {
+          feedbackTrigger = await shouldInjectCoachFeatureFeedback({
+            userId,
+            messages: updated,
+            userMessage: trimmed,
+            lifetimeUserMessageCount,
+          });
+        } catch {
+          feedbackTrigger = null;
+        }
+      }
+
+      const nextMessages: CoachChatMessage[] = [assistantReply];
+      if (feedbackTrigger) {
+        await markCoachFeatureFeedbackShown(userId!);
+        nextMessages.push(
+          buildCoachFeatureFeedbackMessage() as CoachChatMessage,
+        );
+        posthog.capture("coach_feature_feedback_shown", {
+          trigger: feedbackTrigger,
+          lifetime_user_messages: lifetimeUserMessageCount,
+        });
+      }
+
+      setMessages([...updated, ...nextMessages]);
     } catch (exc) {
       if (exc instanceof ChatApiError) {
         setError(exc.message);
@@ -222,20 +298,26 @@ export default function CoachSheet({
           cite?.source_url,
         );
         const label = `[${inline.index}]`;
+        const openCitation = () => {
+          if (!url) return;
+          posthog.capture("coach_reference_open", {
+            citation_index: inline.index,
+            source: "inline",
+          });
+          void Linking.openURL(url);
+        };
         return (
           <Text
             key={key}
-            accessibilityHint={url ? "Opens creator source" : undefined}
-            accessibilityLabel={`Reference ${inline.index}${url ? ", link" : ""}`}
+            accessibilityHint={url ? "Opens Jacob coaching video" : undefined}
+            accessibilityLabel={`Reference ${inline.index}${url ? ", opens video" : ""}`}
             accessibilityRole={url ? "link" : "text"}
-            onPress={
-              url
-                ? () => {
-                    void Linking.openURL(url);
-                  }
-                : undefined
-            }
-            style={[styles.assistantText, url ? styles.citationBadge : styles.citationMutedInline]}
+            onPress={url ? openCitation : undefined}
+            suppressHighlighting={false}
+            style={[
+              styles.assistantText,
+              url ? styles.citationBadge : styles.citationMutedInline,
+            ]}
           >
             {label}
           </Text>
@@ -365,6 +447,35 @@ export default function CoachSheet({
                   message.citations && message.citations.length > 0
                     ? [...message.citations].sort((a, b) => a.index - b.index)
                     : [];
+                if (message.variant === "feature_feedback") {
+                  return (
+                    <View key={idx} style={styles.assistantRow}>
+                      <View
+                        style={[
+                          styles.assistantBubble,
+                          styles.featureFeedbackBubble,
+                        ]}
+                      >
+                        {onOpenSuggestFeatures
+                          ? renderFeatureFeedbackBody(
+                              message.content,
+                              COACH_FEATURE_FEEDBACK_LINK_LABEL,
+                              () => {
+                                posthog.capture("coach_feature_feedback_tapped");
+                                onOpenSuggestFeatures();
+                              },
+                              styles,
+                            )
+                          : (
+                            <Text style={styles.assistantText}>
+                              {message.content}
+                            </Text>
+                          )}
+                      </View>
+                    </View>
+                  );
+                }
+
                 return (
                   <View key={idx} style={styles.assistantRow}>
                     <View style={styles.assistantBubble}>
@@ -641,6 +752,19 @@ function createStyles(theme: ReturnType<typeof getTheme>, composerBottomInset: n
       fontSize: 14,
       lineHeight: 21,
       fontFamily: F.regular,
+    },
+    featureFeedbackBubble: {
+      borderWidth: 1,
+      borderColor: colors.primary,
+      backgroundColor:
+        theme.mode === "dark"
+          ? "rgba(255, 111, 34, 0.12)"
+          : "rgba(255, 111, 34, 0.08)",
+    },
+    featureFeedbackLink: {
+      color: colors.primary,
+      fontFamily: F.bold,
+      textDecorationLine: "underline",
     },
     paragraphGap: {
       marginTop: 8,

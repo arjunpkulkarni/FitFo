@@ -115,18 +115,36 @@ function getSourceLabel(
   return "Open source";
 }
 
-function formatScheduledDate(isoDate: string | undefined): string | null {
+function formatScheduledDate(
+  isoDate: string | undefined,
+  scheduledTimeMinutes?: number,
+): string | null {
   if (!isoDate) {
     return null;
   }
   try {
     const [year, month, day] = isoDate.split("-").map(Number);
     const date = new Date(year, (month || 1) - 1, day || 1);
-    return date.toLocaleDateString(undefined, {
+    const dateLabel = date.toLocaleDateString(undefined, {
       weekday: "long",
       month: "long",
       day: "numeric",
     });
+    if (
+      typeof scheduledTimeMinutes === "number" &&
+      scheduledTimeMinutes >= 0 &&
+      scheduledTimeMinutes <= 1439
+    ) {
+      const hours = Math.floor(scheduledTimeMinutes / 60);
+      const minutes = scheduledTimeMinutes % 60;
+      const timeDate = new Date(year, (month || 1) - 1, day || 1, hours, minutes);
+      const timeLabel = timeDate.toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      return `${dateLabel} at ${timeLabel}`;
+    }
+    return dateLabel;
   } catch {
     return isoDate;
   }
@@ -265,7 +283,10 @@ export function SavedWorkoutDetailScreen({
   const creatorHandle = getCreatorDisplayLabel(routine.sourceUrl, routine.title);
   const sourceUrl = routine.sourceUrl || null;
   const platform = getSourcePlatform(sourceUrl);
-  const scheduledLabel = formatScheduledDate(routine.scheduledFor);
+  const scheduledLabel = formatScheduledDate(
+    routine.scheduledFor,
+    routine.scheduledTimeMinutes,
+  );
   const equipment = (plan?.equipment || []).filter(
     (item): item is string => Boolean(item && item.trim()),
   );

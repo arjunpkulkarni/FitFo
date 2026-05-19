@@ -19,6 +19,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as DocumentPicker from "expo-document-picker";
 import { useFonts } from "expo-font";
 import { PostHogProvider } from "posthog-react-native";
 
@@ -70,12 +71,14 @@ import {
   fetchLiftLatestSnapshot,
   getCompletedWorkout,
   getCurrentUser,
+  importWorkoutsFromCsv,
   listBodyWeightEntries,
   listCompletedWorkouts,
   listSavedWorkouts,
   listScheduledWorkouts,
   patchProfile,
   saveOnboarding,
+  saveUsername,
   saveWorkoutForLater,
   sendOtp,
   updateSavedWorkout,
@@ -84,6 +87,7 @@ import {
   verifyOtp,
 } from "./src/lib/api";
 import { humanizeIngestError } from "./src/lib/ingestErrors";
+import { openFeatureSuggestion } from "./src/lib/featureSuggestion";
 import { hasBillingBypassForUser } from "./src/lib/billingBypass";
 import { signInWithApple } from "./src/lib/appleAuth";
 import {
@@ -100,6 +104,7 @@ import {
   getRoutineDisplayTitle,
   normalizeExerciseKeyForLiftHistory,
   formatLastLiftSnapshotLine,
+  formatPersonalRecordLiftLine,
 } from "./src/lib/fitfo";
 import {
   ensureStarterWorkoutsSeeded,
@@ -133,6 +138,7 @@ import {
   notifyWorkoutReady,
   reconcileScheduledNotifications,
   requestNotificationPermissionForOnboarding,
+  scheduleNextWorkoutNudgeIfNeeded,
   scheduleWorkoutReminder,
   setAutoNotifyImportsPreference,
   syncExpoPushTokenWithBackend,
@@ -145,6 +151,7 @@ import { LogsScreen } from "./src/screens/LogsScreen";
 import { OtpVerificationScreen } from "./src/screens/OtpVerificationScreen";
 import { PaywallScreen } from "./src/screens/PaywallScreen";
 import { TrialExplainerScreen } from "./src/screens/TrialExplainerScreen";
+import { UsernameScreen } from "./src/screens/UsernameScreen";
 import { ProfileScreen } from "./src/screens/ProfileScreen";
 import { ProgressChartsScreen } from "./src/screens/ProgressChartsScreen";
 import {
@@ -199,6 +206,7 @@ type AuthSubmitMode = "login" | "signup" | "otp" | "apple" | "bootstrap";
 interface ScheduledConfirmationState {
   title: string;
   scheduledFor: string;
+  scheduledTimeMinutes: number;
   origin: "share" | "manual";
 }
 
@@ -229,6 +237,35 @@ function getWorkoutCompletionRatio(session: ActiveSessionPreview) {
     0,
   );
   return completedSetCount / totalSetCount;
+}
+
+function formatRelativeLiftHistoryDate(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) {
+    return null;
+  }
+  const diffMs = Date.now() - timestamp;
+  const minuteMs = 60 * 1000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+  if (diffMs < hourMs) {
+    return "today";
+  }
+  if (diffMs < dayMs) {
+    const hours = Math.max(1, Math.round(diffMs / hourMs));
+    return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  }
+  const days = Math.max(1, Math.round(diffMs / dayMs));
+  if (days < 30) {
+    return `${days} ${days === 1 ? "day" : "days"} ago`;
+  }
+  return new Date(timestamp).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export default function App() {
@@ -262,6 +299,8 @@ export default function App() {
     useState<SaveOnboardingRequest | null>(null);
   const [pendingOtpChallenge, setPendingOtpChallenge] =
     useState<PendingOtpChallenge | null>(null);
+  const [isUsernameSubmitting, setIsUsernameSubmitting] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isMinSplashDone, setIsMinSplashDone] = useState(false);
   useEffect(() => {
@@ -355,6 +394,10 @@ export default function App() {
   const [isSchedulingAgain, setIsSchedulingAgain] = useState(false);
   const [scheduleAgainError, setScheduleAgainError] = useState<string | null>(null);
   const [isSavingImportedWorkout, setIsSavingImportedWorkout] = useState(false);
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
+  const [csvImportStatus, setCsvImportStatus] = useState<
+    { kind: "success" | "error"; message: string } | null
+  >(null);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkoutRecord[]>(
     [],
   );
@@ -517,6 +560,9 @@ export default function App() {
     revenueCat.hasPro;
 
   const userPastOnboarding = Boolean(currentUser?.onboarding);
+  const needsUsername = Boolean(
+    currentUser && userPastOnboarding && !currentUser.username?.trim(),
+  );
 
   const [billingCheckGiveUp, setBillingCheckGiveUp] = useState(false);
   const [billingCheckShowBuyNow, setBillingCheckShowBuyNow] = useState(false);
@@ -529,6 +575,7 @@ export default function App() {
 
   const needsBillingVerification =
     Boolean(currentUser && userPastOnboarding) &&
+    !needsUsername &&
     !isAccountBillingBypass &&
     !isServerProBypass;
 
@@ -792,6 +839,7 @@ export default function App() {
     setIsAddWorkoutVisible(false);
     setSharedIngestUrl(null);
     setIsShareDrivenIngest(false);
+    setCsvImportStatus(null);
     resetImportFlow();
   }, [cancelPendingAddWorkoutCleanup, resetImportFlow]);
 
@@ -800,6 +848,7 @@ export default function App() {
     setIsAddWorkoutVisible(true);
     setSharedIngestUrl(null);
     setIsShareDrivenIngest(false);
+    setCsvImportStatus(null);
     resetImportFlow();
   }, [cancelPendingAddWorkoutCleanup, resetImportFlow]);
 
@@ -1050,6 +1099,35 @@ export default function App() {
     [authLandingOnboardingPayload, loadBodyWeightEntries],
   );
 
+  const handleSaveUsername = useCallback(
+    async (username: string) => {
+      if (!accessToken) {
+        setUsernameError("You need to be signed in to claim a username.");
+        return;
+      }
+      setIsUsernameSubmitting(true);
+      setUsernameError(null);
+      try {
+        const response = await saveUsername(accessToken, { username });
+        setCurrentUser(response.profile);
+        await storeAuthSession(accessToken, response.profile);
+        posthog.capture("username_created", {
+          user_id: response.profile.id,
+          username: response.profile.username ?? username,
+        });
+      } catch (error) {
+        setUsernameError(
+          error instanceof Error
+            ? error.message
+            : "Unable to save that username right now.",
+        );
+      } finally {
+        setIsUsernameSubmitting(false);
+      }
+    },
+    [accessToken],
+  );
+
   useEffect(() => {
     if (!currentUser || !accessToken) {
       setSavedWorkouts([]);
@@ -1063,6 +1141,8 @@ export default function App() {
       setLatestLiftSnapshots([]);
       setBodyWeightEntries([]);
       setBodyWeightEntriesError(null);
+      setUsernameError(null);
+      setIsUsernameSubmitting(false);
       hubPreviousTabRef.current = "saved";
       return;
     }
@@ -1137,6 +1217,34 @@ export default function App() {
       }
       const line = formatLastLiftSnapshotLine(snapshot);
       return line.trim() ? line : null;
+    },
+    [latestLiftSnapshotLookup],
+  );
+
+  const resolveExerciseLiftSummary = useCallback(
+    (
+      exerciseName: string,
+    ): { lastSessionLabel: string | null; personalRecordLabel: string | null } | null => {
+      const key = normalizeExerciseKeyForLiftHistory(exerciseName);
+      if (!key) {
+        return null;
+      }
+      const snapshots = latestLiftSnapshotLookup.get(key);
+      const snapshot = snapshots?.values().next().value as
+        | LiftLatestSetSnapshot
+        | undefined;
+      if (!snapshot) {
+        return null;
+      }
+
+      const lastSessionLabel = formatRelativeLiftHistoryDate(
+        snapshot.last_session_recorded_at ?? snapshot.recorded_at,
+      );
+      const personalRecordLabel = formatPersonalRecordLiftLine(snapshot);
+      if (!lastSessionLabel && !personalRecordLabel) {
+        return null;
+      }
+      return { lastSessionLabel, personalRecordLabel };
     },
     [latestLiftSnapshotLookup],
   );
@@ -1533,7 +1641,7 @@ export default function App() {
   );
 
   const handleScheduleImportedWorkout = useCallback(
-    async (scheduledFor: string) => {
+    async (scheduledFor: string, scheduledTimeMinutes: number) => {
       if (!accessToken || !latestImportedRoutine) {
         return;
       }
@@ -1571,6 +1679,7 @@ export default function App() {
           source_url: saved.source_url ?? null,
           thumbnail_url: importThumbnailUrl,
           scheduled_for: scheduledFor,
+          scheduled_time_minutes: scheduledTimeMinutes,
           title: latestImportedRoutine.title,
           description: latestImportedRoutine.description,
           meta_left: latestImportedRoutine.metaLeft,
@@ -1587,8 +1696,9 @@ export default function App() {
           );
         });
 
-        // Fire-and-forget local reminders for the day before and day of.
         void scheduleWorkoutReminder(scheduled);
+        // A real schedule means any "pick your next lift" nudge is no longer needed.
+        void cancelGymScheduleNudge();
 
         setSavedWorkoutsError(null);
         setScheduledWorkoutsError(null);
@@ -1609,6 +1719,8 @@ export default function App() {
         setScheduledConfirmation({
           title: latestImportedRoutine.title,
           scheduledFor: scheduled.scheduled_for,
+          scheduledTimeMinutes:
+            scheduled.scheduled_time_minutes ?? scheduledTimeMinutes,
           origin: isShareDrivenIngest ? "share" : "manual",
         });
         // Defer clearing the state that feeds AddWorkoutModal's rendered
@@ -1669,6 +1781,12 @@ export default function App() {
         title: savedPreview.title ?? null,
         source_url: savedPreview.sourceUrl ?? null,
       });
+      void scheduleNextWorkoutNudgeIfNeeded({
+        rows: scheduledWorkoutsRef.current,
+        reason: "saved_workout",
+        workoutTitle: savedPreview.title,
+        requestPermission: true,
+      });
       setSavedWorkoutsError(null);
       setSubmitError(null);
       setActiveTab("saved");
@@ -1696,6 +1814,108 @@ export default function App() {
     scheduleAddWorkoutCleanup,
     workout,
   ]);
+
+  const handleImportFromCsv = useCallback(async () => {
+    if (!accessToken || isImportingCsv) {
+      return;
+    }
+
+    setCsvImportStatus(null);
+
+    let pick: DocumentPicker.DocumentPickerResult;
+    try {
+      // iOS Files / iCloud Drive: DocumentPicker resolves with `canceled: true`
+      // when the user backs out. `multiple: false` matches the spec (one file
+      // at a time); `copyToCacheDirectory` ensures the URI we send up is
+      // readable by the multipart uploader.
+      pick = await DocumentPicker.getDocumentAsync({
+        type: ["text/csv", "text/comma-separated-values", "public.comma-separated-values-text", "*/*"],
+        multiple: false,
+        copyToCacheDirectory: true,
+      });
+    } catch (error) {
+      setCsvImportStatus({
+        kind: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Couldn't open the file picker. Try again in a moment.",
+      });
+      return;
+    }
+
+    if (pick.canceled) {
+      return;
+    }
+
+    const asset = pick.assets?.[0];
+    if (!asset) {
+      return;
+    }
+
+    const lowerName = (asset.name || "").toLowerCase();
+    if (lowerName && !lowerName.endsWith(".csv")) {
+      setCsvImportStatus({
+        kind: "error",
+        message: "Please choose a .csv file exported from your workout tracker.",
+      });
+      return;
+    }
+
+    setIsImportingCsv(true);
+    try {
+      const result = await importWorkoutsFromCsv(accessToken, {
+        uri: asset.uri,
+        name: asset.name ?? null,
+        mimeType: asset.mimeType ?? null,
+        size: asset.size ?? null,
+      });
+
+      const importedPreviews = result.workouts.map((workout) =>
+        createSavedRoutinePreviewFromRecord(workout.saved_workout),
+      );
+
+      if (importedPreviews.length > 0) {
+        setSavedWorkouts((current) => {
+          const newIds = new Set(importedPreviews.map((preview) => preview.id));
+          const withoutDuplicates = current.filter((item) => !newIds.has(item.id));
+          return [...importedPreviews, ...withoutDuplicates];
+        });
+        setSavedWorkoutsError(null);
+      }
+
+      posthog.capture("csv_workouts_imported", {
+        source_app: result.source_app,
+        source_file_name: result.source_file_name,
+        workouts_count: result.imported_workouts_count,
+        sets_count: result.imported_sets_count,
+      });
+
+      const summary =
+        result.imported_workouts_count === 1
+          ? "Imported 1 workout"
+          : `Imported ${result.imported_workouts_count} workouts`;
+      setCsvImportStatus({ kind: "success", message: `${summary} from CSV.` });
+      setActiveTab("saved");
+
+      // Brief delay so the user sees the success card before the modal fades
+      // out — same pattern as the schedule/save flows.
+      setTimeout(() => {
+        setIsAddWorkoutVisible(false);
+        setCsvImportStatus(null);
+      }, 900);
+    } catch (error) {
+      setCsvImportStatus({
+        kind: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Couldn't import that CSV. Make sure it's a Hevy/Strong export.",
+      });
+    } finally {
+      setIsImportingCsv(false);
+    }
+  }, [accessToken, isImportingCsv]);
 
   const handleUnscheduleWorkout = useCallback(
     (
@@ -1939,7 +2159,7 @@ export default function App() {
   }, [isSchedulingAgain]);
 
   const handleConfirmScheduleAgain = useCallback(
-    async (scheduledFor: string) => {
+    async (scheduledFor: string, scheduledTimeMinutes: number) => {
       if (!accessToken || !scheduleAgainTarget) {
         return;
       }
@@ -1993,6 +2213,7 @@ export default function App() {
           source_url: sourceSourceUrl,
           thumbnail_url: scheduleThumbnailUrl,
           scheduled_for: scheduledFor,
+          scheduled_time_minutes: scheduledTimeMinutes,
           title: scheduleAgainTarget.title,
           description: scheduleAgainTarget.description,
           meta_left: scheduleAgainTarget.metaLeft,
@@ -2009,6 +2230,7 @@ export default function App() {
           );
         });
         void scheduleWorkoutReminder(scheduled);
+        void cancelGymScheduleNudge();
 
         setSavedWorkoutsError(null);
         setScheduledWorkoutsError(null);
@@ -2016,6 +2238,8 @@ export default function App() {
         setScheduledConfirmation({
           title: scheduleAgainTarget.title,
           scheduledFor: scheduled.scheduled_for,
+          scheduledTimeMinutes:
+            scheduled.scheduled_time_minutes ?? scheduledTimeMinutes,
           origin: "manual",
         });
       } catch (error) {
@@ -2202,6 +2426,16 @@ export default function App() {
             void loadScheduledWorkouts(accessToken);
           }
         }
+        void scheduleNextWorkoutNudgeIfNeeded({
+          rows: scheduledWorkoutIdToComplete
+            ? scheduledWorkoutsRef.current.filter(
+                (item) => item.id !== scheduledWorkoutIdToComplete,
+              )
+            : scheduledWorkoutsRef.current,
+          reason: "completed_workout",
+          workoutTitle: completed.title,
+          requestPermission: true,
+        });
       } catch (error) {
         setCompletedWorkoutsError(
           error instanceof Error ? error.message : "Unable to save your workout log.",
@@ -2888,6 +3122,10 @@ export default function App() {
     [accessToken],
   );
 
+  const handleOpenSuggestFeaturesFromCoach = useCallback(() => {
+    openFeatureSuggestion((event) => posthog.capture(event));
+  }, []);
+
   const renderAuthenticatedScreen = () => {
     if (activeSession && isActiveWorkoutVisible) {
       const activeCoachKey = String(activeSession.startedAt);
@@ -2935,7 +3173,10 @@ export default function App() {
           }}
           onHubTourFinishButtonVisible={handleHubTourFinishButtonVisible}
           resolveLastLiftLabel={resolveLastLiftLabel}
+          resolveExerciseLiftSummary={resolveExerciseLiftSummary}
           themeMode={themeMode}
+          userId={currentUser?.id ?? null}
+          onOpenSuggestFeatures={handleOpenSuggestFeaturesFromCoach}
         />
       );
     }
@@ -3309,7 +3550,14 @@ export default function App() {
             />
           </View>
         ) : currentUser ? (
-          isBillingCheckPending ? (
+          needsUsername ? (
+            <UsernameScreen
+              error={usernameError}
+              isSubmitting={isUsernameSubmitting}
+              onSubmit={handleSaveUsername}
+              themeMode={themeMode}
+            />
+          ) : isBillingCheckPending ? (
             <View style={styles.loadingScreen}>
               <FitfoLoadingAnimation
                 caption="checking access"
@@ -3473,8 +3721,10 @@ export default function App() {
       <AddWorkoutModal
         autoNotifyImports={autoNotifyImports}
         autoSubmit={isShareDrivenIngest}
+        csvImportStatus={csvImportStatus}
         error={importError}
         initialUrl={sharedIngestUrl}
+        isImportingCsv={isImportingCsv}
         isSaving={isSavingImportedWorkout}
         isScheduling={isSchedulingWorkout}
         isSubmitting={isExtractSubmitting}
@@ -3483,6 +3733,7 @@ export default function App() {
         onClose={handleCloseAddWorkout}
         onContinueInBackground={handleSendImportToBackground}
         onCreateManual={handleCreateManualWorkout}
+        onImportFromCsv={handleImportFromCsv}
         onSaveImported={handleSaveImportedWorkout}
         onScheduleImported={handleScheduleImportedWorkout}
         onStartImported={() => handleStartSession()}
@@ -3527,6 +3778,7 @@ export default function App() {
           <ScheduledConfirmationScreen
             title={scheduledConfirmation.title}
             scheduledFor={scheduledConfirmation.scheduledFor}
+            scheduledTimeMinutes={scheduledConfirmation.scheduledTimeMinutes}
             origin={scheduledConfirmation.origin}
             onDismiss={() => setScheduledConfirmation(null)}
             themeMode={themeMode}

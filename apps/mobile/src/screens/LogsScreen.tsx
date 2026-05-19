@@ -14,7 +14,9 @@ import { Ionicons } from "@expo/vector-icons";
 
 import {
   canReplayCompletedSession,
+  formatTotalLiftedVolume,
   getRoutineDisplayTitle,
+  getTotalLoggedLiftVolume,
 } from "../lib/fitfo";
 import { useTabBarScrollPadding } from "../lib/tabBarLayout";
 import { getTheme, type ThemeMode } from "../theme";
@@ -192,6 +194,14 @@ export function LogsScreen({
     activeWorkout?.hubTimerFrozenWallMs ?? nowTick;
   const isHubWorkoutPaused = activeWorkout?.hubTimerFrozenWallMs != null;
 
+  const totalLiftedVolume = useMemo(
+    () => getTotalLoggedLiftVolume(workouts, activeWorkout),
+    [workouts, activeWorkout],
+  );
+
+  const showTotalLiftedStat =
+    !isLoading && !error && (workouts.length > 0 || totalLiftedVolume > 0);
+
   return (
     <ScrollView
       style={styles.container}
@@ -212,6 +222,23 @@ export function LogsScreen({
           </Text>
         </Animated.View>
       </View>
+
+      {showTotalLiftedStat ? (
+        <View style={styles.totalLiftCard}>
+          <View style={styles.totalLiftIcon}>
+            <Ionicons color={theme.colors.primary} name="barbell" size={18} />
+          </View>
+          <View style={styles.totalLiftCopy}>
+            <Text style={styles.totalLiftLabel}>Total weight lifted</Text>
+            <Text style={styles.totalLiftValue}>
+              {formatTotalLiftedVolume(totalLiftedVolume)}
+            </Text>
+            <Text style={styles.totalLiftCaption}>
+              Across all logged sets in your history
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
       {activeWorkout ? (
         <View style={styles.activeWorkoutCard}>
@@ -505,6 +532,57 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     },
     titleAccent: {
       color: theme.colors.primary,
+    },
+    totalLiftCard: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 14,
+      borderRadius: theme.radii.large,
+      backgroundColor: theme.colors.surface,
+      padding: 16,
+      borderWidth: theme.mode === "dark" ? 1 : 0,
+      borderColor: theme.colors.borderSoft,
+      ...theme.shadows.softCard,
+    },
+    totalLiftIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor:
+        theme.mode === "dark"
+          ? "rgba(255, 111, 34, 0.18)"
+          : "rgba(255, 111, 34, 0.12)",
+    },
+    totalLiftCopy: {
+      flex: 1,
+      minWidth: 0,
+      gap: 2,
+    },
+    totalLiftLabel: {
+      color: theme.colors.textMuted,
+      fontSize: 10,
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "800",
+      letterSpacing: 1.1,
+      textTransform: "uppercase",
+    },
+    totalLiftValue: {
+      color: theme.colors.textPrimary,
+      fontSize: 28,
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "800",
+      letterSpacing: -0.8,
+      lineHeight: 32,
+    },
+    totalLiftCaption: {
+      marginTop: 2,
+      color: theme.colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 16,
+      fontFamily: "Satoshi-Medium",
+      fontWeight: "500",
     },
     analysisCard: {
       flexDirection: "row",

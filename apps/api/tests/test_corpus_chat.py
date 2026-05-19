@@ -101,11 +101,54 @@ class BuildWorkoutBlockTests(unittest.TestCase):
         self.assertIn("ATHLETE POSITION", block)
         self.assertIn("Sets logged vs planned: 4/12", block)
         self.assertIn("03:05", block)
-        self.assertIn("Athlete focus: exercise 2 of 2 — RDL", block)
+        self.assertIn("Athlete focus: exercise 2 of 2 - RDL", block)
         self.assertIn("Working set #: 2 of 3", block)
         self.assertIn("saved/template id=sw_abc", block)
         self.assertIn("(2/4 sets done)", block)
         self.assertIn("(1/3 sets done)", block)
+
+
+class TricepBrainrotTests(unittest.TestCase):
+    def test_detects_tricep_questions(self) -> None:
+        self.assertTrue(corpus_chat._is_tricep_brainrot_question("does this hit triceps?"))
+        self.assertTrue(corpus_chat._is_tricep_brainrot_question("Does leg press hit triceps"))
+        self.assertTrue(corpus_chat._is_tricep_brainrot_question("will this work my tricep"))
+        self.assertTrue(corpus_chat._is_tricep_brainrot_question("my tricpes are cooked"))
+        self.assertTrue(corpus_chat._is_tricep_brainrot_question("triceps feel weak today"))
+
+    def test_ignores_unrelated_questions(self) -> None:
+        self.assertFalse(corpus_chat._is_tricep_brainrot_question("what cue for bench?"))
+
+
+class NormalizeCitationMarkupTests(unittest.TestCase):
+    def test_unwraps_bold_citations(self) -> None:
+        raw = "Drive elbows under **[1]** and stay stacked."
+        self.assertEqual(
+            corpus_chat._normalize_citation_markup(raw),
+            "Drive elbows under [1] and stay stacked.",
+        )
+
+
+class ReplaceEmDashTests(unittest.TestCase):
+    def test_replaces_unicode_dashes(self) -> None:
+        self.assertEqual(
+            corpus_chat._replace_em_dashes("One move — two cues"),
+            "One move, two cues",
+        )
+
+
+class EnrichRetrievalQueryTests(unittest.TestCase):
+    def test_appends_current_lift_for_vague_questions(self) -> None:
+        workout = corpus_chat.WorkoutContext(
+            current_exercise_name="Incline Smith press",
+            exercises=[
+                corpus_chat.WorkoutExerciseContext(
+                    "Incline Smith press", 4, 8, None, 120, None,
+                ),
+            ],
+        )
+        out = corpus_chat._enrich_retrieval_query("what cue should I use?", workout)
+        self.assertIn("Incline Smith press", out)
 
 
 class ClampCitationsInAnswerTests(unittest.TestCase):
@@ -137,10 +180,84 @@ class AnswerTests(unittest.IsolatedAsyncioTestCase):
             "app.services.corpus_chat.corpus_retrieval.retrieve",
             new=AsyncMock(return_value=[]),
         ):
-            result = await corpus_chat.answer("how do triceps grow?")
+            result = await corpus_chat.answer("how do hamstrings grow?")
         self.assertIn("don't have coverage", result.answer)
         self.assertEqual(result.citations, [])
         self.assertEqual(result.retrieval, [])
+
+    async def test_tricep_brainrot_uses_llm_for_fresh_jokes(self) -> None:
+        llm_response = _FakeResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "Yes, now quit inspecting your elbows and go lift."
+                        }
+                    }
+                ]
+            }
+        )
+        capture: dict = {}
+
+        with (
+            patch(
+                "app.services.corpus_chat.corpus_retrieval.retrieve",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.services.corpus_chat.httpx.AsyncClient",
+                return_value=_FakeAsyncClient(llm_response, capture),
+            ),
+        ):
+            result = await corpus_chat.answer("does this hit triceps?")
+
+        self.assertEqual(
+            result.answer,
+            "Yes, now quit inspecting your elbows and go lift.",
+        )
+        self.assertEqual(result.citations, [])
+        self.assertEqual(result.retrieval, [])
+        self.assertGreater(capture["json"]["temperature"], 0.2)
+        self.assertIn(
+            "TRICEP BRAINROT EASTER EGG",
+            capture["json"]["messages"][0]["content"],
+        )
+        self.assertIn(
+            "shut up and lock in",
+            capture["json"]["messages"][0]["content"].lower(),
+        )
+
+    async def test_tricep_brainrot_skips_retrieval_context(self) -> None:
+        llm_response = _FakeResponse(
+            {"choices": [{"message": {"content": "Lock in and move weight."}}]}
+        )
+        capture: dict = {}
+        retrieve = AsyncMock(
+            return_value=[
+                _retrieval_chunk(
+                    "Leg press targets quads, not triceps.",
+                    chunk_id="leg-press",
+                )
+            ],
+        )
+
+        with (
+            patch(
+                "app.services.corpus_chat.corpus_retrieval.retrieve",
+                new=retrieve,
+            ),
+            patch(
+                "app.services.corpus_chat.httpx.AsyncClient",
+                return_value=_FakeAsyncClient(llm_response, capture),
+            ),
+        ):
+            result = await corpus_chat.answer("Does leg press hit triceps")
+
+        retrieve.assert_not_called()
+        self.assertEqual(result.answer, "Lock in and move weight.")
+        self.assertEqual(result.citations, [])
+        self.assertEqual(result.retrieval, [])
+        self.assertNotIn("Leg press targets quads", capture["json"]["messages"][0]["content"])
 
     async def test_synthesizes_answer_from_retrieved_chunks(self) -> None:
         chunks = [
@@ -181,7 +298,7 @@ class AnswerTests(unittest.IsolatedAsyncioTestCase):
                 return_value=_FakeAsyncClient(llm_response, capture),
             ),
         ):
-            result = await corpus_chat.answer("how do I grow my triceps?")
+            result = await corpus_chat.answer("how do I grow my arms?")
 
         self.assertIn("[1]", result.answer)
         self.assertIn("[2]", result.answer)
@@ -283,14 +400,14 @@ class AnswerTests(unittest.IsolatedAsyncioTestCase):
                 _ShouldNotBeCalledClient,
             ),
         ):
-            result = await corpus_chat.answer("how do triceps grow?")
+            result = await corpus_chat.answer("how do hamstrings grow?")
         self.assertFalse(llm_called)
         self.assertIn("don't have coverage", result.answer)
 
     async def test_system_prompt_carries_scope_guard(self) -> None:
         """Off-topic refusal is enforced in the system prompt itself."""
         self.assertIn("SCOPE", corpus_chat.SYSTEM_PROMPT)
-        self.assertIn("ask me about your training", corpus_chat.SYSTEM_PROMPT)
+        self.assertIn("Ask me about your training", corpus_chat.SYSTEM_PROMPT)
 
     async def test_system_prompt_enforces_short_output(self) -> None:
         """Style block must keep answers tight."""
@@ -334,12 +451,12 @@ class AnswerTests(unittest.IsolatedAsyncioTestCase):
 class StripCoachEchoTagsTests(unittest.TestCase):
     def test_strip_bolds_and_period_variants(self) -> None:
         raw = (
-            "You're on exercise 1 of 3 — Bench, working on set 1 of 3 "
+            "You're on exercise 1 of 3 - Bench, working on set 1 of 3 "
             "**[CURRENT WORKOUT].**"
         )
         self.assertEqual(
             corpus_chat._strip_coach_echo_tags(raw),
-            "You're on exercise 1 of 3 — Bench, working on set 1 of 3",
+            "You're on exercise 1 of 3 - Bench, working on set 1 of 3",
         )
 
     def test_plain_brackets_strip(self) -> None:
@@ -352,8 +469,8 @@ class StripCoachEchoTagsTests(unittest.TestCase):
 
     def test_does_not_strip_retrieval_citations(self) -> None:
         self.assertEqual(
-            corpus_chat._strip_coach_echo_tags("Grip the bar **[1]** at shoulder width."),
-            "Grip the bar **[1]** at shoulder width.",
+            corpus_chat._strip_coach_echo_tags("Grip the bar [1] at shoulder width."),
+            "Grip the bar [1] at shoulder width.",
         )
 
 

@@ -35,6 +35,10 @@ class ProfileNotFoundError(RuntimeError):
     pass
 
 
+class UsernameTakenError(RuntimeError):
+    pass
+
+
 @lru_cache
 def _client() -> Client:
     _load_env_if_missing()
@@ -129,7 +133,7 @@ def _utc_now_iso() -> str:
 
 
 PROFILE_SELECT_FIELDS = (
-    "id, full_name, phone, email, apple_user_id, avatar_url, created_at, updated_at"
+    "id, full_name, username, phone, email, apple_user_id, avatar_url, created_at, updated_at"
 )
 PROFILE_ONBOARDING_SELECT_FIELDS = (
     "user_id, goals, sex, training_split, custom_split_notes, days_per_week, weight_lbs, "
@@ -451,8 +455,8 @@ def delete_saved_workout(saved_workout_id: str, *, user_id: str) -> Dict[str, An
 
 SCHEDULED_WORKOUT_FIELDS = (
     "id, user_id, source_workout_id, workout_id, job_id, source_url, thumbnail_url, scheduled_for, "
-    "status, title, description, meta_left, meta_right, badge_label, workout_plan, "
-    "created_at, updated_at"
+    "scheduled_time_minutes, status, title, description, meta_left, meta_right, badge_label, "
+    "workout_plan, created_at, updated_at"
 )
 
 
@@ -481,6 +485,7 @@ def create_scheduled_workout(
     user_id: str,
     *,
     scheduled_for: str,
+    scheduled_time_minutes: Optional[int] = None,
     title: str,
     source_workout_id: Optional[str] = None,
     workout_id: Optional[str] = None,
@@ -513,6 +518,8 @@ def create_scheduled_workout(
         payload["workout_id"] = workout_id
     if job_id is not None:
         payload["job_id"] = job_id
+    if scheduled_time_minutes is not None:
+        payload["scheduled_time_minutes"] = scheduled_time_minutes
 
     result = supa.table("scheduled_workouts").insert(payload).execute()
     if not result.data:
@@ -523,6 +530,7 @@ def create_scheduled_workout(
 _SCHEDULED_WORKOUT_UPDATABLE_FIELDS = frozenset(
     {
         "scheduled_for",
+        "scheduled_time_minutes",
         "status",
         "title",
         "description",
@@ -728,6 +736,21 @@ def get_profile_by_id(profile_id: str) -> Optional[Dict[str, Any]]:
     return _attach_profile_onboarding(result.data[0])
 
 
+def get_profile_by_username(username: str) -> Optional[Dict[str, Any]]:
+    supa = get_supabase()
+    clean = username.strip().lower()
+    result = (
+        supa.table("profiles")
+        .select(PROFILE_SELECT_FIELDS)
+        .eq("username", clean)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        return None
+    return _attach_profile_onboarding(result.data[0])
+
+
 def get_profile_onboarding(user_id: str) -> Optional[Dict[str, Any]]:
     supa = get_supabase()
     result = (
@@ -811,6 +834,24 @@ def update_profile_full_name(profile_id: str, *, full_name: str) -> Dict[str, An
     result = (
         supa.table("profiles")
         .update({"full_name": clean})
+        .eq("id", profile_id)
+        .execute()
+    )
+    if not result.data:
+        raise ProfileNotFoundError(f"Profile {profile_id} not found")
+    return _attach_profile_onboarding(result.data[0])
+
+
+def update_profile_username(profile_id: str, *, username: str) -> Dict[str, Any]:
+    clean = username.strip().lower()
+    existing = get_profile_by_username(clean)
+    if existing is not None and str(existing.get("id")) != profile_id:
+        raise UsernameTakenError("Username is already taken")
+
+    supa = get_supabase()
+    result = (
+        supa.table("profiles")
+        .update({"username": clean})
         .eq("id", profile_id)
         .execute()
     )

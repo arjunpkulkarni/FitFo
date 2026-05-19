@@ -10,6 +10,11 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import {
+  ScheduleTimePicker,
+  useDefaultScheduleTimeMinutes,
+} from "./ScheduleTimePicker";
+import { formatScheduleDateAndTime } from "../lib/scheduleTime";
 import { getTheme, type ThemeMode } from "../theme";
 
 interface ScheduleAgainModalProps {
@@ -19,7 +24,7 @@ interface ScheduleAgainModalProps {
   isScheduling?: boolean;
   error?: string | null;
   onClose: () => void;
-  onConfirm: (scheduledFor: string) => void;
+  onConfirm: (scheduledFor: string, scheduledTimeMinutes: number) => void;
   themeMode?: ThemeMode;
 }
 
@@ -89,14 +94,19 @@ export function ScheduleAgainModal({
   const styles = createStyles(theme);
   const upcomingDates = useMemo(() => buildUpcomingDates(14), []);
   const defaultDateIso = upcomingDates[0] ? toIsoDate(upcomingDates[0]) : null;
+  const defaultScheduleTimeMinutes = useDefaultScheduleTimeMinutes();
   const [selectedDate, setSelectedDate] = useState<string | null>(defaultDateIso);
+  const [scheduledTimeMinutes, setScheduledTimeMinutes] = useState(
+    defaultScheduleTimeMinutes,
+  );
 
   useEffect(() => {
     if (!visible) {
       return;
     }
     setSelectedDate(defaultDateIso);
-  }, [defaultDateIso, visible]);
+    setScheduledTimeMinutes(defaultScheduleTimeMinutes);
+  }, [defaultDateIso, defaultScheduleTimeMinutes, visible]);
 
   const readableSelectedDate = useMemo(() => {
     if (!selectedDate) {
@@ -109,11 +119,21 @@ export function ScheduleAgainModal({
     return formatReadableDate(match);
   }, [selectedDate, upcomingDates]);
 
+  const scheduleConfirmLabel = useMemo(() => {
+    if (!selectedDate) {
+      return "Schedule workout";
+    }
+    return `Schedule for ${formatScheduleDateAndTime(
+      selectedDate,
+      scheduledTimeMinutes,
+    )}`;
+  }, [selectedDate, scheduledTimeMinutes]);
+
   const handleConfirm = () => {
     if (!selectedDate || isScheduling) {
       return;
     }
-    onConfirm(selectedDate);
+    onConfirm(selectedDate, scheduledTimeMinutes);
   };
 
   return (
@@ -202,6 +222,12 @@ export function ScheduleAgainModal({
               })}
             </ScrollView>
 
+            <ScheduleTimePicker
+              value={scheduledTimeMinutes}
+              onChange={setScheduledTimeMinutes}
+              themeMode={themeMode}
+            />
+
             {error ? (
               <View style={styles.errorCard}>
                 <Text style={styles.errorText}>{error}</Text>
@@ -231,7 +257,7 @@ export function ScheduleAgainModal({
                     size={16}
                   />
                   <Text style={styles.primaryButtonText}>
-                    Schedule for {readableSelectedDate}
+                    {scheduleConfirmLabel}
                   </Text>
                 </View>
               )}

@@ -7,6 +7,7 @@ import type {
   BodyWeightEntryRecord,
   CompletedWorkoutCreateRequest,
   CompletedWorkoutRecord,
+  CsvImportResponse,
   LiftLatestSetSnapshot,
   IngestRequest,
   IngestResponse,
@@ -15,6 +16,8 @@ import type {
   PatchProfileRequest,
   SaveOnboardingRequest,
   SaveOnboardingResponse,
+  SaveUsernameRequest,
+  SaveUsernameResponse,
   SavedWorkoutRecord,
   SavedWorkoutUpdateRequest,
   SavedWorkoutUpsertRequest,
@@ -23,6 +26,7 @@ import type {
   ScheduledWorkoutUpdateRequest,
   SendOtpRequest,
   SendOtpResponse,
+  UsernameCheckResponse,
   VerifyOtpRequest,
   VerifyOtpResponse,
   WorkoutRow,
@@ -348,6 +352,55 @@ export async function uploadProfileAvatar(
   return response.json() as Promise<MeResponse>;
 }
 
+/**
+ * Upload a workout-export CSV (Hevy/Strong/generic). The backend parses the
+ * file into one or more workouts and persists each to ``saved_workouts``.
+ */
+export async function importWorkoutsFromCsv(
+  accessToken: string,
+  asset: { uri: string; name?: string | null; mimeType?: string | null; size?: number | null },
+): Promise<CsvImportResponse> {
+  const name = (asset.name?.trim() || "workouts.csv").replace(/[^A-Za-z0-9._-]+/g, "_");
+  const mime = asset.mimeType?.trim() || "text/csv";
+
+  const form = new FormData();
+  form.append(
+    "file",
+    {
+      uri: asset.uri,
+      name,
+      type: mime,
+    } as unknown as Blob,
+  );
+
+  const response = await fetch(`${API_BASE}/imports/workouts/csv`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: form,
+  });
+
+  if (!response.ok) {
+    const bodyText = await response.text().catch(() => "");
+    let message = defaultMessageForStatus(response.status);
+    try {
+      const parsed = JSON.parse(bodyText) as { detail?: unknown };
+      const detail = parsed.detail;
+      if (typeof detail === "string" && detail.trim()) {
+        message = looksLikeHtmlPayload(detail)
+          ? defaultMessageForStatus(response.status)
+          : detail.trim();
+      }
+    } catch {
+      message = humanizeErrorPayload(response.status, bodyText);
+    }
+    throw new ApiError(response.status, message);
+  }
+
+  return response.json() as Promise<CsvImportResponse>;
+}
+
 export async function deleteProfileAvatar(accessToken: string): Promise<MeResponse> {
   return request<MeResponse>("/auth/me/avatar", {
     method: "DELETE",
@@ -372,6 +425,27 @@ export async function saveOnboarding(
   body: SaveOnboardingRequest,
 ): Promise<SaveOnboardingResponse> {
   return request<SaveOnboardingResponse>("/auth/onboarding", {
+    method: "PUT",
+    accessToken,
+    body: JSON.stringify(body),
+  });
+}
+
+export async function checkUsername(
+  accessToken: string,
+  username: string,
+): Promise<UsernameCheckResponse> {
+  const query = new URLSearchParams({ username });
+  return request<UsernameCheckResponse>(`/auth/username/check?${query}`, {
+    accessToken,
+  });
+}
+
+export async function saveUsername(
+  accessToken: string,
+  body: SaveUsernameRequest,
+): Promise<SaveUsernameResponse> {
+  return request<SaveUsernameResponse>("/auth/username", {
     method: "PUT",
     accessToken,
     body: JSON.stringify(body),
