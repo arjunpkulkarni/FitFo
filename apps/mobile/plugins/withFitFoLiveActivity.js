@@ -1,5 +1,5 @@
 /**
- * Expo config plugin that keeps the FitFo Live Activity / Widget extension wired
+ * Expo config plugin that keeps the Fitfo Live Activity / Widget extension wired
  * into the iOS project whenever `expo prebuild` regenerates the native folder.
  *
  * It defers the heavy Xcode work to `scripts/setup-live-activity.js` so the

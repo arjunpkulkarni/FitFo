@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Idempotent Xcode setup for the FitFo Live Activity / Widget extension.
+ * Idempotent Xcode setup for the Fitfo Live Activity / Widget extension.
  *
  * What this does:
  *  1. Adds the native module sources under `ios/Fitfo/LiveWorkoutActivity/` to the
@@ -20,6 +20,7 @@
 const fs = require("fs");
 const path = require("path");
 const xcode = require("xcode");
+const pbxFile = require("xcode/lib/pbxFile");
 
 const IOS_DIR = path.resolve(__dirname, "..", "ios");
 const PROJECT_PATH = path.join(IOS_DIR, "Fitfo.xcodeproj", "project.pbxproj");
@@ -37,6 +38,9 @@ const HOST_MODULE_SOURCES = [
 
 const WIDGET_SOURCES = ["FitFoWorkoutAttributes.swift", "FitFoLiveActivity.swift"];
 const WIDGET_INFO_PLIST = "Info.plist";
+const WIDGET_RESOURCES = [
+  { name: "Assets.xcassets", fileType: "folder.assetcatalog" },
+];
 
 const DEPLOYMENT_TARGET = "16.2";
 const WIDGET_BUNDLE_SUFFIX = "FitFoLiveActivity";
@@ -185,11 +189,47 @@ function applyWidgetBuildSettings(project, target, mainBundleId, devTeam) {
   }
 }
 
+/**
+ * Adds a resource (e.g. `Assets.xcassets`) to the widget extension.
+ *
+ * We avoid `project.addResourceFile` because xcode@3 calls
+ * `correctForResourcesPath`, which assumes the project has a `Resources`
+ * PBXGroup at the root and throws otherwise. Reactor-style projects generated
+ * by Expo don't have that group, so we wire up the file by hand instead.
+ */
+function addWidgetResource(project, widgetGroup, targetUuid, resource) {
+  const file = new pbxFile(`${WIDGET_DIR_NAME}/${resource.name}`, {
+    lastKnownFileType: resource.fileType,
+    target: targetUuid,
+  });
+  file.uuid = project.generateUuid();
+  file.fileRef = project.generateUuid();
+  file.target = targetUuid;
+
+  project.addToPbxBuildFileSection(file);
+  project.addToPbxResourcesBuildPhase(file);
+  project.addToPbxFileReferenceSection(file);
+  project.addToPbxGroup(file, widgetGroup.uuid);
+}
+
+function ensureWidgetResources(project, widgetGroup, targetUuid) {
+  for (const resource of WIDGET_RESOURCES) {
+    if (fileAlreadyInGroup(project, widgetGroup.uuid, resource.name)) {
+      log(`Skip ${resource.name} (already in widget group).`);
+      continue;
+    }
+    addWidgetResource(project, widgetGroup, targetUuid, resource);
+    log(`Added ${WIDGET_DIR_NAME}/${resource.name} to ${WIDGET_TARGET_NAME}.`);
+  }
+}
+
 function ensureWidgetTarget(project, mainBundleId, devTeam) {
   const existing = findTargetByName(project, WIDGET_TARGET_NAME);
   if (existing) {
     log(`Widget target already registered (${existing.uuid}).`);
     applyWidgetBuildSettings(project, existing.target, mainBundleId, devTeam);
+    const widgetGroup = ensureWidgetGroup(project);
+    ensureWidgetResources(project, widgetGroup, existing.uuid);
     return existing;
   }
 
@@ -222,6 +262,8 @@ function ensureWidgetTarget(project, mainBundleId, devTeam) {
       lastKnownFileType: "text.plist.xml",
     });
   }
+
+  ensureWidgetResources(project, widgetGroup, widgetTarget.uuid);
 
   applyWidgetBuildSettings(project, widgetTarget.target, mainBundleId, devTeam);
 

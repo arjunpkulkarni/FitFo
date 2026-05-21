@@ -9,7 +9,7 @@
  *
  * Design notes:
  * - We intentionally talk to the webhook directly from the device instead of
- *   routing through the FitFo API. The webhook URL + shared secret are
+ *   routing through the Fitfo API. The webhook URL + shared secret are
  *   public-ish (anyone with both can append rows) but the Sheet is private
  *   to the team. For a low-volume internal feedback channel this trade is
  *   fine; if abuse becomes a problem, swap in a server endpoint.

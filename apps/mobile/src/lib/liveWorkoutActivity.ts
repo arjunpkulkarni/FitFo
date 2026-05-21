@@ -85,7 +85,7 @@ async function safeCall(
 }
 
 /**
- * iOS-only thin wrapper over the FitFo Live Activity ActivityKit bridge.
+ * iOS-only thin wrapper over the Fitfo Live Activity ActivityKit bridge.
  *
  * All methods are safe to call on Android and on iOS < 16.2 — they return
  * `{ ok: false, reason }` synchronously without throwing so callers never

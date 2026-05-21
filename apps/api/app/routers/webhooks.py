@@ -19,7 +19,7 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 def _expected_authorization() -> str:
     """The exact value RevenueCat sends as the ``Authorization`` header.
 
-    Configured in RC dashboard → Project → Apps → FitFo → Webhook URL settings
+    Configured in RC dashboard → Project → Apps → Fitfo → Webhook URL settings
     → "Authorization header value". Must match REVENUECAT_WEBHOOK_AUTH_TOKEN
     in the API .env. We compare full strings — no Bearer-prefix munging,
     because RC sends the literal value back unmodified.

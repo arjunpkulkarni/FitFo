@@ -1,4 +1,4 @@
-"""Parse exported workout CSVs (Hevy, Strong, generic) into FitFo workout objects.
+"""Parse exported workout CSVs (Hevy, Strong, generic) into Fitfo workout objects.
 
 The parser groups rows into workouts using ``(title, start_time)``, then groups
 sets within a workout by ``exercise_title``. Hevy-specific columns are detected
@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Sequence
 
 
 class CsvImportError(ValueError):
-    """Raised when the uploaded CSV cannot be turned into FitFo workouts."""
+    """Raised when the uploaded CSV cannot be turned into Fitfo workouts."""
 
 
 @dataclass
@@ -321,7 +321,7 @@ def parse_workout_csv(
 
 
 def parsed_workout_to_workout_plan(workout: ParsedWorkout) -> Dict[str, object]:
-    """Convert a ``ParsedWorkout`` into the FitFo ``workout_plan`` JSON shape."""
+    """Convert a ``ParsedWorkout`` into the Fitfo ``workout_plan`` JSON shape."""
     exercises: List[Dict[str, object]] = []
     for exercise in workout.exercises:
         # Pick a representative "default" target for the saved workout view.
