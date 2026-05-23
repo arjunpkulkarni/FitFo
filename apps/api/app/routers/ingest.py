@@ -1,16 +1,15 @@
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.routers.deps import require_profile_id
 from app.schemas.ingest import IngestCheckResponse, IngestRequest
 from app.services import (
-    ingestion_pipeline,
-    slideshow_pipeline,
     supabase_db,
     tiktok_url,
     url_detection,
 )
+from app.tasks import run_ingestion_job, run_slideshow_job
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -18,7 +17,6 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
 @router.post("", response_model=IngestCheckResponse)
 async def ingest_video(
     body: IngestRequest,
-    background: BackgroundTasks,
     profile_id: str = Depends(require_profile_id),
 ) -> IngestCheckResponse:
     """
@@ -99,14 +97,12 @@ async def ingest_video(
     job_id = UUID(row["id"]) if row.get("id") else None
     if job_id is not None:
         if media_type == "slideshow":
-            background.add_task(
-                slideshow_pipeline.run_slideshow_job,
+            run_slideshow_job.delay(
                 str(job_id),
                 normalized,
             )
         else:
-            background.add_task(
-                ingestion_pipeline.run_ingestion_job,
+            run_ingestion_job.delay(
                 str(job_id),
                 normalized,
             )
