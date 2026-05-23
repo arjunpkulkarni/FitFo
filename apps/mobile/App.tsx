@@ -86,6 +86,7 @@ import {
   saveUsername,
   saveWorkoutForLater,
   sendOtp,
+  syncRevenueCatUser,
   updateSavedWorkout,
   updateScheduledWorkout,
   uploadProfileAvatar,
@@ -2579,6 +2580,16 @@ export default function App() {
       setAuthLandingIndex(0);
       setAuthMode("signup");
       resetPostLoginState();
+
+      // Mirror the Supabase ↔ RevenueCat mapping to the API. The RC SDK
+      // is configured with appUserID = profile.id by useRevenueCat
+      // (Purchases.logIn under the hood), and this call gives the
+      // backend the corresponding row so webhooks can resolve the user.
+      // Fire-and-forget: network hiccups must not block sign-in.
+      void syncRevenueCatUser(token).catch((error) => {
+        // eslint-disable-next-line no-console
+        console.log("[RevenueCat] sync-user failed", error);
+      });
     },
     [resetPostLoginState],
   );

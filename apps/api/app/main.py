@@ -20,6 +20,7 @@ from app.routers import (
     ingest,
     jobs,
     lift_history,
+    revenuecat,
     saved_workouts,
     scheduled_workouts,
     webhooks,
@@ -68,6 +69,7 @@ app.include_router(scheduled_workouts.router)
 app.include_router(admin_corpus.router)
 app.include_router(chat.router)
 app.include_router(webhooks.router)
+app.include_router(revenuecat.router)
 
 
 @app.get("/health")

@@ -143,7 +143,7 @@ onOpenSuggestFeatures?: () => void
   - Center text: remaining seconds (56px bold) + `RESTING` / `READY` label
 - ±15s adjustment buttons (pill shape, `surface-2` bg)
 - "Up Next" card: exercise name + set label
-- "I'm ready — continue" full-width white button
+- "I'm ready, continue" full-width white button
 - Auto-dismisses when `elapsed >= targetSeconds` → calls `onDone`
 
 ### 6. `WorkoutEditSheet` (new component)

@@ -7,33 +7,37 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import DraggableFlatList, {
-  ScaleDecorator,
-  type RenderItemParams,
-} from "react-native-draggable-flatlist";
-import {
-  Image,
-  Linking,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { View, StyleSheet, Text, Pressable } from "react-native";
 
 import CoachSheet, { type CoachChatMessage } from "../components/CoachSheet";
-import { resolveExerciseRestBaseline, titleCase } from "../lib/fitfo";
-import type { WorkoutContext as ChatWorkoutContext } from "../lib/chat";
 import { F } from "../lib/fonts";
 import { LiveWorkoutActivity } from "../lib/liveWorkoutActivity";
-import { getTheme, radii, type ThemeMode } from "../theme";
+import { darkColors, type ThemeMode } from "../theme";
 import type {
   ActiveExercisePreview,
   ActiveSessionPreview,
   ActiveSetPreview,
 } from "../types";
+import type { WorkoutContext as ChatWorkoutContext } from "../lib/chat";
+
+import {
+  findCursor,
+  buildStack,
+  countProgress,
+  deepCloneExercises,
+  findPreviousFinishedCursor,
+  formatClock,
+  computeVolume,
+} from "../components/workout/workoutUtils";
+import WorkoutTopBar from "../components/workout/WorkoutTopBar";
+import WorkoutExerciseStrip from "../components/workout/WorkoutExerciseStrip";
+import WorkoutSetCard from "../components/workout/WorkoutSetCard";
+import WorkoutRestOverlay from "../components/workout/WorkoutRestOverlay";
+import WorkoutEditSheet from "../components/workout/WorkoutEditSheet";
+import WorkoutOverviewSheet from "../components/workout/WorkoutOverviewSheet";
+import WorkoutFinishModal from "../components/workout/WorkoutFinishModal";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface LiveActivityProgress {
   exerciseName: string;
@@ -44,14 +48,51 @@ interface LiveActivityProgress {
   nextSet: number | null;
 }
 
-/**
- * Pick the exercise the user is currently working through and derive the
- * 1-based currentSet/totalSets/nextSet that drive the Live Activity payload.
- *
- * Strategy: skip exercises whose sets are all completed. For the first
- * remaining exercise, the current set is the first incomplete set; the next
- * set is the one after it (or null if it's the last).
- */
+interface RestState {
+  targetSeconds: number;
+  startedAt: number;
+}
+
+interface ActiveWorkoutScreenProps {
+  session: ActiveSessionPreview;
+  onBack: () => void;
+  onFinish: (session: ActiveSessionPreview) => void;
+  coachMessages: CoachChatMessage[];
+  setCoachMessages: Dispatch<SetStateAction<CoachChatMessage[]>>;
+  onCoachButtonMeasured?: (rect: { x: number; y: number; width: number; height: number } | null) => void;
+  coachOpenRequestId?: number;
+  hubTourStep?: "active_scroll" | "finish_workout" | null;
+  onHubTourFinishButtonMeasured?: (rect: { x: number; y: number; width: number; height: number } | null) => void;
+  onHubTourListViewportMeasured?: (rect: { x: number; y: number; width: number; height: number } | null) => void;
+  onHubTourFinishButtonVisible?: () => void;
+  themeMode?: ThemeMode;
+  resolveLastLiftLabel?: (exerciseName: string, setPositionOneBased: number) => string | null;
+  resolveExerciseLiftSummary?: (exerciseName: string) => {
+    lastSessionLabel: string | null;
+    personalRecordLabel: string | null;
+  } | null;
+  userId?: string | null;
+  onOpenSuggestFeatures?: () => void;
+}
+
+// ─── Helper functions ─────────────────────────────────────────────────────────
+
+function buildCoachDraftLoggedSummary(set: ActiveSetPreview): string | null {
+  const w = set.loggedWeight.trim();
+  const r = set.loggedReps.trim();
+  if (!w && !r) return null;
+  const parts: string[] = [];
+  if (w) parts.push(`${w} lb`);
+  if (r) parts.push(set.targetDurationSec != null ? `${r}s held` : `${r} reps`);
+  return parts.join(" · ") || null;
+}
+
+function getTargetCopy(set: ActiveSetPreview) {
+  if (set.targetDurationSec != null) return `${set.targetDurationSec}s target`;
+  if (set.targetReps != null) return `${set.targetReps} reps target`;
+  return "Log your set";
+}
+
 function deriveLiveActivityProgress(
   exercises: ActiveExercisePreview[],
   restTargetSeconds: number | null,
@@ -62,18 +103,16 @@ function deriveLiveActivityProgress(
   let active: ActiveExercisePreview | null = null;
   for (const exercise of exercises) {
     if (exercise.sets.length === 0) continue;
-    const hasIncomplete = exercise.sets.some((set) => !set.completed);
+    const hasIncomplete = exercise.sets.some((s) => !s.completed);
     if (hasIncomplete) {
       active = exercise;
       break;
     }
   }
-  if (!active) {
-    active = exercises[exercises.length - 1];
-  }
+  if (!active) active = exercises[exercises.length - 1];
 
   const totalSets = active.sets.length || 1;
-  const incompleteIndex = active.sets.findIndex((set) => !set.completed);
+  const incompleteIndex = active.sets.findIndex((s) => !s.completed);
   const currentSetIndex = incompleteIndex >= 0 ? incompleteIndex : totalSets - 1;
   const currentSet = currentSetIndex + 1;
   const nextSetCandidate = currentSetIndex + 1;
@@ -83,12 +122,13 @@ function deriveLiveActivityProgress(
     restTargetSeconds != null &&
     restTargetSeconds > 0 &&
     restElapsedSeconds < restTargetSeconds;
+
   const restEndAt = isResting
     ? Date.now() + Math.max(0, restTargetSeconds! - restElapsedSeconds) * 1000
     : null;
 
   return {
-    exerciseName: (active.name || "Exercise").trim() || "Exercise",
+    exerciseName: active.name,
     currentSet,
     totalSets,
     phase: isResting ? "rest" : "active",
@@ -97,940 +137,98 @@ function deriveLiveActivityProgress(
   };
 }
 
-interface ActiveWorkoutScreenProps {
-  session: ActiveSessionPreview;
-  onBack: () => void;
-  onFinish: (session: ActiveSessionPreview) => void;
-  /** Lifted coach transcript so reopening from the Logs tab retains memory. */
-  coachMessages: CoachChatMessage[];
-  setCoachMessages: Dispatch<SetStateAction<CoachChatMessage[]>>;
-  /** One-time coach spotlight: measure the coach button so parent can highlight it. */
-  onCoachButtonMeasured?: (rect: { x: number; y: number; width: number; height: number } | null) => void;
-  /** When this increments, open the coach sheet programmatically. */
-  coachOpenRequestId?: number;
-  hubTourStep?: "active_scroll" | "finish_workout" | null;
-  onHubTourFinishButtonMeasured?: (rect: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null) => void;
-  onHubTourListViewportMeasured?: (rect: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null) => void;
-  onHubTourFinishButtonVisible?: () => void;
-  themeMode?: ThemeMode;
-  /**
-   * Resolve persisted “last time” label for this exercise name + 1-based set index.
-   * When omitted, set rows omit historical hints.
-   */
-  resolveLastLiftLabel?: (
-    exerciseName: string,
-    setPositionOneBased: number,
-  ) => string | null;
-  resolveExerciseLiftSummary?: (exerciseName: string) => {
-    lastSessionLabel: string | null;
-    personalRecordLabel: string | null;
-  } | null;
-  userId?: string | null;
-  onOpenSuggestFeatures?: () => void;
-}
-
-interface SelectedSetState {
-  exerciseId: string;
-  setId: string;
-}
-
-type TargetMetric = "reps" | "time";
-
-const DEFAULT_TARGET_REPS = 10;
-const DEFAULT_TARGET_DURATION_SEC = 30;
-
-function formatClock(totalSeconds: number) {
-  const safeSeconds = Math.max(0, totalSeconds);
-  const hours = Math.floor(safeSeconds / 3600);
-  const minutes = Math.floor((safeSeconds % 3600) / 60);
-  const seconds = safeSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }
-
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
-function sanitizeWeight(value: string) {
-  return value.replace(/[^0-9.]/g, "");
-}
-
-function sanitizeReps(value: string) {
-  return value.replace(/\D/g, "");
-}
-
-function buildCoachDraftLoggedSummary(set: ActiveSetPreview): string | null {
-  const w = set.loggedWeight.trim();
-  const r = set.loggedReps.trim();
-  if (!w && !r) {
-    return null;
-  }
-  const parts: string[] = [];
-  if (w) {
-    parts.push(`${w} lb`);
-  }
-  if (r) {
-    parts.push(
-      set.targetDurationSec != null ? `${r}s held` : `${r} reps`,
-    );
-  }
-  return parts.join(" · ") || null;
-}
-
-function createId(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function getTargetCopy(set: ActiveSetPreview) {
-  if (set.targetDurationSec != null) {
-    return `${set.targetDurationSec}s target`;
-  }
-
-  if (set.targetReps != null) {
-    return `${set.targetReps} reps target`;
-  }
-
-  return "Log your set";
-}
-
-function getLoggedSetCopy(set: ActiveSetPreview) {
-  const parts: string[] = [];
-
-  if (set.loggedWeight.trim()) {
-    parts.push(`${set.loggedWeight} lb`);
-  }
-
-  if (set.loggedReps.trim()) {
-    parts.push(
-      set.targetDurationSec != null
-        ? `${set.loggedReps}s`
-        : `${set.loggedReps} reps`,
-    );
-  }
-
-  return parts.join(" • ") || getTargetCopy(set);
-}
-
-function isSetReadyToComplete(set: ActiveSetPreview) {
-  if (set.targetDurationSec != null) {
-    return Boolean(set.loggedReps.trim());
-  }
-
-  return Boolean(set.loggedWeight.trim()) && Boolean(set.loggedReps.trim());
-}
-
-function getExerciseSubtitle(sets: ActiveSetPreview[]) {
-  const setCountLabel = `${sets.length} ${sets.length === 1 ? "set" : "sets"}`;
-  const referenceSet = sets.find(
-    (set) => set.targetDurationSec != null || set.targetReps != null,
-  );
-
-  if (referenceSet?.targetDurationSec != null) {
-    return `${setCountLabel} • ${referenceSet.targetDurationSec}s`;
-  }
-
-  if (referenceSet?.targetReps != null) {
-    return `${setCountLabel} • ${referenceSet.targetReps} reps`;
-  }
-
-  return setCountLabel;
-}
-
-function relabelSets(sets: ActiveSetPreview[]) {
-  return sets.map((set, index) => ({
-    ...set,
-    label: `Set ${index + 1}`,
-  }));
-}
-
-function syncExercise(exercise: ActiveExercisePreview): ActiveExercisePreview {
-  const fromSets = getExerciseSubtitle(exercise.sets);
-  const noteFrag = exercise.notes?.trim() ?? "";
-  const subtitle = noteFrag ? `${fromSets} • ${noteFrag}` : fromSets;
-
-  return {
-    ...exercise,
-    subtitle,
-  };
-}
-
-function createSetDraft(
-  index: number,
-  options?: {
-    targetDurationSec?: number | null;
-    targetReps?: number | null;
-  },
-): ActiveSetPreview {
-  return {
-    id: createId("set"),
-    label: `Set ${index}`,
-    targetReps: options?.targetReps ?? null,
-    targetDurationSec: options?.targetDurationSec ?? null,
-    loggedWeight: "",
-    loggedReps: "",
-    completed: false,
-  };
-}
-
-function createExerciseDraft(options: {
-  averageRestSeconds: number | null;
-  name: string;
-  setCount: number;
-  targetDurationSec?: number | null;
-  targetReps: number | null;
-}): ActiveExercisePreview {
-  const sets = Array.from({ length: options.setCount }, (_, index) =>
-    createSetDraft(index + 1, {
-      targetDurationSec: options.targetDurationSec ?? null,
-      targetReps: options.targetReps,
-    }),
-  );
-
-  return syncExercise({
-    id: createId("exercise"),
-    name: options.name,
-    subtitle: "",
-    blockName: null,
-    notes: null,
-    restSeconds: options.averageRestSeconds,
-    sets,
-  });
-}
-
-type ActiveWorkoutTheme = ReturnType<typeof getTheme>;
-type ActiveWorkoutStyles = ReturnType<typeof createStyles>;
-
-interface SetRowProps {
-  exerciseId: string;
-  exerciseName: string;
-  canRemove: boolean;
-  isActive: boolean;
-  onMaybeComplete: (exerciseId: string, setId: string) => void;
-  onOpen: (exerciseId: string, setId: string) => void;
-  onRepsChange: (exerciseId: string, setId: string, value: string) => void;
-  onRemove: (exerciseId: string, setId: string) => void;
-  onTargetRepsChange: (exerciseId: string, setId: string, value: number | null) => void;
-  onTargetDurationChange: (
-    exerciseId: string,
-    setId: string,
-    value: number | null,
-  ) => void;
-  onWeightChange: (exerciseId: string, setId: string, value: string) => void;
-  set: ActiveSetPreview;
-  /** Best-effort prior logged numbers from lift history (same exercise + set index). */
-  lastLiftSummary?: string | null;
-  styles: ActiveWorkoutStyles;
-  theme: ActiveWorkoutTheme;
-}
-
-function SetRow({
-  exerciseId,
-  exerciseName,
-  canRemove,
-  isActive,
-  lastLiftSummary,
-  set,
-  onMaybeComplete,
-  onOpen,
-  onRepsChange,
-  onRemove,
-  onTargetRepsChange,
-  onTargetDurationChange,
-  onWeightChange,
-  styles,
-  theme,
-}: SetRowProps) {
-  const isTimedSet = set.targetDurationSec != null;
-  const [targetRepsDraft, setTargetRepsDraft] = useState(
-    set.targetReps != null ? String(set.targetReps) : "",
-  );
-  const [targetDurationDraft, setTargetDurationDraft] = useState(
-    set.targetDurationSec != null ? String(set.targetDurationSec) : "",
-  );
-
-  useEffect(() => {
-    setTargetRepsDraft(set.targetReps != null ? String(set.targetReps) : "");
-  }, [set.targetReps]);
-
-  useEffect(() => {
-    setTargetDurationDraft(
-      set.targetDurationSec != null ? String(set.targetDurationSec) : "",
-    );
-  }, [set.targetDurationSec]);
-
-  const commitTargetReps = () => {
-    const trimmed = targetRepsDraft.trim();
-    if (!trimmed) {
-      onTargetRepsChange(exerciseId, set.id, null);
-      return;
-    }
-    const parsed = Number.parseInt(trimmed, 10);
-    onTargetRepsChange(exerciseId, set.id, Number.isFinite(parsed) ? parsed : null);
-  };
-
-  const commitTargetDuration = () => {
-    const trimmed = targetDurationDraft.trim();
-    if (!trimmed) {
-      onTargetDurationChange(exerciseId, set.id, null);
-      return;
-    }
-    const parsed = Number.parseInt(trimmed, 10);
-    onTargetDurationChange(
-      exerciseId,
-      set.id,
-      Number.isFinite(parsed) ? parsed : null,
-    );
-  };
-
-  if (!isActive) {
-    return (
-      <View
-        style={[
-          styles.setRow,
-          styles.setRowCompact,
-          set.completed ? styles.setRowComplete : styles.setRowUpcoming,
-        ]}
-      >
-        <Pressable onPress={() => onOpen(exerciseId, set.id)} style={styles.setRowOpenButton}>
-          <View style={styles.setRowHeader}>
-            <View style={styles.setRowTitleColumn}>
-              <Text style={styles.setLabel}>{set.label}</Text>
-              <Text style={styles.setTarget}>
-                {set.completed ? getLoggedSetCopy(set) : getTargetCopy(set)}
-              </Text>
-              {lastLiftSummary && !set.completed ? (
-                <View style={styles.lastLiftPillCompact}>
-                  <Text style={styles.lastLiftPillText}>
-                    ← Last: {lastLiftSummary}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-            <View style={styles.setHeaderActions}>
-              {set.completed ? (
-                <View style={styles.setDonePill}>
-                  <Ionicons color={theme.colors.success} name="checkmark-circle" size={14} />
-                  <Text style={styles.setDoneText}>Logged</Text>
-                </View>
-              ) : (
-                <Text style={styles.setExerciseName}>Up next</Text>
-              )}
-              {canRemove ? (
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => onRemove(exerciseId, set.id)}
-                  style={styles.inlineRemoveButton}
-                >
-                  <Ionicons color={theme.colors.error} name="close" size={14} />
-                </Pressable>
-              ) : (
-                <Ionicons color={theme.colors.textMuted} name="create-outline" size={16} />
-              )}
-            </View>
-          </View>
-        </Pressable>
-      </View>
-    );
-  }
-
-  return (
-    <View style={[styles.setRow, set.completed ? styles.setRowComplete : null]}>
-      <View style={styles.setRowHeader}>
-        <View style={styles.setRowTitleColumn}>
-          <Text style={styles.setLabel}>{set.label}</Text>
-          <View style={styles.setTargetEditRow}>
-            {isTimedSet ? (
-              <View style={styles.targetEditPill}>
-                <TextInput
-                  keyboardType="number-pad"
-                  onBlur={commitTargetDuration}
-                  onChangeText={(value) => setTargetDurationDraft(sanitizeReps(value))}
-                  placeholder="--"
-                  placeholderTextColor={theme.colors.textMuted}
-                  style={styles.targetEditInput}
-                  value={targetDurationDraft}
-                />
-                <Text style={styles.targetEditUnit}>s target</Text>
-              </View>
-            ) : (
-              <View style={styles.targetEditPill}>
-                <TextInput
-                  keyboardType="number-pad"
-                  onBlur={commitTargetReps}
-                  onChangeText={(value) => setTargetRepsDraft(sanitizeReps(value))}
-                  placeholder="--"
-                  placeholderTextColor={theme.colors.textMuted}
-                  style={styles.targetEditInput}
-                  value={targetRepsDraft}
-                />
-                <Text style={styles.targetEditUnit}>reps target</Text>
-              </View>
-            )}
-          </View>
-          {lastLiftSummary ? (
-            <View style={styles.lastLiftPill}>
-              <Text style={styles.lastLiftPillText}>← Last: {lastLiftSummary}</Text>
-            </View>
-          ) : null}
-        </View>
-        <View style={styles.setHeaderActions}>
-          {set.completed ? (
-            <View style={styles.setDonePill}>
-              <Ionicons color={theme.colors.success} name="checkmark-circle" size={14} />
-              <Text style={styles.setDoneText}>Logged</Text>
-            </View>
-          ) : (
-            <Text style={styles.setExerciseName}>
-              {titleCase(exerciseName) || exerciseName}
-            </Text>
-          )}
-          {canRemove ? (
-            <Pressable
-              hitSlop={8}
-              onPress={() => onRemove(exerciseId, set.id)}
-              style={styles.inlineRemoveButton}
-            >
-              <Ionicons color={theme.colors.error} name="close" size={14} />
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-
-      <View style={styles.inputRow}>
-        {isTimedSet ? (
-          <View style={[styles.inputField, styles.inputFieldFull]}>
-            <Text style={styles.inputLabel}>Time</Text>
-            <TextInput
-              keyboardType="number-pad"
-              onChangeText={(value) =>
-                onRepsChange(exerciseId, set.id, sanitizeReps(value))
-              }
-              placeholder="Secs"
-              placeholderTextColor={theme.colors.textMuted}
-              style={styles.input}
-              value={set.loggedReps}
-            />
-          </View>
-        ) : (
-          <>
-            <View style={styles.inputField}>
-              <Text style={styles.inputLabel}>Weight</Text>
-              <TextInput
-                keyboardType="decimal-pad"
-                onChangeText={(value) =>
-                  onWeightChange(exerciseId, set.id, sanitizeWeight(value))
-                }
-                placeholder="0"
-                placeholderTextColor={theme.colors.textMuted}
-                style={styles.input}
-                value={set.loggedWeight}
-              />
-            </View>
-
-            <View style={styles.inputField}>
-              <Text style={styles.inputLabel}>Reps</Text>
-              <TextInput
-                keyboardType="number-pad"
-                onChangeText={(value) =>
-                  onRepsChange(exerciseId, set.id, sanitizeReps(value))
-                }
-                placeholder="0"
-                placeholderTextColor={theme.colors.textMuted}
-                style={styles.input}
-                value={set.loggedReps}
-              />
-            </View>
-          </>
-        )}
-      </View>
-
-      {set.completed ? (
-        <Text style={styles.autoAdvanceText}>
-          Adjust the numbers here any time and this set will stay saved.
-        </Text>
-      ) : (
-        <Pressable
-          onPress={() => onMaybeComplete(exerciseId, set.id)}
-          disabled={!isSetReadyToComplete(set)}
-          style={({ pressed }) => [
-            styles.confirmSetButton,
-            !isSetReadyToComplete(set)
-              ? styles.confirmSetButtonDisabled
-              : null,
-            pressed && isSetReadyToComplete(set)
-              ? styles.confirmSetButtonPressed
-              : null,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={`Confirm ${set.label}`}
-        >
-          <Ionicons
-            color={
-              isSetReadyToComplete(set)
-                ? "#FFFFFF"
-                : theme.colors.textMuted
-            }
-            name="checkmark"
-            size={16}
-          />
-          <Text
-            style={[
-              styles.confirmSetButtonText,
-              !isSetReadyToComplete(set)
-                ? styles.confirmSetButtonTextDisabled
-                : null,
-            ]}
-          >
-            {isSetReadyToComplete(set)
-              ? "Confirm Set"
-              : set.targetDurationSec != null
-                ? "Enter time to confirm"
-                : "Enter weight & reps to confirm"}
-          </Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
-interface ExerciseCardProps {
-  autoFocusName?: boolean;
-  editingSetId: string | null;
-  exercise: ActiveExercisePreview;
-  liftSummary?: {
-    lastSessionLabel: string | null;
-    personalRecordLabel: string | null;
-  } | null;
-  expanded: boolean;
-  onAddSet: (exerciseId: string) => void;
-  onChangeRestSeconds: (exerciseId: string, value: number | null) => void;
-  onCompleteSet: (exerciseId: string, setId: string) => void;
-  onOpenSet: (exerciseId: string, setId: string) => void;
-  onRenameExercise: (exerciseId: string, value: string) => void;
-  onRepsChange: (exerciseId: string, setId: string, value: string) => void;
-  onRemoveExercise: (exerciseId: string) => void;
-  onRemoveSet: (exerciseId: string, setId: string) => void;
-  onSelectTargetMetric: (exerciseId: string, metric: TargetMetric) => void;
-  onTargetRepsChange: (exerciseId: string, setId: string, value: number | null) => void;
-  onTargetDurationChange: (
-    exerciseId: string,
-    setId: string,
-    value: number | null,
-  ) => void;
-  onToggle: (exerciseId: string) => void;
-  onWeightChange: (exerciseId: string, setId: string, value: string) => void;
-  /** Long‑press drag handle for list reorder (card chrome; inner controls capture taps first). */
-  onReorderDrag: () => void;
-  reorderDragDisabled?: boolean;
-  resolveLastLiftLabel?: (
-    exerciseName: string,
-    setPositionOneBased: number,
-  ) => string | null;
-  styles: ActiveWorkoutStyles;
-  theme: ActiveWorkoutTheme;
-}
-
-function ExerciseCard({
-  autoFocusName,
-  editingSetId,
-  exercise,
-  liftSummary,
-  expanded,
-  onAddSet,
-  onChangeRestSeconds,
-  onCompleteSet,
-  onOpenSet,
-  onRenameExercise,
-  onRepsChange,
-  onRemoveExercise,
-  onRemoveSet,
-  onSelectTargetMetric,
-  onTargetRepsChange,
-  onTargetDurationChange,
-  onToggle,
-  onWeightChange,
-  onReorderDrag,
-  reorderDragDisabled,
-  resolveLastLiftLabel,
-  styles,
-  theme,
-}: ExerciseCardProps) {
-  const completedSetCount = exercise.sets.filter((set) => set.completed).length;
-  const isExerciseFullyComplete =
-    exercise.sets.length > 0 && completedSetCount === exercise.sets.length;
-  const defaultOpenSetId =
-    exercise.sets.find((set) => !set.completed)?.id ?? exercise.sets[0]?.id ?? null;
-  const activeSetId =
-    editingSetId != null && exercise.sets.some((set) => set.id === editingSetId)
-      ? editingSetId
-      : defaultOpenSetId;
-  const targetMetric: TargetMetric = exercise.sets.some(
-    (set) => set.targetDurationSec != null,
-  )
-    ? "time"
-    : "reps";
-
-  const [nameDraft, setNameDraft] = useState(
-    titleCase(exercise.name) || exercise.name,
-  );
-  const [restDraft, setRestDraft] = useState(
-    exercise.restSeconds != null ? String(exercise.restSeconds) : "",
-  );
-  const nameInputRef = useRef<TextInput | null>(null);
-
-  useEffect(() => {
-    setNameDraft(titleCase(exercise.name) || exercise.name);
-  }, [exercise.name]);
-
-  useEffect(() => {
-    setRestDraft(exercise.restSeconds != null ? String(exercise.restSeconds) : "");
-  }, [exercise.restSeconds]);
-
-  useEffect(() => {
-    if (autoFocusName && expanded) {
-      const handle = setTimeout(() => {
-        nameInputRef.current?.focus();
-      }, 80);
-      return () => clearTimeout(handle);
-    }
-    return undefined;
-  }, [autoFocusName, expanded]);
-
-  const commitName = () => {
-    const next = nameDraft.trim();
-    if (!next) {
-      setNameDraft(titleCase(exercise.name) || exercise.name);
-      return;
-    }
-    if (next !== exercise.name) {
-      onRenameExercise(exercise.id, next);
-    }
-  };
-
-  const commitRest = () => {
-    const trimmed = restDraft.trim();
-    if (!trimmed) {
-      onChangeRestSeconds(exercise.id, null);
-      return;
-    }
-    const parsed = Number.parseInt(trimmed, 10);
-    onChangeRestSeconds(exercise.id, Number.isFinite(parsed) ? parsed : null);
-  };
-
-  return (
-    <Pressable
-      accessibilityHint="Hold, then drag to move this exercise in the workout."
-      accessibilityLabel={`${titleCase(exercise.name) || exercise.name || "Exercise"} workout block`}
-      delayLongPress={280}
-      disabled={Boolean(reorderDragDisabled)}
-      onLongPress={onReorderDrag}
-      style={[
-        styles.exerciseCard,
-        isExerciseFullyComplete ? styles.exerciseCardComplete : null,
-      ]}
-    >
-      <View style={styles.exerciseTopRow}>
-        <View style={styles.exerciseToggleChunk}>
-          <View style={styles.exerciseIdentity}>
-            <Pressable
-              accessibilityHint={
-                expanded
-                  ? "Tap to collapse this exercise card"
-                  : "Tap to expand sets and details for this exercise"
-              }
-              accessibilityLabel={expanded ? "Collapse exercise" : "Expand exercise"}
-              accessibilityRole="button"
-              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-              onPress={() => onToggle(exercise.id)}
-            >
-              <View
-                style={[
-                  styles.exerciseIconShell,
-                  isExerciseFullyComplete ? styles.exerciseIconShellComplete : null,
-                ]}
-              >
-                <Ionicons
-                  color={isExerciseFullyComplete ? "#06140F" : theme.colors.primary}
-                  name={isExerciseFullyComplete ? "checkmark" : "barbell-outline"}
-                  size={isExerciseFullyComplete ? 24 : 18}
-                />
-              </View>
-            </Pressable>
-            <View style={styles.exerciseCopy}>
-              {exercise.blockName ? (
-                <Text style={styles.exerciseEyebrow}>{exercise.blockName}</Text>
-              ) : null}
-              <TextInput
-                ref={nameInputRef}
-                autoCapitalize="words"
-                autoCorrect={false}
-                onBlur={commitName}
-                onChangeText={setNameDraft}
-                onFocus={() => {
-                  if (!expanded) {
-                    onToggle(exercise.id);
-                  }
-                }}
-                onSubmitEditing={commitName}
-                placeholder="Tap to name this exercise"
-                placeholderTextColor={theme.colors.textMuted}
-                returnKeyType="done"
-                style={styles.exerciseTitleInput}
-                value={nameDraft}
-              />
-              <Text style={styles.exerciseSubtitle}>{exercise.subtitle}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.exerciseReorderGutter} />
-
-        <View style={styles.exerciseActions}>
-          <View
-            style={[
-              styles.setCountPill,
-              isExerciseFullyComplete ? styles.setCountPillComplete : null,
-            ]}
-          >
-            <Text
-              style={
-                isExerciseFullyComplete ? styles.setCountTextComplete : styles.setCountText
-              }
-            >
-              {completedSetCount}/{exercise.sets.length}
-            </Text>
-          </View>
-          <Pressable
-            accessibilityLabel="Remove exercise"
-            accessibilityRole="button"
-            onPress={() => onRemoveExercise(exercise.id)}
-            style={[styles.exerciseIconButton, styles.exerciseDeleteButton]}
-          >
-            <Ionicons color={theme.colors.error} name="close" size={18} />
-          </Pressable>
-        </View>
-      </View>
-
-      {expanded ? (
-        <View style={styles.exerciseBody}>
-          {liftSummary?.lastSessionLabel || liftSummary?.personalRecordLabel ? (
-            <View style={styles.liftHistoryStrip}>
-              {liftSummary.lastSessionLabel ? (
-                <View style={styles.liftHistoryMeta}>
-                  <Ionicons
-                    color={theme.colors.textMuted}
-                    name="time-outline"
-                    size={15}
-                  />
-                  <Text style={styles.liftHistoryMetaText}>
-                    Last session · {liftSummary.lastSessionLabel}
-                  </Text>
-                </View>
-              ) : null}
-              {liftSummary.personalRecordLabel ? (
-                <View style={styles.personalRecordPill}>
-                  <Text style={styles.personalRecordPillText}>
-                    PR {liftSummary.personalRecordLabel}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          <View style={styles.metricToggleCard}>
-            <Text style={styles.metricToggleLabel}>Track this exercise by</Text>
-            <View style={styles.metricToggleRow}>
-              <Pressable
-                onPress={() => onSelectTargetMetric(exercise.id, "reps")}
-                style={[
-                  styles.metricToggleButton,
-                  targetMetric === "reps" ? styles.metricToggleButtonActive : null,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.metricToggleText,
-                    targetMetric === "reps" ? styles.metricToggleTextActive : null,
-                  ]}
-                >
-                  Sets / Reps
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => onSelectTargetMetric(exercise.id, "time")}
-                style={[
-                  styles.metricToggleButton,
-                  targetMetric === "time" ? styles.metricToggleButtonActive : null,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.metricToggleText,
-                    targetMetric === "time" ? styles.metricToggleTextActive : null,
-                  ]}
-                >
-                  Time / Seconds
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={styles.restRow}>
-            <Text style={styles.restLabel}>Rest between sets</Text>
-            <View style={styles.restInputPill}>
-              <TextInput
-                keyboardType="number-pad"
-                onBlur={commitRest}
-                onChangeText={(value) => setRestDraft(sanitizeReps(value))}
-                placeholder="--"
-                placeholderTextColor={theme.colors.textMuted}
-                style={styles.restInput}
-                value={restDraft}
-              />
-              <Text style={styles.restUnit}>sec</Text>
-            </View>
-          </View>
-
-          {exercise.sets.length > 0 ? (
-            <View style={styles.setList}>
-              {exercise.sets.map((set, setIndex) => (
-                <SetRow
-                  key={set.id}
-                  canRemove={exercise.sets.length > 1}
-                  exerciseId={exercise.id}
-                  exerciseName={exercise.name}
-                  isActive={activeSetId === set.id}
-                  lastLiftSummary={
-                    resolveLastLiftLabel
-                      ? resolveLastLiftLabel(exercise.name, setIndex + 1)
-                      : null
-                  }
-                  onMaybeComplete={onCompleteSet}
-                  onOpen={onOpenSet}
-                  onRepsChange={onRepsChange}
-                  onRemove={onRemoveSet}
-                  onTargetRepsChange={onTargetRepsChange}
-                  onTargetDurationChange={onTargetDurationChange}
-                  onWeightChange={onWeightChange}
-                  set={set}
-                  styles={styles}
-                  theme={theme}
-                />
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptySetCard}>
-              <Ionicons color={theme.colors.primary} name="albums-outline" size={18} />
-              <Text style={styles.emptySetTitle}>No sets yet</Text>
-              <Text style={styles.emptySetBody}>
-                Add a set to start logging this exercise.
-              </Text>
-            </View>
-          )}
-
-          <Pressable onPress={() => onAddSet(exercise.id)} style={styles.addSetButton}>
-            <Ionicons color={theme.colors.primary} name="add-circle-outline" size={18} />
-            <Text style={styles.addSetButtonText}>Add Set</Text>
-          </Pressable>
-        </View>
-      ) : null}
-    </Pressable>
-  );
-}
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function ActiveWorkoutScreen({
   session,
-  onBack: _onBack,
   onFinish,
   coachMessages,
   setCoachMessages,
   onCoachButtonMeasured,
   coachOpenRequestId = 0,
-  hubTourStep = null,
-  onHubTourFinishButtonMeasured,
-  onHubTourListViewportMeasured,
-  onHubTourFinishButtonVisible,
-  themeMode = "light",
+  themeMode,
   resolveLastLiftLabel,
   resolveExerciseLiftSummary,
   userId = null,
   onOpenSuggestFeatures,
 }: ActiveWorkoutScreenProps) {
-  const theme = getTheme(themeMode);
-  const styles = createStyles(theme);
-  const listViewportRef = useRef<View | null>(null);
-  const finishButtonRef = useRef<View | null>(null);
-  const coachButtonRef = useRef<View | null>(null);
-  const lastCoachOpenRequestIdRef = useRef(0);
-  const previousCompletedSetCountRef = useRef(0);
-  const lastWorkoutTickRef = useRef(Date.now());
-  const lastRestTickRef = useRef(Date.now());
-  const [workoutElapsedSeconds, setWorkoutElapsedSeconds] = useState(0);
-  const [restElapsedSeconds, setRestElapsedSeconds] = useState(0);
-  const [restTargetSeconds, setRestTargetSeconds] = useState<number | null>(null);
-  const [isTimerPaused, setIsTimerPaused] = useState(false);
-  const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(
-    session.exercises[0]?.id || null,
+  // ── Core state ──────────────────────────────────────────────────────────────
+  const [exercises, setExercises] = useState<ActiveExercisePreview[]>(() =>
+    deepCloneExercises(session.exercises),
   );
-  const [exercises, setExercises] = useState(session.exercises);
-  const [selectedSet, setSelectedSet] = useState<SelectedSetState | null>(null);
-  const [autoFocusExerciseId, setAutoFocusExerciseId] = useState<string | null>(null);
+  const [restState, setRestState] = useState<RestState | null>(null);
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
+  const [showOverview, setShowOverview] = useState(false);
+  const [showFinish, setShowFinish] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [restElapsed, setRestElapsed] = useState(0);
 
-  useEffect(() => {
-    if (coachOpenRequestId === lastCoachOpenRequestIdRef.current) {
-      return;
-    }
-    lastCoachOpenRequestIdRef.current = coachOpenRequestId;
-    if (coachOpenRequestId > 0) {
-      setCoachOpen(true);
-    }
-  }, [coachOpenRequestId]);
+  // ── Derived ─────────────────────────────────────────────────────────────────
+  const cursor = useMemo(() => findCursor(exercises), [exercises]);
+  const stack = useMemo(() => buildStack(exercises, cursor), [exercises, cursor]);
+  const progress = useMemo(() => countProgress(exercises), [exercises]);
 
-  useEffect(() => {
-    setExercises(session.exercises);
-    setExpandedExerciseId(session.exercises[0]?.id || null);
-    setSelectedSet(null);
-    setAutoFocusExerciseId(null);
-    setRestElapsedSeconds(0);
-    setRestTargetSeconds(null);
-    setWorkoutElapsedSeconds(
-      Math.max(0, Math.floor((Date.now() - session.startedAt) / 1000)),
-    );
-    setIsTimerPaused(false);
-    const now = Date.now();
-    lastWorkoutTickRef.current = now;
-    lastRestTickRef.current = now;
-  }, [session]);
-
-  // Live Activity (iOS Lock Screen / Dynamic Island). The activity keeps running
-  // even when this screen is unmounted (e.g. the athlete backs out to the hub
-  // while still mid-workout), so we only `start` here and let `onFinish` end it.
-  // The native module's `start` is idempotent — it `update`s an existing activity
-  // if one is already in flight, so remounting just resyncs the latest payload.
+  // ── Refs ────────────────────────────────────────────────────────────────────
+  const coachButtonRef = useRef<View | null>(null);
+  const lastCoachOpenRequestIdRef = useRef(coachOpenRequestId);
   const liveActivityLastPayloadRef = useRef<string | null>(null);
 
+  // ── Reset on new session ────────────────────────────────────────────────────
+  useEffect(() => {
+    setExercises(deepCloneExercises(session.exercises));
+  }, [session]);
+
+  // ── Elapsed workout timer ───────────────────────────────────────────────────
+  useEffect(() => {
+    const startedAt = session.startedAt;
+    const update = () =>
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [session.startedAt]);
+
+  // ── Rest elapsed timer (for Live Activity) ──────────────────────────────────
+  useEffect(() => {
+    if (!restState) {
+      setRestElapsed(0);
+      return;
+    }
+    const { startedAt } = restState;
+    const update = () => setRestElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [restState]);
+
+  // ── Auto-open finish when all sets done ─────────────────────────────────────
+  useEffect(() => {
+    if (!cursor && progress.total > 0 && progress.done > 0) {
+      setShowFinish(true);
+    }
+  }, [cursor, progress.done, progress.total]);
+
+  // ── Coach sheet: open programmatically ─────────────────────────────────────
+  useEffect(() => {
+    if (coachOpenRequestId === lastCoachOpenRequestIdRef.current) return;
+    lastCoachOpenRequestIdRef.current = coachOpenRequestId;
+    if (coachOpenRequestId > 0) setCoachOpen(true);
+  }, [coachOpenRequestId]);
+
+  // ── Live Activity ───────────────────────────────────────────────────────────
   const liveActivityProgress = useMemo(
     () =>
-      deriveLiveActivityProgress(exercises, restTargetSeconds, restElapsedSeconds),
-    [exercises, restElapsedSeconds, restTargetSeconds],
+      deriveLiveActivityProgress(
+        exercises,
+        restState?.targetSeconds ?? null,
+        restElapsed,
+      ),
+    [exercises, restState, restElapsed],
   );
 
   useEffect(() => {
-    if (!LiveWorkoutActivity.isAvailable() || !liveActivityProgress) {
-      return;
-    }
+    if (!LiveWorkoutActivity.isAvailable() || !liveActivityProgress) return;
     const workoutName = (session.title || "Workout").trim() || "Workout";
     const payload = {
       workoutName,
@@ -1041,35 +239,22 @@ export function ActiveWorkoutScreen({
       restEndAt: liveActivityProgress.restEndAt,
       nextSet: liveActivityProgress.nextSet,
     } as const;
-
-    // Bucket `restEndAt` to the nearest second so we don't push a new payload
-    // every render — the widget renders the countdown natively from the same
-    // end-time, so jitter at sub-second granularity doesn't matter.
     const key = JSON.stringify({
       ...payload,
       restEndAt: payload.restEndAt
         ? Math.floor((payload.restEndAt as number) / 1000)
         : null,
     });
-    if (liveActivityLastPayloadRef.current === key) {
-      return;
-    }
+    if (liveActivityLastPayloadRef.current === key) return;
     liveActivityLastPayloadRef.current = key;
-
     void LiveWorkoutActivity.start(payload);
   }, [liveActivityProgress, session.title]);
 
+  // ── Coach button measurement ────────────────────────────────────────────────
   const measureCoachButton = useCallback(() => {
-    if (!onCoachButtonMeasured) {
-      return;
-    }
+    if (!onCoachButtonMeasured) return;
     coachButtonRef.current?.measureInWindow?.((x, y, width, height) => {
-      if (
-        !Number.isFinite(x) ||
-        !Number.isFinite(y) ||
-        !Number.isFinite(width) ||
-        !Number.isFinite(height)
-      ) {
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || !Number.isFinite(height)) {
         onCoachButtonMeasured(null);
         return;
       }
@@ -1077,186 +262,25 @@ export function ActiveWorkoutScreen({
     });
   }, [onCoachButtonMeasured]);
 
-  const measureListViewport = useCallback(() => {
-    if (!onHubTourListViewportMeasured) {
-      return;
-    }
-    listViewportRef.current?.measureInWindow?.((x, y, width, height) => {
-      if (
-        !Number.isFinite(x) ||
-        !Number.isFinite(y) ||
-        !Number.isFinite(width) ||
-        !Number.isFinite(height)
-      ) {
-        onHubTourListViewportMeasured(null);
-        return;
-      }
-      onHubTourListViewportMeasured({ x, y, width, height });
-    });
-  }, [onHubTourListViewportMeasured]);
-
-  const measureFinishButton = useCallback(() => {
-    if (!onHubTourFinishButtonMeasured) {
-      return;
-    }
-    finishButtonRef.current?.measureInWindow?.((x, y, width, height) => {
-      if (
-        !Number.isFinite(x) ||
-        !Number.isFinite(y) ||
-        !Number.isFinite(width) ||
-        !Number.isFinite(height)
-      ) {
-        onHubTourFinishButtonMeasured(null);
-        return;
-      }
-      onHubTourFinishButtonMeasured({ x, y, width, height });
-    });
-  }, [onHubTourFinishButtonMeasured]);
-
-  const checkFinishButtonVisibility = useCallback(() => {
-    if (!onHubTourFinishButtonVisible) {
-      return;
-    }
-    listViewportRef.current?.measureInWindow?.((viewportX, viewportY, viewportWidth, viewportHeight) => {
-      finishButtonRef.current?.measureInWindow?.((buttonX, buttonY, buttonWidth, buttonHeight) => {
-        if (
-          !Number.isFinite(viewportX) ||
-          !Number.isFinite(viewportY) ||
-          !Number.isFinite(viewportWidth) ||
-          !Number.isFinite(viewportHeight) ||
-          !Number.isFinite(buttonX) ||
-          !Number.isFinite(buttonY) ||
-          !Number.isFinite(buttonWidth) ||
-          !Number.isFinite(buttonHeight)
-        ) {
-          return;
-        }
-
-        const viewportTop = viewportY;
-        const viewportBottom = viewportY + viewportHeight;
-        const buttonTop = buttonY;
-        const buttonBottom = buttonY + buttonHeight;
-        const visibleHeight =
-          Math.min(buttonBottom, viewportBottom) - Math.max(buttonTop, viewportTop);
-
-        if (visibleHeight >= Math.min(buttonHeight * 0.6, 44)) {
-          onHubTourFinishButtonVisible();
-        }
-      });
-    });
-  }, [onHubTourFinishButtonVisible]);
-
   useEffect(() => {
-    if (hubTourStep !== "active_scroll") {
-      return;
-    }
-    const id = requestAnimationFrame(() => {
-      measureListViewport();
-      checkFinishButtonVisibility();
-    });
+    const id = requestAnimationFrame(measureCoachButton);
     return () => cancelAnimationFrame(id);
-  }, [checkFinishButtonVisibility, hubTourStep, measureListViewport, session.startedAt]);
+  }, [measureCoachButton]);
 
-  useEffect(() => {
-    if (hubTourStep !== "finish_workout") {
-      return;
-    }
-    const id = requestAnimationFrame(() => {
-      measureFinishButton();
-    });
-    return () => cancelAnimationFrame(id);
-  }, [hubTourStep, measureFinishButton, session.startedAt, exercises.length]);
-
-  const totalSetCount = useMemo(
-    () => exercises.reduce((count, exercise) => count + exercise.sets.length, 0),
-    [exercises],
-  );
-
-  const completedSetCount = useMemo(
-    () =>
-      exercises.reduce(
-        (count, exercise) => count + exercise.sets.filter((set) => set.completed).length,
-        0,
-      ),
-    [exercises],
-  );
-
-  useEffect(() => {
-    if (isTimerPaused) {
-      const now = Date.now();
-      lastWorkoutTickRef.current = now;
-      lastRestTickRef.current = now;
-      return undefined;
-    }
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const workoutDelta = Math.floor((now - lastWorkoutTickRef.current) / 1000);
-      if (workoutDelta > 0) {
-        lastWorkoutTickRef.current += workoutDelta * 1000;
-        setWorkoutElapsedSeconds((current) => current + workoutDelta);
-      }
-
-      if (completedSetCount <= 0) {
-        lastRestTickRef.current = now;
-        return;
-      }
-
-      const restDelta = Math.floor((now - lastRestTickRef.current) / 1000);
-      if (restDelta > 0) {
-        lastRestTickRef.current += restDelta * 1000;
-        setRestElapsedSeconds((current) => current + restDelta);
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [completedSetCount, isTimerPaused]);
-
-  // Snapshot of workout + athlete position sent on every coach turn so the LLM
-  // sees the exact exercise/set. We cannot rely on expandedExerciseId alone: the UI
-  // often leaves a completed lift expanded while the athlete has moved on, which
-  // made the coach claim "you're on one of three sets".
-  //
-  // Anchor: logging row (selectedSet) wins; else first incomplete set top-to-bottom;
-  // else workout is checked off → last planned set so we still expose a coherent #.
+  // ── Coach workout context ───────────────────────────────────────────────────
   const coachWorkoutContext = useMemo<ChatWorkoutContext>(() => {
     const plan = session.workoutPlan;
-
     let focusExercise: ActiveExercisePreview | undefined;
     let focusExerciseIndexZero = -1;
     let focusSet: ActiveSetPreview | undefined;
     let focusSetNumber: number | null = null;
 
-    if (
-      selectedSet != null &&
-      exercises.some((e) => e.id === selectedSet.exerciseId)
-    ) {
-      const exIdx = exercises.findIndex((e) => e.id === selectedSet.exerciseId);
-      const exercise = exercises[exIdx];
-      const sIdx = exercise.sets.findIndex((set) => set.id === selectedSet.setId);
-      if (exIdx >= 0 && sIdx >= 0) {
-        focusExercise = exercise;
-        focusExerciseIndexZero = exIdx;
-        focusSet = exercise.sets[sIdx];
-        focusSetNumber = sIdx + 1;
-      }
-    }
-
-    if (focusExercise == null) {
-      for (let exIdx = 0; exIdx < exercises.length; exIdx += 1) {
-        const exercise = exercises[exIdx];
-        const sIdx = exercise.sets.findIndex((set) => !set.completed);
-        if (sIdx >= 0) {
-          focusExercise = exercise;
-          focusExerciseIndexZero = exIdx;
-          focusSet = exercise.sets[sIdx];
-          focusSetNumber = sIdx + 1;
-          break;
-        }
-      }
-    }
-
-    if (focusExercise == null && exercises.length > 0) {
+    if (cursor) {
+      focusExerciseIndexZero = cursor.exerciseIndex;
+      focusExercise = exercises[cursor.exerciseIndex];
+      focusSet = focusExercise?.sets[cursor.setIndex];
+      focusSetNumber = cursor.setIndex + 1;
+    } else if (exercises.length > 0) {
       focusExerciseIndexZero = exercises.length - 1;
       focusExercise = exercises[focusExerciseIndexZero];
       if (focusExercise.sets.length > 0) {
@@ -1266,8 +290,7 @@ export function ActiveWorkoutScreen({
       }
     }
 
-    const draftLogged =
-      focusSet != null ? buildCoachDraftLoggedSummary(focusSet) : null;
+    const draftLogged = focusSet != null ? buildCoachDraftLoggedSummary(focusSet) : null;
 
     return {
       title: session.title || null,
@@ -1277,7 +300,7 @@ export function ActiveWorkoutScreen({
       equipment: plan?.equipment?.length ? plan.equipment : null,
       exercises: exercises.map((exercise) => {
         const referenceSet = exercise.sets[0];
-        const setsDone = exercise.sets.filter((set) => set.completed).length;
+        const setsDone = exercise.sets.filter((s) => s.completed).length;
         return {
           name: exercise.name,
           sets: exercise.sets.length || null,
@@ -1289,10 +312,10 @@ export function ActiveWorkoutScreen({
         };
       }),
       session_started_at_ms: session.startedAt,
-      elapsed_sec: workoutElapsedSeconds,
-      timer_paused: isTimerPaused,
-      completed_set_count: completedSetCount,
-      total_set_count: totalSetCount,
+      elapsed_sec: elapsed,
+      timer_paused: false,
+      completed_set_count: progress.done,
+      total_set_count: progress.total,
       current_exercise_index:
         focusExerciseIndexZero >= 0 ? focusExerciseIndexZero + 1 : null,
       current_exercise_name: focusExercise?.name ?? null,
@@ -1303,1611 +326,427 @@ export function ActiveWorkoutScreen({
       source_job_id: session.sourceJobId ?? null,
       source_url: session.sourceUrl ?? null,
     };
-  }, [
-    completedSetCount,
-    workoutElapsedSeconds,
-    exercises,
-    isTimerPaused,
-    selectedSet,
-    session,
-    totalSetCount,
-  ]);
+  }, [cursor, elapsed, exercises, progress.done, progress.total, session]);
 
-  useEffect(() => {
-    previousCompletedSetCountRef.current = 0;
-  }, [session]);
-
-  useEffect(() => {
-    const previousCompletedSetCount = previousCompletedSetCountRef.current;
-    previousCompletedSetCountRef.current = completedSetCount;
-
-    if (completedSetCount <= previousCompletedSetCount || expandedExerciseId == null) {
-      return;
-    }
-
-    const expandedExerciseIndex = exercises.findIndex(
-      (exercise) => exercise.id === expandedExerciseId,
-    );
-    if (expandedExerciseIndex < 0) {
-      return;
-    }
-
-    const expandedExercise = exercises[expandedExerciseIndex];
-    const hasIncompleteSets = expandedExercise.sets.some((set) => !set.completed);
-    if (hasIncompleteSets) {
-      return;
-    }
-
-    const nextExercise =
-      exercises
-        .slice(expandedExerciseIndex + 1)
-        .find((exercise) => exercise.sets.some((set) => !set.completed)) ??
-      exercises.find((exercise) => exercise.sets.some((set) => !set.completed));
-
-    setSelectedSet(null);
-    setExpandedExerciseId(nextExercise?.id ?? null);
-  }, [completedSetCount, exercises, expandedExerciseId]);
-
-  const updateSet = (
-    exerciseId: string,
-    setId: string,
-    updater: (set: ActiveSetPreview) => ActiveSetPreview,
-  ) => {
-    setExercises((current) =>
-      current.map((exercise) =>
-        exercise.id !== exerciseId
-          ? exercise
-          : {
-              ...exercise,
-              sets: exercise.sets.map((set) =>
-                set.id === setId ? updater(set) : set,
-              ),
-            },
-      ),
-    );
-  };
-
-  const handleSetFieldChange = (
-    exerciseId: string,
-    setId: string,
-    updater: (set: ActiveSetPreview) => ActiveSetPreview,
-  ) => {
-    setExercises((current) =>
-      current.map((exercise) =>
-        exercise.id !== exerciseId
-          ? exercise
-          : {
-              ...exercise,
-              sets: exercise.sets.map((set) =>
-                set.id === setId ? updater(set) : set,
-              ),
-            },
-      ),
-    );
-  };
-
-  const handleWeightChange = (exerciseId: string, setId: string, value: string) => {
-    handleSetFieldChange(exerciseId, setId, (set) => ({
-      ...set,
-      loggedWeight: value,
-    }));
-  };
-
-  const handleRepsChange = (exerciseId: string, setId: string, value: string) => {
-    handleSetFieldChange(exerciseId, setId, (set) => ({
-      ...set,
-      loggedReps: value,
-    }));
-  };
-
-  const handleCompleteSet = (exerciseId: string, setId: string) => {
-    const exerciseIndex = exercises.findIndex((exercise) => exercise.id === exerciseId);
-    const matchingExercise =
-      exerciseIndex >= 0 ? exercises[exerciseIndex] : undefined;
-    if (!matchingExercise) {
-      return;
-    }
-
-    const matchingSet = matchingExercise.sets.find((set) => set.id === setId);
-    if (!matchingSet || matchingSet.completed || !isSetReadyToComplete(matchingSet)) {
-      return;
-    }
-
-    updateSet(exerciseId, setId, (set) => ({ ...set, completed: true }));
-
-    setRestElapsedSeconds(0);
-    setRestTargetSeconds(
-      matchingExercise.restSeconds != null && matchingExercise.restSeconds > 0
-        ? matchingExercise.restSeconds
-        : null,
-    );
-    lastRestTickRef.current = Date.now();
-
-    const nextIncompleteSet = matchingExercise.sets.find(
-      (set) => set.id !== setId && !set.completed,
-    );
-    if (nextIncompleteSet) {
-      setExpandedExerciseId(exerciseId);
-      setSelectedSet({ exerciseId, setId: nextIncompleteSet.id });
-      return;
-    }
-
-    const nextExercise = exercises
-      .slice(exerciseIndex + 1)
-      .find((exercise) => exercise.sets.some((set) => !set.completed));
-
-    setSelectedSet(null);
-    if (nextExercise) {
-      setExpandedExerciseId(nextExercise.id);
-    }
-  };
-
-  const handleOpenSet = (exerciseId: string, setId: string) => {
-    setExpandedExerciseId(exerciseId);
-    setSelectedSet({ exerciseId, setId });
-  };
-
-  const handleRenameExercise = (exerciseId: string, value: string) => {
-    setExercises((current) =>
-      current.map((exercise) =>
-        exercise.id === exerciseId ? { ...exercise, name: value } : exercise,
-      ),
-    );
-  };
-
-  const handleChangeRestSeconds = (exerciseId: string, value: number | null) => {
-    setExercises((current) =>
-      current.map((exercise) =>
-        exercise.id === exerciseId
-          ? { ...exercise, restSeconds: value }
-          : exercise,
-      ),
-    );
-  };
-
-  const handleChangeTargetReps = (
-    exerciseId: string,
-    setId: string,
-    value: number | null,
-  ) => {
-    setExercises((current) =>
-      current.map((exercise) =>
-        exercise.id !== exerciseId
-          ? exercise
-          : syncExercise({
-              ...exercise,
-              sets: exercise.sets.map((set) =>
-                set.id === setId
-                  ? {
-                      ...set,
-                      targetReps: value,
-                      targetDurationSec:
-                        value == null ? set.targetDurationSec : null,
-                    }
-                  : set,
-              ),
-            }),
-      ),
-    );
-  };
-
-  const handleChangeTargetDuration = (
-    exerciseId: string,
-    setId: string,
-    value: number | null,
-  ) => {
-    setExercises((current) =>
-      current.map((exercise) =>
-        exercise.id !== exerciseId
-          ? exercise
-          : syncExercise({
-              ...exercise,
-              sets: exercise.sets.map((set) =>
-                set.id === setId
-                  ? {
-                      ...set,
-                      targetDurationSec: value,
-                      targetReps: value == null ? set.targetReps : null,
-                      loggedWeight: value == null ? set.loggedWeight : "",
-                    }
-                  : set,
-              ),
-            }),
-      ),
-    );
-  };
-
-  const handleSelectTargetMetric = (
-    exerciseId: string,
-    metric: TargetMetric,
-  ) => {
-    setExercises((current) =>
-      current.map((exercise) => {
-        if (exercise.id !== exerciseId) {
-          return exercise;
-        }
-
-        return syncExercise({
-          ...exercise,
-          sets: exercise.sets.map((set) => {
-            if (metric === "time") {
-              return {
-                ...set,
-                targetDurationSec:
-                  set.targetDurationSec ?? DEFAULT_TARGET_DURATION_SEC,
-                targetReps: null,
-                loggedWeight: "",
-              };
-            }
-
-            return {
-              ...set,
-              targetDurationSec: null,
-              targetReps: set.targetReps ?? DEFAULT_TARGET_REPS,
-            };
-          }),
-        });
-      }),
-    );
-  };
-
-  const handleAddSet = (exerciseId: string) => {
-    let nextSelectedSet: SelectedSetState | null = null;
-
-    setExercises((current) =>
-      current.map((exercise) => {
-        if (exercise.id !== exerciseId) {
-          return exercise;
-        }
-
-        const previousSet = exercise.sets[exercise.sets.length - 1];
-        const newSet = createSetDraft(exercise.sets.length + 1, {
-          targetDurationSec: previousSet?.targetDurationSec ?? null,
-          targetReps: previousSet?.targetReps ?? null,
-        });
-        nextSelectedSet = { exerciseId, setId: newSet.id };
-
-        return syncExercise({
-          ...exercise,
-          sets: relabelSets([...exercise.sets, newSet]),
-        });
-      }),
-    );
-
-    setExpandedExerciseId(exerciseId);
-    setSelectedSet(nextSelectedSet);
-  };
-
-  const handleRemoveSet = (exerciseId: string, setId: string) => {
-    let nextSelectedSet: SelectedSetState | null | undefined;
-
-    setExercises((current) =>
-      current.map((exercise) => {
-        if (exercise.id !== exerciseId) {
-          return exercise;
-        }
-
-        const remainingSets = relabelSets(exercise.sets.filter((set) => set.id !== setId));
-
-        if (selectedSet?.exerciseId === exerciseId && selectedSet.setId === setId) {
-          const replacementSet =
-            remainingSets.find((set) => !set.completed) ?? remainingSets[0] ?? null;
-          nextSelectedSet = replacementSet
-            ? { exerciseId, setId: replacementSet.id }
-            : null;
-        }
-
-        return syncExercise({
-          ...exercise,
-          sets: remainingSets,
-        });
-      }),
-    );
-
-    if (nextSelectedSet !== undefined) {
-      setSelectedSet(nextSelectedSet);
-    }
-  };
-
-  const handleRemoveExercise = (exerciseId: string) => {
-    const removedIndex = exercises.findIndex((exercise) => exercise.id === exerciseId);
-    if (removedIndex < 0) {
-      return;
-    }
-
-    const nextExercises = exercises.filter((exercise) => exercise.id !== exerciseId);
-    setExercises(nextExercises);
-
-    if (selectedSet?.exerciseId === exerciseId) {
-      setSelectedSet(null);
-    }
-
-    if (autoFocusExerciseId === exerciseId) {
-      setAutoFocusExerciseId(null);
-    }
-
-    if (expandedExerciseId === exerciseId) {
-      setExpandedExerciseId(
-        nextExercises[removedIndex]?.id ?? nextExercises[removedIndex - 1]?.id ?? null,
-      );
-    }
-  };
-
-  const insertExerciseAt = (insertIndex: number) => {
-    const newExercise = createExerciseDraft({
-      averageRestSeconds: resolveExerciseRestBaseline(session.averageRestSeconds),
-      name: "",
-      setCount: 3,
-      targetReps: DEFAULT_TARGET_REPS,
-    });
-
-    setExercises((current) => {
-      const clamped = Math.max(0, Math.min(insertIndex, current.length));
-      return [...current.slice(0, clamped), newExercise, ...current.slice(clamped)];
-    });
-
-    setExpandedExerciseId(newExercise.id);
-    setAutoFocusExerciseId(newExercise.id);
-    setSelectedSet(
-      newExercise.sets[0]
-        ? { exerciseId: newExercise.id, setId: newExercise.sets[0].id }
-        : null,
-    );
-  };
-
-  const handleAppendExercise = () => {
-    insertExerciseAt(exercises.length);
-  };
-
-  const handleOpenSourceUrl = () => {
-    if (!session.sourceUrl) {
-      return;
-    }
-    Linking.openURL(session.sourceUrl).catch(() => {
-      // Silent failure is fine; the button just won't do anything on unsupported URLs.
-    });
-  };
-
-  const handleToggleTimerPaused = () => {
-    setIsTimerPaused((current) => !current);
-  };
-
-  const toggleExercise = (exerciseId: string) => {
-    setExpandedExerciseId((current) => (current === exerciseId ? null : exerciseId));
-  };
-
-  const renderExerciseItem = ({
-    item: exercise,
-    drag,
-    isActive,
-  }: RenderItemParams<ActiveExercisePreview>) => (
-    <ScaleDecorator activeScale={1.04}>
-      <View style={styles.draggableExerciseBody}>
-        <ExerciseCard
-          autoFocusName={autoFocusExerciseId === exercise.id}
-          editingSetId={
-            selectedSet?.exerciseId === exercise.id ? selectedSet.setId : null
-          }
-          exercise={exercise}
-          liftSummary={
-            resolveExerciseLiftSummary
-              ? resolveExerciseLiftSummary(exercise.name)
-              : null
-          }
-          expanded={expandedExerciseId === exercise.id}
-          onReorderDrag={drag}
-          reorderDragDisabled={isActive}
-          onAddSet={handleAddSet}
-          onChangeRestSeconds={handleChangeRestSeconds}
-          onCompleteSet={handleCompleteSet}
-          onOpenSet={handleOpenSet}
-          onRenameExercise={handleRenameExercise}
-          onRepsChange={handleRepsChange}
-          onRemoveExercise={handleRemoveExercise}
-          onRemoveSet={handleRemoveSet}
-          onSelectTargetMetric={handleSelectTargetMetric}
-          onTargetRepsChange={handleChangeTargetReps}
-          onTargetDurationChange={handleChangeTargetDuration}
-          onToggle={toggleExercise}
-          onWeightChange={handleWeightChange}
-          resolveLastLiftLabel={resolveLastLiftLabel}
-          styles={styles}
-          theme={theme}
-        />
-      </View>
-    </ScaleDecorator>
-  );
-
-  const listEmpty = (
-    <View style={styles.emptyCard}>
-      <Ionicons color={theme.colors.primary} name="barbell-outline" size={20} />
-      <Text style={styles.emptyTitle}>No exercises in this session yet</Text>
-      <Text style={styles.emptyBody}>
-        Start from an imported TikTok workout to populate this screen with real exercises.
-      </Text>
-    </View>
-  );
-
-  const listHeader = (
-    <View style={styles.workoutHeaderStack}>
-      <View style={styles.header}>
-              <Image
-                resizeMode="contain"
-                source={require("../../assets/vector-no-bg.png")}
-                style={styles.brandLogo}
-              />
-            </View>
-      
-            <View style={styles.heroSection}>
-              <Text style={styles.eyebrow}>Current Session</Text>
-              <Text style={styles.heroTitle}>{session.title}</Text>
-              <Text style={styles.heroDescription}>{session.description}</Text>
-              {session.sourceUrl ? (
-                <Pressable onPress={handleOpenSourceUrl} style={styles.sourceUrlPill} hitSlop={6}>
-                  <Ionicons color={theme.colors.primary} name="play-circle-outline" size={14} />
-                  <Text style={styles.sourceUrlText}>View original reel</Text>
-                  <Ionicons
-                    color={theme.colors.primary}
-                    name="open-outline"
-                    size={12}
-                  />
-                </Pressable>
-              ) : null}
-            </View>
-      
-            <View style={styles.timerCard}>
-              <View style={styles.timerTopRow}>
-                <Text style={styles.timerEyebrow}>Rest Time</Text>
-                <Text style={styles.timerWorkoutElapsed}>
-                  Workout {formatClock(workoutElapsedSeconds)}
-                </Text>
-              </View>
-              <Text style={styles.timerValue}>{formatClock(restElapsedSeconds)}</Text>
-              <Text style={styles.timerHelper}>
-                {isTimerPaused
-                  ? "Timers paused"
-                  : completedSetCount === 0
-                    ? "Rest clock starts when you log a set"
-                    : restTargetSeconds != null
-                      ? `Target rest ${formatClock(restTargetSeconds)} · ${completedSetCount} of ${totalSetCount} sets logged`
-                      : `${completedSetCount} of ${totalSetCount} sets logged`}
-              </Text>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Open AI coach chat"
-                onPress={() => setCoachOpen(true)}
-                ref={(node) => {
-                  coachButtonRef.current = node;
-                }}
-                onLayout={() => {
-                  measureCoachButton();
-                }}
-                style={({ pressed }) => [
-                  styles.timerCoachRow,
-                  pressed && styles.timerCoachRowPressed,
-                ]}
-                hitSlop={{ top: 6, bottom: 6 }}
-              >
-                <View style={styles.timerCoachInset}>
-                  <View style={styles.timerCoachIconBubble}>
-                    <Image
-                      resizeMode="contain"
-                      source={require("../../assets/coach.png")}
-                      style={styles.timerCoachIcon}
-                    />
-                  </View>
-                  <View style={styles.timerCoachTextBlock}>
-                    <Text style={styles.timerCoachEyebrow}>Coach</Text>
-                  </View>
-                </View>
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={isTimerPaused ? "Resume timers" : "Pause timers"}
-                onPress={handleToggleTimerPaused}
-                style={styles.timerPauseButton}
-              >
-                <Ionicons
-                  color={theme.colors.primary}
-                  name={isTimerPaused ? "play" : "pause"}
-                  size={16}
-                />
-                <Text style={styles.timerPauseButtonText}>
-                  {isTimerPaused ? "Resume Workout" : "Pause Workout"}
-                </Text>
-              </Pressable>
-            </View>
-    </View>
-  );
-
-  const listFooter = (
-    <View style={styles.workoutFooterSection}>
-      <Pressable onPress={handleAppendExercise} style={styles.addExerciseButton}>
-              <Ionicons color={theme.colors.surface} name="add" size={18} />
-              <Text style={styles.addExerciseButtonText}>Add Exercise</Text>
-            </Pressable>
-
-            <View
-              collapsable={false}
-              ref={(node) => {
-                finishButtonRef.current = node;
-              }}
-              onLayout={() => {
-                if (hubTourStep === "finish_workout") {
-                  measureFinishButton();
-                  return;
-                }
-                if (hubTourStep === "active_scroll") {
-                  checkFinishButtonVisibility();
-                }
-              }}
-            >
-              <Pressable
-                onPress={() => onFinish({ ...session, exercises })}
-                style={styles.finishButton}
-              >
-                <Text style={styles.finishButtonText}>Finish Workout</Text>
-                <Ionicons color={theme.colors.surface} name="flag" size={16} />
-              </Pressable>
-            </View>
-    </View>
-  );
-
-  const handleHubTourScroll = useCallback(
-    () => {
-      if (hubTourStep === "active_scroll") {
-        requestAnimationFrame(() => {
-          checkFinishButtonVisibility();
-        });
-      }
-      if (hubTourStep === "finish_workout") {
-        requestAnimationFrame(() => {
-          measureFinishButton();
-        });
-      }
+  // ── Workout operations ──────────────────────────────────────────────────────
+  const updateCurrentSet = useCallback(
+    (patch: Partial<ActiveSetPreview>) => {
+      if (!cursor) return;
+      setExercises((prev) => {
+        const next = deepCloneExercises(prev);
+        Object.assign(next[cursor.exerciseIndex].sets[cursor.setIndex], patch);
+        return next;
+      });
     },
-    [checkFinishButtonVisibility, hubTourStep, measureFinishButton],
+    [cursor],
   );
+
+  const logCurrentSet = useCallback(() => {
+    if (!cursor) return;
+    setExercises((prev) => {
+      const next = deepCloneExercises(prev);
+      const set = next[cursor.exerciseIndex].sets[cursor.setIndex];
+      const finalWeight =
+        set.loggedWeight ||
+        (set.targetReps != null ? "" : "");
+      const finalReps =
+        set.loggedReps ||
+        (set.targetReps != null ? String(set.targetReps) : "") ||
+        (set.targetDurationSec != null ? String(set.targetDurationSec) : "");
+      set.loggedWeight = finalWeight;
+      set.loggedReps = finalReps;
+      set.completed = true;
+      return next;
+    });
+
+    const ex = exercises[cursor.exerciseIndex];
+    if (ex?.restSeconds && ex.restSeconds > 0) {
+      setRestState({ targetSeconds: ex.restSeconds, startedAt: Date.now() });
+    }
+  }, [cursor, exercises]);
+
+  const skipCurrentSet = useCallback(() => {
+    if (!cursor) return;
+    setExercises((prev) => {
+      const next = deepCloneExercises(prev);
+      next[cursor.exerciseIndex].sets[cursor.setIndex].skipped = true;
+      return next;
+    });
+  }, [cursor]);
+
+  const addSet = useCallback(() => {
+    if (!cursor) return;
+    setExercises((prev) => {
+      const next = deepCloneExercises(prev);
+      const ex = next[cursor.exerciseIndex];
+      const last = ex.sets[ex.sets.length - 1];
+      ex.sets.push({
+        id: `s-${ex.id}-extra-${Date.now()}`,
+        label: `Set ${ex.sets.length + 1}`,
+        targetReps: last.targetReps,
+        targetDurationSec: last.targetDurationSec,
+        loggedWeight: "",
+        loggedReps: "",
+        completed: false,
+      });
+      return next;
+    });
+  }, [cursor]);
+
+  const removeLastSet = useCallback(() => {
+    if (!cursor) return;
+    setExercises((prev) => {
+      const next = deepCloneExercises(prev);
+      const ex = next[cursor.exerciseIndex];
+      if (ex.sets.length > 1) ex.sets.pop();
+      return next;
+    });
+  }, [cursor]);
+
+  const previousSetCursor = useMemo(
+    () => findPreviousFinishedCursor(exercises, cursor),
+    [cursor, exercises],
+  );
+
+  const backToPreviousSet = useCallback(() => {
+    setRestState(null);
+    setShowFinish(false);
+    setExercises((prev) => {
+      const target = findPreviousFinishedCursor(prev, findCursor(prev));
+      if (!target) return prev;
+
+      const next = deepCloneExercises(prev);
+      const previousSet = next[target.exerciseIndex]?.sets[target.setIndex];
+      if (!previousSet) return prev;
+
+      previousSet.completed = false;
+      previousSet.skipped = false;
+      return next;
+    });
+  }, []);
+
+  const handleFinish = useCallback(() => {
+    const updatedSession: ActiveSessionPreview = {
+      ...session,
+      exercises,
+    };
+    onFinish(updatedSession);
+  }, [session, exercises, onFinish]);
+
+  // ── Rest overlay info ───────────────────────────────────────────────────────
+  const restNextCursor = useMemo(
+    () => findCursor(exercises),
+    [exercises],
+  );
+  const restExerciseName = restNextCursor
+    ? exercises[restNextCursor.exerciseIndex]?.name ?? "Next exercise"
+    : "Workout complete";
+  const restNextSetLabel = restNextCursor
+    ? `Set ${restNextCursor.setIndex + 1} of ${exercises[restNextCursor.exerciseIndex]?.sets.length ?? 0}`
+    : "";
+
+  // ── Editing exercise ────────────────────────────────────────────────────────
+  const editingExercise = useMemo(
+    () => exercises.find((e) => e.id === editingExerciseId) ?? null,
+    [exercises, editingExerciseId],
+  );
+
+  const C = darkColors;
 
   return (
-    <>
-    <View
-      style={styles.listViewportShell}
-      collapsable={false}
-      ref={(node) => {
-        listViewportRef.current = node;
-      }}
-      onLayout={() => {
-        if (hubTourStep === "active_scroll") {
-          measureListViewport();
-        }
-      }}
-    >
-    <DraggableFlatList
-      data={exercises}
-      keyExtractor={(item) => item.id}
-      activationDistance={12}
-      onDragEnd={({ data }) => setExercises(data)}
-      extraData={[expandedExerciseId, selectedSet, autoFocusExerciseId, hubTourStep]}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-      style={styles.container}
-      containerStyle={{ flex: 1 }}
-      contentContainerStyle={styles.content}
-      ItemSeparatorComponent={() => <View style={styles.exerciseSeparator} />}
-      onScroll={handleHubTourScroll}
-      renderItem={renderExerciseItem}
-      ListHeaderComponent={listHeader}
-      ListEmptyComponent={listEmpty}
-      ListFooterComponent={listFooter}
-      scrollEventThrottle={16}
-    />
+    <View style={styles.screen}>
+      {/* Top bar */}
+      <WorkoutTopBar
+        title={session.title}
+        elapsed={elapsed}
+        done={progress.done}
+        total={progress.total}
+        onCoach={() => setCoachOpen(true)}
+        onOverview={() => setShowOverview(true)}
+        onFinish={() => setShowFinish(true)}
+        coachButtonRef={coachButtonRef}
+      />
+
+      {/* Exercise strip */}
+      {exercises.length > 0 ? (
+        <View style={styles.strip}>
+          <WorkoutExerciseStrip
+            exercises={exercises}
+            currentExerciseIndex={cursor?.exerciseIndex ?? exercises.length - 1}
+            currentSetIndex={cursor?.setIndex ?? 0}
+            onReorder={setExercises}
+          />
+        </View>
+      ) : null}
+
+      {/* Card stack area */}
+      <View style={styles.stackArea}>
+        {stack.length > 0 ? (
+          <View style={StyleSheet.absoluteFillObject}>
+            {[...stack]
+              .reverse()
+              .map((item, revIdx) => {
+                const stackIdx = stack.length - 1 - revIdx;
+                const isTop = stackIdx === 0;
+                return (
+                  <WorkoutSetCard
+                    key={`${item.exercise.id}-${item.set.id}`}
+                    exercise={item.exercise}
+                    set={item.set}
+                    setIndexInExercise={item.setIndex}
+                    exerciseIndex={item.exerciseIndex}
+                    isTopCard={isTop}
+                    isFirstOfWorkout={isTop && progress.done === 0}
+                    zIndex={10 - stackIdx}
+                    offsetY={stackIdx * 8}
+                    scale={1 - stackIdx * 0.035}
+                    onLog={isTop ? logCurrentSet : () => {}}
+                    onSkip={isTop ? skipCurrentSet : () => {}}
+                    onBack={isTop ? backToPreviousSet : () => {}}
+                    canGoBack={isTop && previousSetCursor != null}
+                    onWeightChange={
+                      isTop
+                        ? (v) => updateCurrentSet({ loggedWeight: v })
+                        : () => {}
+                    }
+                    onRepsChange={
+                      isTop
+                        ? (v) => updateCurrentSet({ loggedReps: v })
+                        : () => {}
+                    }
+                    onAddSet={isTop ? addSet : () => {}}
+                    onRemoveSet={isTop ? removeLastSet : () => {}}
+                    onEditExercise={
+                      isTop
+                        ? () => setEditingExerciseId(item.exercise.id)
+                        : () => {}
+                    }
+                    lastLiftLabel={
+                      resolveLastLiftLabel
+                        ? resolveLastLiftLabel(item.exercise.name, item.setIndex + 1)
+                        : null
+                    }
+                    personalRecordLabel={
+                      resolveExerciseLiftSummary?.(item.exercise.name)?.personalRecordLabel ?? null
+                    }
+                  />
+                );
+              })}
+          </View>
+        ) : (
+          <FinishedHero onFinish={() => setShowFinish(true)} />
+        )}
+      </View>
+
+      {/* Rest overlay */}
+      {restState ? (
+        <WorkoutRestOverlay
+          targetSeconds={restState.targetSeconds}
+          exerciseName={restExerciseName}
+          nextSetLabel={restNextSetLabel}
+          onDone={() => setRestState(null)}
+          onSkip={() => setRestState(null)}
+        />
+      ) : null}
+
+      {/* Edit sheet */}
+      {editingExercise ? (
+        <WorkoutEditSheet
+          exercise={editingExercise}
+          onClose={() => setEditingExerciseId(null)}
+          onUpdate={(updated) => {
+            setExercises((prev) =>
+              prev.map((e) => (e.id === updated.id ? updated : e)),
+            );
+          }}
+          onRemove={() => {
+            setExercises((prev) =>
+              prev.filter((e) => e.id !== editingExerciseId),
+            );
+            setEditingExerciseId(null);
+          }}
+        />
+      ) : null}
+
+      {/* Overview sheet */}
+      {showOverview ? (
+        <WorkoutOverviewSheet
+          title={session.title}
+          exercises={exercises}
+          onClose={() => setShowOverview(false)}
+          onEditExercise={(id) => {
+            setShowOverview(false);
+            setEditingExerciseId(id);
+          }}
+          onRemoveExercise={(id) => {
+            setExercises((prev) => prev.filter((e) => e.id !== id));
+          }}
+          onAddExercise={(name) => {
+            setExercises((prev) => [
+              ...prev,
+              {
+                id: `ex-${Date.now()}`,
+                name,
+                subtitle: "",
+                blockName: "Accessory",
+                notes: null,
+                restSeconds: 90,
+                sets: [
+                  {
+                    id: `s-new-${Date.now()}-1`,
+                    label: "Set 1",
+                    targetReps: 10,
+                    targetDurationSec: null,
+                    loggedWeight: "",
+                    loggedReps: "",
+                    completed: false,
+                  },
+                  {
+                    id: `s-new-${Date.now()}-2`,
+                    label: "Set 2",
+                    targetReps: 10,
+                    targetDurationSec: null,
+                    loggedWeight: "",
+                    loggedReps: "",
+                    completed: false,
+                  },
+                  {
+                    id: `s-new-${Date.now()}-3`,
+                    label: "Set 3",
+                    targetReps: 10,
+                    targetDurationSec: null,
+                    loggedWeight: "",
+                    loggedReps: "",
+                    completed: false,
+                  },
+                ],
+              },
+            ]);
+          }}
+        />
+      ) : null}
+
+      {/* Finish modal */}
+      {showFinish ? (
+        <WorkoutFinishModal
+          exercises={exercises}
+          elapsed={elapsed}
+          onConfirm={handleFinish}
+          onCancel={() => setShowFinish(false)}
+        />
+      ) : null}
+
+      {/* Coach sheet */}
+      <CoachSheet
+        messages={coachMessages}
+        setMessages={setCoachMessages}
+        visible={coachOpen}
+        onClose={() => setCoachOpen(false)}
+        workout={coachWorkoutContext}
+        themeMode={themeMode}
+        userId={userId}
+        onOpenSuggestFeatures={onOpenSuggestFeatures}
+      />
     </View>
-    <CoachSheet
-      messages={coachMessages}
-      setMessages={setCoachMessages}
-      visible={coachOpen}
-      onClose={() => setCoachOpen(false)}
-      workout={coachWorkoutContext}
-      themeMode={themeMode}
-      userId={userId}
-      onOpenSuggestFeatures={onOpenSuggestFeatures}
-    />
-    </>
   );
 }
 
-const createStyles = (theme: ActiveWorkoutTheme) =>
-  StyleSheet.create({
-    listViewportShell: {
-      flex: 1,
-    },
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    content: {
-      paddingHorizontal: 14,
-      paddingTop: 12,
-      paddingBottom: 132,
-      gap: 18,
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: theme.colors.overlay,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 20,
-    },
-    modalCard: {
-      width: "100%",
-      borderRadius: 28,
-      backgroundColor: theme.colors.surface,
-      padding: 20,
-      gap: 14,
-      borderWidth: 1,
-      borderColor: theme.mode === "dark" ? theme.colors.borderSoft : "transparent",
-      ...theme.shadows.card,
-    },
-    modalCloseButton: {
-      position: "absolute",
-      top: 16,
-      right: 16,
-      zIndex: 2,
-      height: 32,
-      width: 32,
-      borderRadius: 999,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    modalIconShell: {
-      height: 52,
-      width: 52,
-      borderRadius: 16,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.surfaceMuted,
-    },
-    modalTitle: {
-      color: theme.colors.textPrimary,
-      fontSize: 30,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: -0.8,
-    },
-    modalSubtitle: {
-      color: theme.colors.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
-      fontFamily: F.regular,
-      fontWeight: "400",
-    },
-    modalFormBlock: {
-      gap: 8,
-    },
-    modalMetaRow: {
-      flexDirection: "row",
-    },
-    modalMetaChip: {
-      borderRadius: 999,
-      backgroundColor: theme.colors.surfaceMuted,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-    },
-    modalMetaChipText: {
-      color: theme.colors.primary,
-      fontSize: 12,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    modalActionRow: {
-      flexDirection: "row",
-      gap: 10,
-    },
-    modalSecondaryButton: {
-      flex: 1,
-      minHeight: 50,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.colors.borderSoft,
-      backgroundColor: theme.colors.surface,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    modalSecondaryButtonText: {
-      color: theme.colors.textPrimary,
-      fontSize: 15,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "700",
-    },
-    modalPrimaryButton: {
-      flex: 1,
-      minHeight: 50,
-      borderRadius: 16,
-      backgroundColor: theme.colors.primary,
-      alignItems: "center",
-      justifyContent: "center",
-      ...theme.shadows.primary,
-    },
-    modalPrimaryButtonDisabled: {
-      backgroundColor: theme.colors.primaryLight,
-      shadowOpacity: 0,
-      elevation: 0,
-    },
-    modalPrimaryButtonText: {
-      color: theme.colors.surface,
-      fontSize: 15,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      paddingTop: 4,
-      paddingBottom: 4,
-    },
-    timerCoachRow: {
-      alignSelf: "stretch",
-      marginTop: 12,
-      width: "100%",
-    },
-    timerCoachRowPressed: {
-      opacity: 0.94,
-      transform: [{ scale: 0.996 }],
-    },
-    timerCoachInset: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      borderRadius: 16,
-      paddingVertical: 10,
-      paddingHorizontal: 12,
-      backgroundColor: "#FFFFFF",
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: "rgba(0, 0, 0, 0.08)",
-      ...Platform.select({
-        ios: {
-          shadowColor: "#000000",
-          shadowOpacity: 0.07,
-          shadowRadius: 10,
-          shadowOffset: { width: 0, height: 4 },
-        },
-        default: {
-          elevation: 2,
-        },
-      }),
-    },
-    timerCoachIconBubble: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "rgba(255, 111, 34, 0.11)",
-    },
-    timerCoachIcon: {
-      width: 17,
-      height: 17,
-      tintColor: theme.colors.primary,
-    },
-    timerCoachTextBlock: {
-      flex: 1,
-      minWidth: 0,
-      justifyContent: "center",
-    },
-    timerCoachEyebrow: {
-      color: "#141414",
-      fontSize: 13,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: -0.15,
-    },
-    brandLogo: {
-      width: 48,
-      height: 48,
-    },
-    heroSection: {
-      gap: 8,
-      paddingTop: 0,
-    },
-    eyebrow: {
-      color: theme.colors.primary,
-      fontSize: 10,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 1.2,
-      textTransform: "uppercase",
-    },
-    heroTitle: {
-      color: theme.colors.textPrimary,
-      fontSize: 36,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      lineHeight: 40,
-      letterSpacing: -1.2,
-    },
-    heroDescription: {
-      color: theme.colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 21,
-      fontFamily: F.medium,
-      fontWeight: "500",
-    },
-    timerCard: {
-      borderRadius: 24,
-      backgroundColor: theme.colors.primary,
-      paddingHorizontal: 20,
-      paddingVertical: 22,
-      alignItems: "center",
-      ...theme.shadows.card,
-    },
-    timerTopRow: {
-      width: "100%",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-    },
-    timerEyebrow: {
-      color: theme.colors.primarySoftText,
-      fontSize: 10,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 1.2,
-      textTransform: "uppercase",
-    },
-    timerWorkoutElapsed: {
-      color: theme.colors.primarySoftText,
-      fontSize: 11,
-      fontFamily: "Satoshi-Medium",
-      fontWeight: "600",
-      opacity: 0.92,
-    },
-    timerValue: {
-      marginTop: 10,
-      color: theme.colors.surface,
-      fontSize: 44,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: -1.4,
-    },
-    timerHelper: {
-      marginTop: 6,
-      color: theme.colors.primarySoftText,
-      fontSize: 13,
-      fontFamily: "Satoshi-Medium",
-      fontWeight: "600",
-    },
-    timerPauseButton: {
-      marginTop: 12,
-      minHeight: 42,
-      borderRadius: 999,
-      backgroundColor: theme.colors.surface,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      paddingHorizontal: 18,
-      paddingVertical: 10,
-    },
-    timerPauseButtonText: {
-      color: theme.colors.primary,
-      fontSize: 13,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 0.2,
-    },
-    statGrid: {
-      flexDirection: "row",
-      gap: 12,
-    },
-    statCardPrimary: {
-      flex: 1,
-      borderRadius: 18,
-      backgroundColor: theme.mode === "dark" ? "#261512" : "#D6EAFB",
-      padding: 14,
-      gap: 5,
-    },
-    statCardSoft: {
-      flex: 1,
-      borderRadius: 18,
-      backgroundColor: theme.colors.surfaceMuted,
-      padding: 14,
-      gap: 5,
-    },
-    statValuePrimary: {
-      color: theme.colors.textPrimary,
-      fontSize: 28,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: -0.8,
-    },
-    statValueSoft: {
-      color: theme.colors.textPrimary,
-      fontSize: 28,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: -0.8,
-    },
-    statLabelPrimary: {
-      color: theme.colors.primary,
-      fontSize: 10,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 1,
-      textTransform: "uppercase",
-    },
-    statLabelSoft: {
-      color: theme.colors.textMuted,
-      fontSize: 10,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 1,
-      textTransform: "uppercase",
-    },
-    workoutHeaderStack: {
-      gap: 12,
-    },
-    workoutFooterSection: {
-      gap: 18,
-      paddingTop: 18,
-      flexShrink: 0,
-    },
-    draggableExerciseBody: {
-      flexGrow: 1,
-      flexShrink: 1,
-      minWidth: 0,
-    },
-    exerciseSeparator: {
-      height: 12,
-    },
-    exerciseCard: {
-      borderRadius: radii.large,
-      backgroundColor: theme.colors.surface,
-      padding: 14,
-      gap: 14,
-      borderWidth: 1,
-      borderColor: theme.mode === "dark" ? theme.colors.borderSoft : "transparent",
-      ...theme.shadows.softCard,
-    },
-    exerciseCardComplete: {
-      borderColor:
-        theme.mode === "dark"
-          ? "rgba(49, 196, 141, 0.65)"
-          : "rgba(44, 182, 125, 0.52)",
-      backgroundColor:
-        theme.mode === "dark"
-          ? "rgba(49, 196, 141, 0.1)"
-          : "rgba(44, 182, 125, 0.12)",
-      ...theme.shadows.card,
-    },
-    exerciseTopRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-    exerciseToggleChunk: {
-      flexShrink: 1,
-      minWidth: 0,
-      maxWidth: "100%",
-    },
-    exerciseIdentity: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      minWidth: 0,
-      maxWidth: "100%",
-    },
-    exerciseReorderGutter: {
-      flexGrow: 1,
-      flexShrink: 1,
-      minWidth: 8,
-      minHeight: 44,
-      alignSelf: "stretch",
-    },
-    exerciseIconShell: {
-      height: 48,
-      width: 48,
-      borderRadius: 14,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.surfaceMuted,
-    },
-    exerciseIconShellComplete: {
-      backgroundColor: theme.colors.success,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor:
-        theme.mode === "dark"
-          ? "rgba(200, 255, 226, 0.45)"
-          : "rgba(255, 255, 255, 0.4)",
-      ...Platform.select({
-        ios: {
-          shadowColor: theme.colors.success,
-          shadowOpacity: theme.mode === "dark" ? 0.5 : 0.38,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: 0 },
-        },
-        android: { elevation: 3 },
-      }),
-    },
-    exerciseCopy: {
-      flexShrink: 1,
-      gap: 2,
-      minWidth: 0,
-      maxWidth: "100%",
-      alignItems: "flex-start",
-    },
-    exerciseEyebrow: {
-      color: theme.colors.primary,
-      fontSize: 9,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 1,
-      textTransform: "uppercase",
-    },
-    exerciseTitle: {
-      color: theme.colors.textPrimary,
-      fontSize: 20,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: -0.5,
-    },
-    exerciseTitleInput: {
-      flexGrow: 0,
-      alignSelf: "flex-start",
-      color: theme.colors.textPrimary,
-      fontSize: 20,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: -0.5,
-      paddingVertical: 2,
-      paddingHorizontal: 0,
-      margin: 0,
-      maxWidth: "100%",
-    },
-    exerciseSubtitle: {
-      color: theme.colors.textSecondary,
-      fontSize: 12,
-      lineHeight: 17,
-      fontFamily: F.medium,
-      fontWeight: "500",
-    },
-    exerciseActions: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      flexShrink: 0,
-    },
-    setCountPill: {
-      borderRadius: 999,
-      backgroundColor: theme.colors.surfaceMuted,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-    },
-    setCountPillComplete: {
-      backgroundColor: theme.colors.success,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor:
-        theme.mode === "dark"
-          ? "rgba(200, 245, 220, 0.5)"
-          : "rgba(255, 255, 255, 0.42)",
-    },
-    setCountText: {
-      color: theme.colors.primary,
-      fontSize: 11,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    setCountTextComplete: {
-      color: "#06140F",
-      fontSize: 11,
-      fontFamily: "Satoshi-Black",
-      fontWeight: "900",
-      letterSpacing: 0.2,
-    },
-    exerciseIconButton: {
-      height: 34,
-      width: 34,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: theme.colors.borderSoft,
-      backgroundColor: theme.colors.surface,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    exerciseIconButtonActive: {
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.colors.primary,
-    },
-    exerciseDeleteButton: {
-      borderColor: theme.mode === "dark" ? "rgba(255, 105, 60, 0.36)" : "#F1C4C7",
-      backgroundColor: theme.colors.errorSoft,
-    },
-    exerciseBody: {
-      gap: 12,
-    },
-    exerciseEditorBanner: {
-      borderRadius: 16,
-      backgroundColor: theme.mode === "dark" ? "#221411" : "#E1EEFB",
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
-    exerciseEditorBannerText: {
-      flex: 1,
-      color: theme.colors.textSecondary,
-      fontSize: 12,
-      lineHeight: 18,
-      fontFamily: F.medium,
-      fontWeight: "500",
-    },
-    metricToggleCard: {
-      borderRadius: 16,
-      backgroundColor: theme.colors.surfaceMuted,
-      padding: 12,
-      gap: 8,
-    },
-    metricToggleLabel: {
-      color: theme.colors.textMuted,
-      fontSize: 10,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 1,
-      textTransform: "uppercase",
-    },
-    metricToggleRow: {
-      flexDirection: "row",
-      gap: 8,
-    },
-    metricToggleButton: {
-      flex: 1,
-      minHeight: 38,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: theme.colors.borderSoft,
-      backgroundColor: theme.colors.surface,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 10,
-    },
-    metricToggleButtonActive: {
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.colors.primary,
-    },
-    metricToggleText: {
-      color: theme.colors.textSecondary,
-      fontSize: 12,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    metricToggleTextActive: {
-      color: theme.colors.surface,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    restRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 4,
-    },
-    restLabel: {
-      color: theme.colors.textMuted,
-      fontSize: 11,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 0.8,
-      textTransform: "uppercase",
-    },
-    restInputPill: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      borderRadius: 999,
-      backgroundColor: theme.colors.surfaceMuted,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-    },
-    restInput: {
-      color: theme.colors.textPrimary,
-      fontSize: 13,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "700",
-      minWidth: 32,
-      padding: 0,
-      textAlign: "right",
-    },
-    restUnit: {
-      color: theme.colors.textMuted,
-      fontSize: 11,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "700",
-    },
-    liftHistoryStrip: {
-      minHeight: 44,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: theme.colors.borderSoft,
-      backgroundColor: theme.colors.surface,
-      paddingHorizontal: 12,
-      paddingVertical: 9,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
-    },
-    liftHistoryMeta: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 7,
-      minWidth: 0,
-    },
-    liftHistoryMetaText: {
-      color: theme.colors.textSecondary,
-      fontSize: 12,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "700",
-    },
-    personalRecordPill: {
-      borderRadius: 999,
-      backgroundColor: theme.colors.successSoft,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-    },
-    personalRecordPillText: {
-      color: theme.colors.success,
-      fontSize: 12,
-      fontFamily: "Satoshi-Black",
-      fontWeight: "900",
-    },
-    setList: {
-      gap: 10,
-    },
-    setRow: {
-      borderRadius: 18,
-      backgroundColor: theme.colors.surfaceMuted,
-      padding: 12,
-      gap: 12,
-    },
-    setRowCompact: {
-      paddingVertical: 10,
-      gap: 10,
-    },
-    setRowComplete: {
-      backgroundColor: theme.colors.successSoft,
-    },
-    setRowUpcoming: {
-      backgroundColor: theme.mode === "dark" ? theme.colors.surfaceStrong : "#EEF4FA",
-    },
-    setRowHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-    },
-    setRowOpenButton: {
-      gap: 8,
-    },
-    setLabel: {
-      color: theme.colors.textPrimary,
-      fontSize: 16,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "700",
-    },
-    setTarget: {
-      marginTop: 2,
-      color: theme.colors.textSecondary,
-      fontSize: 12,
-      fontFamily: F.medium,
-      fontWeight: "500",
-    },
-    setExerciseName: {
-      color: theme.colors.textMuted,
-      fontSize: 11,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "700",
-      textAlign: "right",
-    },
-    setHeaderActions: {
-      alignItems: "flex-end",
-      gap: 6,
-    },
-    setDonePill: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      borderRadius: 999,
-      backgroundColor: theme.colors.surface,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-    },
-    setDoneText: {
-      color: theme.colors.success,
-      fontSize: 11,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    setRowHint: {
-      color: theme.colors.textMuted,
-      fontSize: 12,
-      lineHeight: 17,
-      fontFamily: F.regular,
-      fontWeight: "400",
-    },
-    setRowTitleColumn: {
-      flex: 1,
-      gap: 4,
-    },
-    setTargetEditRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      flexWrap: "wrap",
-    },
-    targetEditPill: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      borderRadius: 999,
-      backgroundColor: theme.colors.surface,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderWidth: 1,
-      borderColor: theme.colors.borderSoft,
-    },
-    targetEditInput: {
-      color: theme.colors.textPrimary,
-      fontSize: 12,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "700",
-      minWidth: 26,
-      padding: 0,
-      textAlign: "right",
-    },
-    targetEditUnit: {
-      color: theme.colors.textMuted,
-      fontSize: 11,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "700",
-    },
-    inlineRemoveButton: {
-      height: 24,
-      width: 24,
-      borderRadius: 999,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.errorSoft,
-    },
-    sourceUrlPill: {
-      alignSelf: "flex-start",
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      borderRadius: 999,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.borderSoft,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      marginTop: 4,
-    },
-    sourceUrlText: {
-      color: theme.colors.primary,
-      fontSize: 12,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    removeItemButton: {
-      alignSelf: "flex-end",
-      borderRadius: 999,
-      backgroundColor: theme.colors.errorSoft,
-      paddingHorizontal: 10,
-      paddingVertical: 7,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-    },
-    removeItemButtonText: {
-      color: theme.colors.error,
-      fontSize: 12,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    inputRow: {
-      flexDirection: "row",
-      gap: 10,
-    },
-    lastLiftPill: {
-      alignSelf: "flex-start",
-      borderRadius: 999,
-      backgroundColor: theme.mode === "dark" ? "#E4F1FF" : "#DBECFF",
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-    },
-    lastLiftPillCompact: {
-      alignSelf: "flex-start",
-      marginTop: 2,
-      borderRadius: 999,
-      backgroundColor: theme.mode === "dark" ? "#E4F1FF" : "#DBECFF",
-      paddingHorizontal: 9,
-      paddingVertical: 4,
-    },
-    lastLiftPillText: {
-      color: "#18385F",
-      fontSize: 12,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    inputField: {
-      flex: 1,
-      gap: 6,
-    },
-    inputFieldFull: {
-      flex: 1,
-    },
-    inputLabel: {
-      color: theme.colors.textMuted,
-      fontSize: 10,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 0.8,
-      textTransform: "uppercase",
-    },
-    input: {
-      minHeight: 46,
-      borderRadius: 14,
-      backgroundColor: theme.colors.surface,
-      paddingHorizontal: 14,
-      borderWidth: 1,
-      borderColor: theme.mode === "dark" ? theme.colors.borderSoft : "transparent",
-      color: theme.colors.textPrimary,
-      fontSize: 16,
-      fontFamily: "Satoshi-Medium",
-      fontWeight: "600",
-    },
-    autoAdvanceText: {
-      color: theme.colors.textMuted,
-      fontSize: 12,
-      lineHeight: 17,
-      fontFamily: F.regular,
-      fontWeight: "400",
-    },
-    confirmSetButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      borderRadius: 999,
-      paddingVertical: 12,
-      backgroundColor: theme.colors.primary,
-    },
-    confirmSetButtonPressed: {
-      opacity: 0.85,
-      transform: [{ scale: 0.98 }],
-    },
-    confirmSetButtonDisabled: {
-      backgroundColor: theme.colors.surfaceMuted,
-    },
-    confirmSetButtonText: {
-      color: "#FFFFFF",
-      fontSize: 13,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      letterSpacing: 0.2,
-    },
-    confirmSetButtonTextDisabled: {
-      color: theme.colors.textMuted,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    editModeHint: {
-      color: theme.colors.primary,
-      fontSize: 12,
-      lineHeight: 17,
-      fontFamily: F.medium,
-      fontWeight: "500",
-    },
-    emptySetCard: {
-      borderRadius: 18,
-      backgroundColor: theme.colors.surfaceMuted,
-      padding: 18,
-      alignItems: "center",
-      gap: 8,
-    },
-    emptySetTitle: {
-      color: theme.colors.textPrimary,
-      fontSize: 16,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    emptySetBody: {
-      color: theme.colors.textSecondary,
-      fontSize: 13,
-      lineHeight: 19,
-      textAlign: "center",
-      fontFamily: F.regular,
-      fontWeight: "400",
-    },
-    addSetButton: {
-      minHeight: 48,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.colors.surface,
-      alignItems: "center",
-      justifyContent: "center",
-      flexDirection: "row",
-      gap: 8,
-    },
-    addSetButtonText: {
-      color: theme.colors.primary,
-      fontSize: 15,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    emptyCard: {
-      borderRadius: 24,
-      backgroundColor: theme.colors.surface,
-      padding: 24,
-      alignItems: "center",
-      gap: 10,
-      borderWidth: 1,
-      borderColor: theme.mode === "dark" ? theme.colors.borderSoft : "transparent",
-      ...theme.shadows.card,
-    },
-    emptyTitle: {
-      color: theme.colors.textPrimary,
-      fontSize: 20,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-      textAlign: "center",
-    },
-    emptyBody: {
-      color: theme.colors.textSecondary,
-      fontSize: 14,
-      lineHeight: 21,
-      textAlign: "center",
-      fontFamily: F.regular,
-      fontWeight: "400",
-    },
-    addExerciseButton: {
-      marginTop: 2,
-      minHeight: 52,
-      borderRadius: 16,
-      backgroundColor: theme.colors.primary,
-      alignItems: "center",
-      justifyContent: "center",
-      flexDirection: "row",
-      gap: 8,
-      ...theme.shadows.primary,
-    },
-    addExerciseButtonText: {
-      color: theme.colors.surface,
-      fontSize: 15,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "800",
-    },
-    finishButton: {
-      marginTop: 4,
-      minHeight: 58,
-      borderRadius: 18,
-      backgroundColor: theme.colors.primaryBright,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      ...theme.shadows.primary,
-    },
-    finishButtonText: {
-      color: theme.colors.surface,
-      fontSize: 17,
-      fontFamily: "Satoshi-Bold",
-      fontWeight: "700",
-    },
-  });
+// ─── Finished hero ────────────────────────────────────────────────────────────
+
+function FinishedHero({ onFinish }: { onFinish: () => void }) {
+  const C = darkColors;
+  return (
+    <View style={heroStyles.container}>
+      <View style={heroStyles.circle}>
+        <Text style={heroStyles.checkmark}>✓</Text>
+      </View>
+      <Text style={heroStyles.heading}>All sets done</Text>
+      <Text style={heroStyles.subtitle}>
+        You crushed it. Hit finish to save and review your session.
+      </Text>
+      <Pressable onPress={onFinish} style={heroStyles.button}>
+        <Text style={heroStyles.buttonText}>Finish workout</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const C = darkColors;
+
+const heroStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    padding: 24,
+  },
+  circle: {
+    width: 84,
+    height: 84,
+    borderRadius: 999,
+    backgroundColor: C.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  checkmark: {
+    fontSize: 36,
+    color: "#fff",
+    fontFamily: F.bold,
+  },
+  heading: {
+    fontFamily: F.black,
+    fontSize: 26,
+    letterSpacing: -0.5,
+    color: C.textPrimary,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontFamily: F.regular,
+    fontSize: 14,
+    color: C.textMuted,
+    textAlign: "center",
+    maxWidth: 240,
+  },
+  button: {
+    marginTop: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: C.primary,
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+    elevation: 6,
+  },
+  buttonText: {
+    fontFamily: F.bold,
+    fontSize: 15,
+    letterSpacing: 0.2,
+    color: "#fff",
+  },
+});
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: darkColors.background,
+  },
+  strip: {
+    marginTop: 8,
+  },
+  stackArea: {
+    flex: 1,
+    padding: 12,
+    paddingBottom: 16,
+    position: "relative",
+  },
+});
+
+export default ActiveWorkoutScreen;

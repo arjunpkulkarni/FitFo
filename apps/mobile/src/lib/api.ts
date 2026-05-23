@@ -410,6 +410,31 @@ export async function deleteProfileAvatar(accessToken: string): Promise<MeRespon
   });
 }
 
+export interface SyncRevenueCatUserResponse {
+  ok: boolean;
+  supabase_user_id: string;
+  revenuecat_app_user_id: string;
+}
+
+/**
+ * Tell the backend to upsert the RevenueCat ↔ Supabase user mapping for
+ * the signed-in user. The client doesn't need to send identity fields —
+ * the server pulls phone / Apple provider id from the authenticated
+ * profile and sets ``revenuecat_app_user_id`` equal to ``profiles.id``
+ * (matching what the RC SDK is configured with on this device).
+ *
+ * Called after auth restore / login / signup, alongside Purchases.logIn.
+ */
+export async function syncRevenueCatUser(
+  accessToken: string,
+): Promise<SyncRevenueCatUserResponse> {
+  return request<SyncRevenueCatUserResponse>("/revenuecat/sync-user", {
+    method: "POST",
+    accessToken,
+    body: JSON.stringify({}),
+  });
+}
+
 /** Register device for server-driven "import ready" push notifications. */
 export async function registerExpoPushToken(
   accessToken: string,

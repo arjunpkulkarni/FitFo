@@ -299,6 +299,7 @@ export interface ActiveSetPreview {
   loggedWeight: string;
   loggedReps: string;
   completed: boolean;
+  skipped?: boolean;
 }
 
 export interface ActiveExercisePreview {
