@@ -95,7 +95,9 @@ export default {
       disableAppleSearchAdsAttribution:
         process.env.EXPO_PUBLIC_DISABLE_APPLE_SEARCH_ADS_ATTRIBUTION === "1",
       eas: {
-        projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
+        projectId:
+          process.env.EXPO_PUBLIC_EAS_PROJECT_ID ??
+          "01d16ca1-bad8-482e-94de-1d8613823dc1",
       },
     },
   },

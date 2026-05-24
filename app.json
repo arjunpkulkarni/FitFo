@@ -18,7 +18,10 @@
       "bundleIdentifier": "com.fitfo.mobile",
       "buildNumber": "16",
       "icon": "./apps/mobile/assets/vector-no-bg.png",
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -32,6 +35,11 @@
     },
     "web": {
       "favicon": "./apps/mobile/assets/vector-no-bg.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "53f22106-d011-4e2d-9800-9c1417c2de05"
+      }
     }
   }
 }

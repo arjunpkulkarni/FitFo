@@ -10,6 +10,49 @@ begin
 end;
 $$;
 
+create table if not exists public.ingestion_jobs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid null references public.profiles (id) on delete cascade,
+  source_url text not null,
+  status text not null default 'pending',
+  error text null,
+  provider_meta jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint ingestion_jobs_status_check
+    check (status in (
+      'pending',
+      'fetching',
+      'transcribing',
+      'parsing',
+      'review_pending',
+      'complete',
+      'failed'
+    ))
+);
+
+create table if not exists public.transcripts (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references public.ingestion_jobs (id) on delete cascade,
+  text text not null,
+  segments jsonb null,
+  language text null,
+  model text null,
+  created_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.workouts (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid null references public.ingestion_jobs (id) on delete set null,
+  user_id uuid null references public.profiles (id) on delete cascade,
+  title text null,
+  plan jsonb not null,
+  parser_model text null,
+  schema_version integer not null default 1,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
 alter table if exists public.ingestion_jobs
   add column if not exists user_id uuid;
 
@@ -151,6 +194,21 @@ begin
   end if;
 end;
 $$;
+
+create index if not exists transcripts_job_id_idx
+  on public.transcripts (job_id);
+
+drop trigger if exists ingestion_jobs_set_updated_at on public.ingestion_jobs;
+create trigger ingestion_jobs_set_updated_at
+before update on public.ingestion_jobs
+for each row
+execute function public.set_workout_records_updated_at();
+
+drop trigger if exists workouts_set_updated_at on public.workouts;
+create trigger workouts_set_updated_at
+before update on public.workouts
+for each row
+execute function public.set_workout_records_updated_at();
 
 do $$
 begin

@@ -22,10 +22,10 @@
 		5C54BDE878604BEE9A3F310B /* FitFoLiveActivity.appex in Copy Files */ = {isa = PBXBuildFile; fileRef = 5BB753418D0544E0AFBD1075 /* FitFoLiveActivity.appex */; };
 		5F3F388DB20942469BBBAE47 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E31B9B2219D4810922954C3 /* ShareViewController.swift */; };
 		6B78A8F23E7F403DBBA2CCBE /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5D08E536092F48C081BA0A94 /* PrivacyInfo.xcprivacy */; };
+		B4EDC7DD9B4341FC9AA0E601 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2AA29C247F99418A9EB9FB8C /* Assets.xcassets */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		DE85D7051BC51461E0E097D5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5D08E536092F48C081BA0A94 /* PrivacyInfo.xcprivacy */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
-		B4EDC7DD9B4341FC9AA0E601 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2AA29C247F99418A9EB9FB8C /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,6 +83,7 @@
 		1C3DA83B2FBE8B6D008B8307 /* FitFoWorkoutAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitFoWorkoutAttributes.swift; sourceTree = "<group>"; };
 		1DA12EFF3C6347EE97B87E92 /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = FitFoLiveActivity/Info.plist; sourceTree = "<group>"; };
 		22BBD48708B5483FB3164A81 /* FitFoWorkoutAttributesShared.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = FitFoWorkoutAttributesShared.swift; path = Fitfo/LiveWorkoutActivity/FitFoWorkoutAttributesShared.swift; sourceTree = "<group>"; };
+		2AA29C247F99418A9EB9FB8C /* Assets.xcassets */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = FitFoLiveActivity/Assets.xcassets; sourceTree = "<group>"; };
 		2C9B608060D85EE658BB1ABB /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Fitfo/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		2EE875D78CBE4593A4AA0257 /* MainInterface.storyboard */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; path = MainInterface.storyboard; sourceTree = "<group>"; };
 		328B788C7F4CBA62D9D4AA0D /* Pods-Fitfo.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Fitfo.debug.xcconfig"; path = "Target Support Files/Pods-Fitfo/Pods-Fitfo.debug.xcconfig"; sourceTree = "<group>"; };
@@ -100,7 +101,6 @@
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Fitfo/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Fitfo-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Fitfo-Bridging-Header.h"; path = "Fitfo/Fitfo-Bridging-Header.h"; sourceTree = "<group>"; };
-		2AA29C247F99418A9EB9FB8C /* Assets.xcassets */ = {isa = PBXFileReference; name = "Assets.xcassets"; path = "FitFoLiveActivity/Assets.xcassets"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = folder.assetcatalog; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -652,7 +652,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "fitfoShare/ShareExtension-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "fit fo Share";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -662,7 +662,7 @@
 				);
 				MARKETING_VERSION = 1.0.3;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.fitfo.mobile.share;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fitfo.mobile.fitfoShare;
 				PRODUCT_NAME = fitfoShare;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -809,7 +809,7 @@
 					"$(inherited)",
 				);
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "FitFoLiveActivity/Info.plist";
+				INFOPLIST_FILE = FitFoLiveActivity/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -818,8 +818,8 @@
 				);
 				MARKETING_VERSION = 1.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.fitfo.mobile.FitFoLiveActivity";
-				PRODUCT_NAME = "FitFoLiveActivity";
+				PRODUCT_BUNDLE_IDENTIFIER = com.fitfo.mobile.liveactivity;
+				PRODUCT_NAME = FitFoLiveActivity;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -840,7 +840,7 @@
 					"DEBUG=1",
 					"$(inherited)",
 				);
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "fitfoShare/ShareExtension-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "fit fo Share";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -850,7 +850,7 @@
 				);
 				MARKETING_VERSION = 1.0.3;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.fitfo.mobile.share;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fitfo.mobile.fitfoShare;
 				PRODUCT_NAME = fitfoShare;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -866,7 +866,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "FitFoLiveActivity/Info.plist";
+				INFOPLIST_FILE = FitFoLiveActivity/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -875,8 +875,8 @@
 				);
 				MARKETING_VERSION = 1.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = "com.fitfo.mobile.FitFoLiveActivity";
-				PRODUCT_NAME = "FitFoLiveActivity";
+				PRODUCT_BUNDLE_IDENTIFIER = com.fitfo.mobile.liveactivity;
+				PRODUCT_NAME = FitFoLiveActivity;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

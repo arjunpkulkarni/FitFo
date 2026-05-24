@@ -14,6 +14,18 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+Run the import worker in a second process:
+
+```bash
+celery -A app.celery_app:celery_app worker --loglevel=info -Q imports
+```
+
+`POST /ingest` requires `CELERY_BROKER_URL` to point at the shared
+DigitalOcean Valkey/Redis instance (`rediss://...` for managed TLS endpoints,
+`redis://...` for local Redis). The API writes the Supabase job row and
+publishes one Celery task; the worker does the slow video/slideshow parsing
+and writes completion back to Supabase for `GET /jobs/{job_id}` polling.
+
 Health check: `GET http://localhost:8000/health`
 
 ## Required env vars
@@ -22,6 +34,7 @@ Add these to `apps/api/.env`:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `CELERY_BROKER_URL`
 - `OPENAI_API_KEY`
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
@@ -68,8 +81,9 @@ If you see **`scheduled_workouts.thumbnail_url does not exist`** (error `42703`)
 
 `sql/003_profiles_auth_link.sql` is legacy and only applies to an older `auth.users`-linked profile setup. The current backend OTP flow uses `sql/004_profiles_backend_auth.sql`, which preserves `profiles` data and detaches any stale `auth.users` linkage instead of dropping the table.
 
-`005_workout_persistence.sql` adds account-scoped workout persistence:
+`005_workout_persistence.sql` creates account-scoped import/workout persistence:
 
+- `ingestion_jobs`, `transcripts`, and `workouts` for social-video imports
 - `user_id` ownership columns on `ingestion_jobs` and `workouts`
 - `saved_workouts` for Save Workout for Later
 - `completed_workouts` for workout history and summary pages

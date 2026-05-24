@@ -5,11 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.routers.deps import require_profile_id
 from app.schemas.ingest import IngestCheckResponse, IngestRequest
 from app.services import (
+    job_queue,
     supabase_db,
     tiktok_url,
     url_detection,
 )
-from app.tasks import run_ingestion_job, run_slideshow_job
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -94,18 +94,34 @@ async def ingest_video(
             detail=f"Failed to create ingestion job: {exc}",
         ) from exc
 
-    job_id = UUID(row["id"]) if row.get("id") else None
-    if job_id is not None:
-        if media_type == "slideshow":
-            run_slideshow_job.delay(
+    raw_job_id = row.get("id")
+    if not raw_job_id:
+        raise HTTPException(
+            status_code=500,
+            detail="Ingestion job was created without an id.",
+        )
+
+    job_id = UUID(raw_job_id)
+    try:
+        job_queue.enqueue_import_job(
+            job_id=str(job_id),
+            source_url=normalized,
+            media_type=media_type,
+        )
+    except job_queue.JobQueueError as exc:
+        try:
+            supabase_db.update_ingestion_job(
                 str(job_id),
-                normalized,
+                status="failed",
+                error="Import queue is unavailable. Please try again in a minute.",
             )
-        else:
-            run_ingestion_job.delay(
-                str(job_id),
-                normalized,
-            )
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=503,
+            detail="Import queue is unavailable. Please try again in a minute.",
+        ) from exc
+
     return IngestCheckResponse(
         ok=True,
         source_url=body.source_url.strip(),
