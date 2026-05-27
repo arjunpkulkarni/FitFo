@@ -19,12 +19,14 @@ interface BottomNavProps {
   themeMode?: ThemeMode;
 }
 
-const tabs: Array<{
+type TabConfig = {
   key: AppTab;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   activeIcon: keyof typeof Ionicons.glyphMap;
-}> = [
+};
+
+const leftTabs: TabConfig[] = [
   {
     key: "saved",
     label: "Workouts",
@@ -36,6 +38,21 @@ const tabs: Array<{
     label: "Logs",
     icon: "bar-chart-outline",
     activeIcon: "bar-chart",
+  },
+];
+
+const rightTabs: TabConfig[] = [
+  {
+    key: "coach",
+    label: "Coach",
+    icon: "sparkles-outline",
+    activeIcon: "sparkles",
+  },
+  {
+    key: "profile",
+    label: "Profile",
+    icon: "person-outline",
+    activeIcon: "person",
   },
 ];
 
@@ -58,7 +75,7 @@ export function BottomNav({
     ? "#FFFFFF"
     : theme.colors.textPrimary;
 
-  const renderTab = (tab: (typeof tabs)[number]) => {
+  const renderTab = (tab: TabConfig) => {
     const isActive = tab.key === activeTab;
     return (
       <Pressable
@@ -108,7 +125,7 @@ export function BottomNav({
       >
         <View style={styles.glassTint} pointerEvents="none" />
         <View style={styles.row}>
-          {renderTab(tabs[0])}
+          <View style={styles.sideGroup}>{leftTabs.map(renderTab)}</View>
 
           <Pressable
             onPress={onImportWorkout}
@@ -121,7 +138,7 @@ export function BottomNav({
             <Ionicons color="#FFFFFF" name="add" size={24} />
           </Pressable>
 
-          {renderTab(tabs[1])}
+          <View style={styles.sideGroup}>{rightTabs.map(renderTab)}</View>
         </View>
       </BlurView>
     </View>
@@ -161,9 +178,15 @@ const createStyles = (theme: ReturnType<typeof getTheme>) => {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 10,
+      paddingHorizontal: 6,
       paddingTop: 8,
       paddingBottom: 10,
+    },
+    sideGroup: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-around",
     },
     item: {
       flex: 1,
@@ -172,15 +195,15 @@ const createStyles = (theme: ReturnType<typeof getTheme>) => {
       gap: 3,
       borderRadius: 999,
       paddingVertical: 4,
-      marginHorizontal: 2,
+      marginHorizontal: 1,
     },
     itemPressed: {
       opacity: 0.7,
       transform: [{ scale: 0.97 }],
     },
     iconWrap: {
-      width: 36,
-      height: 36,
+      width: 32,
+      height: 32,
       borderRadius: 999,
       alignItems: "center",
       justifyContent: "center",
@@ -201,7 +224,7 @@ const createStyles = (theme: ReturnType<typeof getTheme>) => {
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: theme.colors.primaryBright,
-      marginHorizontal: 8,
+      marginHorizontal: 4,
       shadowColor: theme.colors.primaryBright,
       shadowOpacity: 0.6,
       shadowRadius: 12,

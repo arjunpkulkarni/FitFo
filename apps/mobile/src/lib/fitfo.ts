@@ -124,6 +124,8 @@ const PRESERVE_UPPERCASE_TOKENS = new Set([
   "BB",
   "KB",
   "RDL",
+  "SLDL",
+  "JM",
 ]);
 
 function titleCaseWord(word: string): string {

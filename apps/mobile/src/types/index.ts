@@ -124,6 +124,7 @@ export interface UserOnboarding {
   height_inches: number;
   experience_level: ExperienceLevel;
   age: number;
+  birth_date?: string | null;
   completed_at: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -153,7 +154,7 @@ export interface SendOtpResponse {
   message: string;
 }
 
-export type AppTab = "saved" | "logs" | "charts";
+export type AppTab = "saved" | "logs" | "coach" | "profile" | "charts";
 
 export type AuthMode = "login" | "signup" | "otp";
 

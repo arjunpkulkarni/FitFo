@@ -106,6 +106,15 @@ import { hasBillingBypassForUser } from "./src/lib/billingBypass";
 import { LiveWorkoutActivity } from "./src/lib/liveWorkoutActivity";
 import { signInWithApple } from "./src/lib/appleAuth";
 import {
+  CUSTOM_PROGRAM_BADGE_LABEL,
+  buildCustomProgramScheduledWorkouts,
+  createCustomProgramBuildResult,
+  type CustomProgramBuildResult,
+  type CustomProgramConfig,
+  type CustomProgramGenerationMode,
+  type StoredCustomProgramRecord,
+} from "./src/lib/customProgram";
+import {
   buildCompletedWorkoutRequest,
   createActiveSessionFromCompletedWorkout,
   createActiveSessionFromPlan,
@@ -162,6 +171,7 @@ import {
 } from "./src/lib/notifications";
 import { ActiveWorkoutScreen } from "./src/screens/ActiveWorkoutScreen";
 import { AuthLandingScreen } from "./src/screens/AuthLandingScreen";
+import { RecoveryMapScreen } from "./src/screens/RecoveryMapScreen";
 import { LogsScreen } from "./src/screens/LogsScreen";
 import { OtpVerificationScreen } from "./src/screens/OtpVerificationScreen";
 import { PaywallScreen } from "./src/screens/PaywallScreen";
@@ -186,12 +196,14 @@ import type {
   BodyWeightEntryRecord,
   CompletedWorkoutRecord,
   LiftLatestSetSnapshot,
+  OnboardingGoal,
   OtpIntent,
   PendingOtpChallenge,
   SaveOnboardingRequest,
   SavedRoutinePreview,
   ScheduledWorkoutRecord,
   SendOtpRequest,
+  TrainingSplit,
   UserProfile,
   WorkoutPlan,
 } from "./src/types";
@@ -241,6 +253,34 @@ function getStoreReviewPromptStorageKey(userId: string) {
 
 function getCoachCoachmarkStorageKey(userId: string) {
   return `@fitfo:coach-coachmark-shown:${userId}`;
+}
+
+function trainingSplitForCustomProgram(
+  frequency: CustomProgramConfig["frequency"],
+): TrainingSplit {
+  if (frequency === 3) {
+    return "full_body";
+  }
+  if (frequency === 4) {
+    return "upper_lower";
+  }
+  return "ppl";
+}
+
+function mergeProgramGoalsIntoOnboarding(
+  existingGoals: readonly OnboardingGoal[],
+  programGoals: readonly CustomProgramConfig["goals"][number][],
+): OnboardingGoal[] {
+  const merged = new Set<OnboardingGoal>();
+  for (const goal of existingGoals) {
+    if (goal !== "build_muscle" && goal !== "lose_fat") {
+      merged.add(goal);
+    }
+  }
+  for (const goal of programGoals) {
+    merged.add(goal);
+  }
+  return Array.from(merged);
 }
 
 function getWorkoutCompletionRatio(session: ActiveSessionPreview) {
@@ -2368,8 +2408,12 @@ export default function App() {
     setScheduleAgainError(null);
   }, [isSchedulingAgain]);
 
-  const handleConfirmScheduleAgain = useCallback(
-    async (scheduledFor: string, scheduledTimeMinutes: number) => {
+  const performScheduleAgain = useCallback(
+    async (
+      scheduledFor: string,
+      scheduledTimeMinutes: number,
+      options?: { swapWith?: ScheduledWorkoutRecord },
+    ) => {
       if (!accessToken || !scheduleAgainTarget) {
         return;
       }
@@ -2386,16 +2430,48 @@ export default function App() {
               scheduled_time_minutes: scheduledTimeMinutes,
             },
           );
+          let swapped: ScheduledWorkoutRecord | null = null;
+          if (options?.swapWith && scheduleAgainTarget.initialScheduledFor) {
+            swapped = await updateScheduledWorkout(
+              accessToken,
+              options.swapWith.id,
+              {
+                scheduled_for: scheduleAgainTarget.initialScheduledFor,
+                scheduled_time_minutes:
+                  scheduleAgainTarget.initialScheduledTimeMinutes ??
+                  options.swapWith.scheduled_time_minutes ??
+                  scheduledTimeMinutes,
+              },
+            );
+          }
           setScheduledWorkouts((current) => {
             const withoutDuplicate = current.filter(
-              (item) => item.id !== scheduled.id,
+              (item) =>
+                item.id !== scheduled.id && item.id !== (swapped?.id ?? null),
             );
-            return [...withoutDuplicate, scheduled].sort((left, right) =>
-              left.scheduled_for.localeCompare(right.scheduled_for),
-            );
+            return [
+              ...withoutDuplicate,
+              scheduled,
+              ...(swapped ? [swapped] : []),
+            ].sort((left, right) => {
+              const dateCompare = left.scheduled_for.localeCompare(
+                right.scheduled_for,
+              );
+              if (dateCompare !== 0) {
+                return dateCompare;
+              }
+              return (
+                (left.scheduled_time_minutes ?? 0) -
+                (right.scheduled_time_minutes ?? 0)
+              );
+            });
           });
           void cancelWorkoutReminder(scheduleAgainTarget.scheduledWorkoutId);
           void scheduleWorkoutReminder(scheduled);
+          if (swapped) {
+            void cancelWorkoutReminder(swapped.id);
+            void scheduleWorkoutReminder(swapped);
+          }
           setScheduledWorkoutsError(null);
           setScheduleAgainTarget(null);
           setScheduledConfirmation({
@@ -2496,6 +2572,60 @@ export default function App() {
     [accessToken, scheduleAgainTarget],
   );
 
+  const handleConfirmScheduleAgain = useCallback(
+    (scheduledFor: string, scheduledTimeMinutes: number) => {
+      if (!scheduleAgainTarget) {
+        return;
+      }
+
+      if (scheduleAgainTarget.scheduledWorkoutId) {
+        const conflict = scheduledWorkoutsRef.current.find(
+          (row) =>
+            row.status === "scheduled" &&
+            row.scheduled_for === scheduledFor &&
+            row.id !== scheduleAgainTarget.scheduledWorkoutId,
+        );
+        if (conflict) {
+          const buttons: Array<{
+            text: string;
+            style?: "default" | "cancel" | "destructive";
+            onPress?: () => void;
+          }> = [
+            {
+              text: "Pick another day",
+              style: "cancel",
+            },
+            {
+              text: "Stack both",
+              onPress: () => {
+                void performScheduleAgain(scheduledFor, scheduledTimeMinutes);
+              },
+            },
+          ];
+          if (scheduleAgainTarget.initialScheduledFor) {
+            buttons.splice(1, 0, {
+              text: "Swap",
+              onPress: () => {
+                void performScheduleAgain(scheduledFor, scheduledTimeMinutes, {
+                  swapWith: conflict,
+                });
+              },
+            });
+          }
+          Alert.alert(
+            "Workout already scheduled",
+            `You already have ${conflict.title} on this day.`,
+            buttons,
+          );
+          return;
+        }
+      }
+
+      void performScheduleAgain(scheduledFor, scheduledTimeMinutes);
+    },
+    [performScheduleAgain, scheduleAgainTarget],
+  );
+
   const handleCreateManualWorkout = useCallback(() => {
     if (!accessToken) {
       return;
@@ -2536,6 +2666,111 @@ export default function App() {
       }
     })();
   }, [accessToken, resetImportFlow]);
+
+  const handleBuildCustomProgram = useCallback(
+    async (
+      config: CustomProgramConfig,
+      options?: {
+        existingProgram?: StoredCustomProgramRecord | null;
+        generationMode?: CustomProgramGenerationMode;
+      },
+    ): Promise<CustomProgramBuildResult> => {
+      if (!accessToken || !currentUser) {
+        throw new Error("You need to be logged in to build a program.");
+      }
+
+      const generationMode = options?.generationMode ?? "restart";
+      const generationOptions = {
+        existingProgram: options?.existingProgram ?? null,
+        generationMode,
+      };
+      const scheduleRequests = buildCustomProgramScheduledWorkouts(
+        config,
+        generationOptions,
+      );
+      if (scheduleRequests.length === 0) {
+        throw new Error("No workouts were generated for this program.");
+      }
+
+      if (currentUser.onboarding) {
+        const onboarding = currentUser.onboarding;
+        const response = await saveOnboarding(accessToken, {
+          age: onboarding.age,
+          birth_date: onboarding.birth_date ?? null,
+          custom_split_notes: null,
+          days_per_week: config.frequency,
+          experience_level: config.experienceLevel,
+          goals: mergeProgramGoalsIntoOnboarding(onboarding.goals, config.goals),
+          height_inches: onboarding.height_inches,
+          sex: onboarding.sex ?? "prefer_not_to_say",
+          training_split: trainingSplitForCustomProgram(config.frequency),
+          weight_lbs: onboarding.weight_lbs,
+        });
+        setCurrentUser(response.profile);
+        await storeAuthSession(accessToken, response.profile);
+      }
+
+      const existingProgramRows = scheduledWorkoutsRef.current.filter(
+        (row) => row.badge_label === CUSTOM_PROGRAM_BADGE_LABEL,
+      );
+      for (const row of existingProgramRows) {
+        await deleteScheduledWorkout(accessToken, row.id);
+        void cancelWorkoutReminder(row.id);
+      }
+
+      const createdRows: ScheduledWorkoutRecord[] = [];
+      for (const request of scheduleRequests) {
+        const scheduled = await createScheduledWorkout(accessToken, request);
+        createdRows.push(scheduled);
+      }
+
+      setScheduledWorkouts((current) => {
+        const existingProgramIds = new Set(
+          existingProgramRows.map((row) => row.id),
+        );
+        const createdIds = new Set(createdRows.map((row) => row.id));
+        const withoutDuplicates = current.filter(
+          (row) =>
+            !createdIds.has(row.id) &&
+            !existingProgramIds.has(row.id) &&
+            row.badge_label !== CUSTOM_PROGRAM_BADGE_LABEL,
+        );
+        return [...withoutDuplicates, ...createdRows].sort((left, right) => {
+          const dateCompare = left.scheduled_for.localeCompare(right.scheduled_for);
+          if (dateCompare !== 0) {
+            return dateCompare;
+          }
+          return (
+            (left.scheduled_time_minutes ?? 0) -
+            (right.scheduled_time_minutes ?? 0)
+          );
+        });
+      });
+
+      // Avoid trying to queue every notification for a 10-week block at once.
+      // The calendar is the source of truth; local reminders are seeded for
+      // the nearest sessions so we do not exhaust the platform notification cap.
+      for (const row of createdRows.slice(0, 10)) {
+        void scheduleWorkoutReminder(row);
+      }
+      void cancelGymScheduleNudge();
+      setScheduledWorkoutsError(null);
+      posthog.capture("custom_program_built", {
+        frequency: config.frequency,
+        generation_mode: generationMode,
+        goals: config.goals,
+        schedule_mode: config.scheduleMode,
+        scheduled_count: createdRows.length,
+      });
+
+      return createCustomProgramBuildResult(
+        config,
+        scheduleRequests,
+        generationOptions,
+      );
+    },
+    [accessToken, currentUser],
+  );
 
   const maybeRequestStoreReviewAfterFirstWorkout = useCallback(
     async (userId: string) => {
@@ -3672,9 +3907,6 @@ export default function App() {
           importedWorkouts={savedWorkouts}
           isScheduleLoading={scheduledWorkoutsLoading}
           onAddWorkout={handleOpenAddWorkout}
-          profileAvatarRevision={currentUser?.updated_at ?? null}
-          profileAvatarUrl={currentUser?.avatar_url ?? null}
-          onOpenProfile={() => setIsProfileVisible(true)}
           onOpenSavedList={() => setIsSavedLibraryVisible(true)}
           onSavedWorkoutsCardMeasured={(rect) => {
             if (hubTourStep === "saved_card") {
@@ -3730,6 +3962,38 @@ export default function App() {
           themeMode={themeMode}
         />
       );
+    }
+
+    if (activeTab === "coach") {
+      return (
+        <RecoveryMapScreen
+          completedWorkouts={completedWorkouts}
+          onBuildCustomProgram={handleBuildCustomProgram}
+          onOpenWorkouts={() => setActiveTab("saved")}
+          profile={currentUser}
+          themeMode={themeMode}
+        />
+      );
+    }
+
+    if (activeTab === "profile") {
+      if (currentUser) {
+        return (
+          <ProfileScreen
+            onLogout={handleLogout}
+            onDeleteAccount={handleDeleteAccount}
+            onManageProfilePhoto={handleManageProfilePhoto}
+            isProfilePhotoBusy={isAvatarBusy}
+            onManageSubscription={handleManageSubscription}
+            onThemeModeChange={handleThemeModeChange}
+            onUpdateFullName={handleUpdateFullName}
+            isDeletingAccount={isDeletingAccount}
+            profile={currentUser}
+            themeMode={themeMode}
+          />
+        );
+      }
+      return null;
     }
 
     if (activeTab === "charts") {

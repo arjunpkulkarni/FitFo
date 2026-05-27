@@ -27,7 +27,6 @@ import {
   WorkoutCard,
   getBrandAccent,
 } from "../components/WorkoutCard";
-import { ProfileAvatarCircle } from "../components/ProfileAvatarCircle";
 import {
   formatCompletedWorkoutDate,
   getRoutineDisplayTitle,
@@ -47,9 +46,6 @@ interface SavedWorkoutsScreenProps {
   importedWorkouts: SavedRoutinePreview[];
   isScheduleLoading: boolean;
   onAddWorkout: () => void;
-  profileAvatarRevision?: string | null;
-  profileAvatarUrl?: string | null;
-  onOpenProfile: () => void;
   onOpenCompletedSession: (workout: CompletedWorkoutRecord) => void;
   onOpenSavedList: () => void;
   onOpenWorkout: (routine: SavedRoutinePreview) => void;
@@ -444,9 +440,6 @@ export function SavedWorkoutsScreen({
   importedWorkouts,
   isScheduleLoading,
   onAddWorkout,
-  profileAvatarRevision,
-  profileAvatarUrl,
-  onOpenProfile,
   onOpenCompletedSession,
   onOpenSavedList,
   onOpenWorkout,
@@ -639,25 +632,6 @@ export function SavedWorkoutsScreen({
           <Text style={[styles.eyebrow, { color: accent }]}>YOUR HUB</Text>
           <Text style={styles.title}>Workouts</Text>
         </View>
-        <Pressable
-          accessibilityHint="Opens your profile and account settings."
-          accessibilityLabel="Profile"
-          accessibilityRole="button"
-          onPress={onOpenProfile}
-          style={({ pressed }) => [
-            styles.profileButton,
-            pressed ? styles.profileButtonPressed : null,
-          ]}
-          hitSlop={10}
-        >
-          <ProfileAvatarCircle
-            diameter={48}
-            fallbackIconColor={theme.colors.textPrimary}
-            iconBackgroundColor={theme.colors.surface}
-            revision={profileAvatarRevision}
-            uri={profileAvatarUrl}
-          />
-        </Pressable>
       </View>
 
       <SavedLibraryBento
@@ -1041,24 +1015,6 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     titleBlock: {
       gap: 8,
       flex: 1,
-    },
-    profileButton: {
-      width: 52,
-      height: 52,
-      borderRadius: 999,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.surface,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor:
-        theme.mode === "dark"
-          ? "rgba(255, 255, 255, 0.10)"
-          : "rgba(20, 32, 85, 0.12)",
-      marginTop: 0,
-    },
-    profileButtonPressed: {
-      opacity: 0.7,
-      transform: [{ scale: 0.96 }],
     },
     eyebrow: {
       fontSize: 11,
