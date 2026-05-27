@@ -764,6 +764,12 @@ function exercisesFromCompletedLog(
       // is not auto-marked complete.
       loggedWeight: set.loggedWeight ?? "",
       loggedReps: set.loggedReps ?? "",
+      // Notes survive into the replayed session so users see past coaching
+      // cues / sensations while logging the next session of the same workout.
+      notes: set.notes ?? null,
+      // Replays inherit the unit the original set was logged in so the
+      // pre-filled `loggedWeight` value stays meaningful.
+      weightUnit: set.weightUnit,
       completed: false,
     })),
   }));

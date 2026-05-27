@@ -237,6 +237,8 @@ export interface SaveOnboardingRequest {
   height_inches: number;
   experience_level: ExperienceLevel;
   age: number;
+  /** ISO calendar date (YYYY-MM-DD) from the birthday step. */
+  birth_date?: string | null;
 }
 
 export interface SaveOnboardingResponse {
@@ -300,6 +302,19 @@ export interface ActiveSetPreview {
   loggedReps: string;
   completed: boolean;
   skipped?: boolean;
+  /**
+   * Free-form per-set note ("felt heavy", "drop set 60 → 50", etc).
+   * Persisted into `completed_workouts.exercises[].sets[].notes` on finish so
+   * users can review them when they reopen the workout from history.
+   */
+  notes?: string | null;
+  /**
+   * Unit the athlete used when typing `loggedWeight`. Stored alongside the
+   * value so historical sets always render in the unit they were entered in,
+   * even if the athlete later flips their imperial/metric preference. Older
+   * rows that pre-date this field default to `lb` at read time.
+   */
+  weightUnit?: "lb" | "kg";
 }
 
 export interface ActiveExercisePreview {

@@ -60,6 +60,11 @@ import {
 } from "./src/lib/ingestJobStorage";
 import { getStoredThemeMode, storeThemeMode } from "./src/lib/themeStorage";
 import {
+  getStoredMeasurementUnit,
+  storeMeasurementUnit,
+} from "./src/lib/measurementUnitStorage";
+import type { MeasurementUnitSystem } from "./src/lib/measurementUnits";
+import {
   ApiError,
   appleSignIn,
   checkAccountStatus,
@@ -210,6 +215,11 @@ interface ScheduleAgainTarget {
   // should reuse that row as the schedule's source instead of round-tripping
   // through saveWorkoutForLater again (which would create a duplicate).
   savedWorkoutId: string | null;
+  /** When set, confirm updates this row instead of creating a new schedule. */
+  scheduledWorkoutId?: string | null;
+  initialScheduledFor?: string | null;
+  initialScheduledTimeMinutes?: number | null;
+  mode?: "schedule" | "reschedule";
 }
 
 type AuthSubmitMode = "login" | "signup" | "otp" | "apple" | "bootstrap";
@@ -221,7 +231,7 @@ interface ScheduledConfirmationState {
   origin: "share" | "manual";
 }
 
-const AUTH_LANDING_AUTH_INDEX = 8;
+const AUTH_LANDING_AUTH_INDEX = 9;
 const POST_SIGNUP_HUB_GUIDANCE_ENABLED = false;
 const STORE_REVIEW_COMPLETION_RATIO_THRESHOLD = 0.7;
 
@@ -285,6 +295,11 @@ export default function App() {
     Math.min(176, Math.max(120, windowWidth * 0.38)),
   );
   const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
+  // Measurement-unit preference is hydrated from AsyncStorage on launch (set
+  // during onboarding's height/weight step) and threaded into the workout flow
+  // so the set-card weight input shows kg vs lb correctly for the user.
+  const [unitSystem, setUnitSystem] =
+    useState<MeasurementUnitSystem>("imperial");
   const [fontsLoaded] = useFonts({
     // Body family — Satoshi (Fontshare). Replaces Barlow.
     "Satoshi-Regular": require("./assets/fonts/Satoshi-Regular.ttf"),
@@ -308,6 +323,12 @@ export default function App() {
   const [authPrefillFullName, setAuthPrefillFullName] = useState("");
   const [authLandingOnboardingPayload, setAuthLandingOnboardingPayload] =
     useState<SaveOnboardingRequest | null>(null);
+  // Username chosen during the onboarding carousel. We claim it via
+  // `PUT /auth/username` right after the onboarding payload saves so most
+  // users skip the post-auth UsernameScreen entirely. The screen still
+  // renders (and is unskippable) for any account where claiming fails or
+  // for legacy users created before this slide existed.
+  const [proposedUsername, setProposedUsername] = useState<string | null>(null);
   const [pendingOtpChallenge, setPendingOtpChallenge] =
     useState<PendingOtpChallenge | null>(null);
   const [isUsernameSubmitting, setIsUsernameSubmitting] = useState(false);
@@ -336,6 +357,26 @@ export default function App() {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void getStoredMeasurementUnit().then((stored) => {
+      if (alive && stored) {
+        setUnitSystem(stored);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const handleUnitSystemChange = useCallback(
+    (next: MeasurementUnitSystem) => {
+      setUnitSystem(next);
+      void storeMeasurementUnit(next);
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -1114,9 +1155,35 @@ export default function App() {
           void syncExpoPushTokenWithBackend(token);
         });
       }, 400);
-      return response.profile;
+
+      // If the user picked a username during the onboarding carousel, claim
+      // it immediately so they don't see the post-auth UsernameScreen. If
+      // the claim races / fails (409, etc), we silently swallow — the
+      // mandatory UsernameScreen will render next because the profile's
+      // `username` field will still be null.
+      let finalProfile = response.profile;
+      if (
+        proposedUsername &&
+        !finalProfile.username?.trim()
+      ) {
+        try {
+          const usernameResponse = await saveUsername(token, {
+            username: proposedUsername,
+          });
+          finalProfile = usernameResponse.profile;
+          posthog.capture("username_created", {
+            user_id: finalProfile.id,
+            username: finalProfile.username ?? proposedUsername,
+            source: "onboarding_carousel",
+          });
+        } catch {
+          // Fall through — UsernameScreen handles the retry path.
+        }
+      }
+      setProposedUsername(null);
+      return finalProfile;
     },
-    [authLandingOnboardingPayload, loadBodyWeightEntries],
+    [authLandingOnboardingPayload, loadBodyWeightEntries, proposedUsername],
   );
 
   const handleSaveUsername = useCallback(
@@ -2257,6 +2324,37 @@ export default function App() {
         badgeLabel: routine.badgeLabel ?? "Scheduled",
         thumbnailUrl: routine.thumbnailUrl ?? null,
         savedWorkoutId,
+        mode: "schedule",
+      });
+    },
+    [],
+  );
+
+  const handleRequestRescheduleScheduledWorkout = useCallback(
+    (routine: SavedRoutinePreview) => {
+      const scheduledWorkoutId =
+        routine.scheduledWorkoutId?.trim() || routine.id;
+      if (!scheduledWorkoutId) {
+        return;
+      }
+      setScheduleAgainError(null);
+      setScheduleAgainTarget({
+        id: scheduledWorkoutId,
+        scheduledWorkoutId,
+        title: routine.title,
+        description: routine.description ? routine.description : null,
+        workoutId: routine.workoutId ?? null,
+        jobId: routine.jobId ?? null,
+        sourceUrl: routine.sourceUrl ?? null,
+        workoutPlan: routine.workoutPlan ?? null,
+        metaLeft: routine.metaLeft,
+        metaRight: routine.metaRight,
+        badgeLabel: routine.badgeLabel ?? "Scheduled",
+        thumbnailUrl: routine.thumbnailUrl ?? null,
+        savedWorkoutId: routine.savedWorkoutId ?? null,
+        initialScheduledFor: routine.scheduledFor ?? null,
+        initialScheduledTimeMinutes: routine.scheduledTimeMinutes ?? null,
+        mode: "reschedule",
       });
     },
     [],
@@ -2279,6 +2377,37 @@ export default function App() {
       setIsSchedulingAgain(true);
       setScheduleAgainError(null);
       try {
+        if (scheduleAgainTarget.scheduledWorkoutId) {
+          const scheduled = await updateScheduledWorkout(
+            accessToken,
+            scheduleAgainTarget.scheduledWorkoutId,
+            {
+              scheduled_for: scheduledFor,
+              scheduled_time_minutes: scheduledTimeMinutes,
+            },
+          );
+          setScheduledWorkouts((current) => {
+            const withoutDuplicate = current.filter(
+              (item) => item.id !== scheduled.id,
+            );
+            return [...withoutDuplicate, scheduled].sort((left, right) =>
+              left.scheduled_for.localeCompare(right.scheduled_for),
+            );
+          });
+          void cancelWorkoutReminder(scheduleAgainTarget.scheduledWorkoutId);
+          void scheduleWorkoutReminder(scheduled);
+          setScheduledWorkoutsError(null);
+          setScheduleAgainTarget(null);
+          setScheduledConfirmation({
+            title: scheduleAgainTarget.title,
+            scheduledFor: scheduled.scheduled_for,
+            scheduledTimeMinutes:
+              scheduled.scheduled_time_minutes ?? scheduledTimeMinutes,
+            origin: "manual",
+          });
+          return;
+        }
+
         // If the target is already a saved-library row, skip the round trip
         // through saveWorkoutForLater (which would create a duplicate). Otherwise
         // mirror the workout into the saved library first so the schedule has a
@@ -3395,6 +3524,7 @@ export default function App() {
           resolveLastLiftLabel={resolveLastLiftLabel}
           resolveExerciseLiftSummary={resolveExerciseLiftSummary}
           themeMode={themeMode}
+          unitSystem={unitSystem}
           userId={currentUser?.id ?? null}
           onOpenSuggestFeatures={handleOpenSuggestFeaturesFromCoach}
         />
@@ -3465,6 +3595,11 @@ export default function App() {
             isScheduledView
               ? undefined
               : () => handleRequestScheduleSavedWorkout(routine)
+          }
+          onReschedule={
+            isScheduledView
+              ? () => handleRequestRescheduleScheduledWorkout(routine)
+              : undefined
           }
           onUpdate={handleUpdateSavedRoutine}
           removeLabel={isScheduledView ? "Unschedule" : "Unsave"}
@@ -3561,6 +3696,7 @@ export default function App() {
             }
           }}
           onScheduleWorkout={handleRequestScheduleSavedWorkout}
+          onRescheduleScheduledWorkout={handleRequestRescheduleScheduledWorkout}
           onStartSession={handleStartSession}
           onUnschedule={handleUnscheduleWorkout}
           scheduledError={scheduledWorkoutsError}
@@ -3780,6 +3916,7 @@ export default function App() {
             />
           ) : needsUsername ? (
             <UsernameScreen
+              accessToken={accessToken}
               error={usernameError}
               isSubmitting={isUsernameSubmitting}
               onSubmit={handleSaveUsername}
@@ -3929,7 +4066,9 @@ export default function App() {
             onCreateAccount={handleCreateAccount}
             onLogin={handleLogin}
             onOnboardingPayloadChange={setAuthLandingOnboardingPayload}
+            onProposedUsernameChange={setProposedUsername}
             onThemeModeChange={handleThemeModeChange}
+            onUnitSystemChange={handleUnitSystemChange}
             onSelectMode={(mode) => {
               setAuthLandingIndex(AUTH_LANDING_AUTH_INDEX);
               setPendingOtpChallenge(null);
@@ -3984,6 +4123,11 @@ export default function App() {
         visible={scheduleAgainTarget != null}
         title={scheduleAgainTarget?.title || "Workout"}
         subtitle={scheduleAgainTarget?.description ?? undefined}
+        initialScheduledFor={scheduleAgainTarget?.initialScheduledFor}
+        initialScheduledTimeMinutes={
+          scheduleAgainTarget?.initialScheduledTimeMinutes
+        }
+        mode={scheduleAgainTarget?.mode ?? "schedule"}
         isScheduling={isSchedulingAgain}
         error={scheduleAgainError}
         onClose={handleCloseScheduleAgain}

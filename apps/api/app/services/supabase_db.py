@@ -1010,6 +1010,7 @@ def upsert_profile_onboarding(
     experience_level: str,
     age: int,
     custom_split_notes: Optional[str] = None,
+    birth_date: Optional[str] = None,
 ) -> Dict[str, Any]:
     supa = get_supabase()
     cleaned_goals = list(dict.fromkeys(goal.strip() for goal in goals if goal.strip()))
@@ -1037,6 +1038,8 @@ def upsert_profile_onboarding(
         "experience_level": experience_level,
         "age": age,
     }
+    if birth_date:
+        payload["birth_date"] = birth_date
 
     existing = get_profile_onboarding(user_id)
     if existing is None:

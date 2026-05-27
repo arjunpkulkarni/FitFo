@@ -1,14 +1,18 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
+  Linking,
   Modal,
   View,
   Text,
   Pressable,
-  ScrollView,
   TextInput,
   StyleSheet,
   Animated,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import DraggableFlatList, {
+  type RenderItemParams,
+} from "react-native-draggable-flatlist";
 import type { ActiveExercisePreview } from "../../types";
 import { darkColors } from "../../theme";
 import { F } from "../../lib/fonts";
@@ -18,19 +22,27 @@ const C = darkColors;
 interface WorkoutOverviewSheetProps {
   title: string;
   exercises: ActiveExercisePreview[];
+  /**
+   * When set, the sheet renders a "View original" link so the athlete can pop
+   * back into the TikTok / Instagram source video without losing their session.
+   */
+  sourceUrl?: string | null;
   onClose: () => void;
   onEditExercise: (id: string) => void;
   onRemoveExercise: (id: string) => void;
   onAddExercise: (name: string) => void;
+  onReorder: (exercises: ActiveExercisePreview[]) => void;
 }
 
 export default function WorkoutOverviewSheet({
   title,
   exercises,
+  sourceUrl,
   onClose,
   onEditExercise,
   onRemoveExercise,
   onAddExercise,
+  onReorder,
 }: WorkoutOverviewSheetProps) {
   const slideAnim = useRef(new Animated.Value(600)).current;
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
@@ -62,177 +74,234 @@ export default function WorkoutOverviewSheet({
     }
   };
 
-  return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Animated.View
-          style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
-        >
-          <Pressable>
-            <View style={styles.handle} />
+  const renderItem = useCallback(
+    ({
+      item: ex,
+      drag,
+      getIndex,
+      isActive,
+    }: RenderItemParams<ActiveExercisePreview>) => {
+      const idx = getIndex() ?? 0;
+      const done = ex.sets.filter((s) => s.completed).length;
+      const skippedCount = ex.sets.filter((s) => s.skipped).length;
+      const total = ex.sets.length;
+      const allDone = done + skippedCount === total;
+      const isConfirming = confirmRemoveId === ex.id;
 
-            <View style={styles.sheetHeader}>
-              <View>
-                <Text style={styles.sheetEyebrow}>WORKOUT</Text>
-                <Text style={styles.sheetTitle}>{title}</Text>
-              </View>
-              <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={8}>
-                <Text style={styles.closeBtnText}>✕</Text>
+      return (
+        <View
+          style={[
+            styles.exerciseRow,
+            isConfirming && styles.exerciseRowDanger,
+            isActive && styles.exerciseRowDragging,
+          ]}
+        >
+          <Pressable
+            onPress={() => onEditExercise(ex.id)}
+            onLongPress={drag}
+            delayLongPress={160}
+            disabled={isActive}
+            style={styles.exerciseMain}
+          >
+            <View style={[styles.badge, allDone && styles.badgeDone]}>
+              <Text
+                style={[
+                  styles.badgeText,
+                  allDone && styles.badgeTextDone,
+                ]}
+              >
+                {allDone ? "✓" : String(idx + 1).padStart(2, "0")}
+              </Text>
+            </View>
+            <View style={styles.exerciseInfo}>
+              <Text style={styles.exerciseName} numberOfLines={1}>
+                {ex.name}
+              </Text>
+              <Text style={styles.exerciseMeta}>
+                {done}/{total} sets · {ex.restSeconds ?? 0}s rest
+                {skippedCount > 0 ? ` · ${skippedCount} skipped` : ""}
+              </Text>
+            </View>
+            <View style={styles.exDots}>
+              {ex.sets.map((s) => {
+                let bg: string = C.borderSoft;
+                if (s.completed) bg = C.success;
+                else if (s.skipped) bg = "#5b524b";
+                return (
+                  <View
+                    key={s.id}
+                    style={[styles.exDot, { backgroundColor: bg }]}
+                  />
+                );
+              })}
+            </View>
+          </Pressable>
+
+          {isConfirming ? (
+            <View style={styles.confirmBtns}>
+              <Pressable
+                onPress={() => setConfirmRemoveId(null)}
+                style={styles.keepBtn}
+              >
+                <Text style={styles.keepBtnText}>Keep</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  onRemoveExercise(ex.id);
+                  setConfirmRemoveId(null);
+                }}
+                style={styles.confirmRemoveBtn}
+              >
+                <Text style={styles.confirmRemoveBtnText}>🗑</Text>
               </Pressable>
             </View>
+          ) : (
+            <>
+              <Pressable
+                onLongPress={drag}
+                onPressIn={drag}
+                delayLongPress={120}
+                hitSlop={6}
+                style={styles.dragHandle}
+                accessibilityLabel="Drag to reorder"
+                accessibilityRole="button"
+              >
+                <View style={styles.dragHandleLine} />
+                <View style={styles.dragHandleLine} />
+                <View style={styles.dragHandleLine} />
+              </Pressable>
+              <Pressable
+                onPress={() => setConfirmRemoveId(ex.id)}
+                style={styles.trashBtn}
+                hitSlop={4}
+              >
+                <Text style={styles.trashBtnText}>🗑</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      );
+    },
+    [confirmRemoveId, onEditExercise, onRemoveExercise],
+  );
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.list}>
-                {exercises.map((ex, idx) => {
-                  const done = ex.sets.filter((s) => s.completed).length;
-                  const skippedCount = ex.sets.filter((s) => s.skipped).length;
-                  const total = ex.sets.length;
-                  const allDone = done + skippedCount === total;
-                  const isConfirming = confirmRemoveId === ex.id;
+  const renderFooter = () =>
+    adding ? (
+      <View style={styles.addRow}>
+        <View style={styles.addBadge}>
+          <Text style={styles.addBadgeText}>+</Text>
+        </View>
+        <TextInput
+          ref={inputRef}
+          value={newName}
+          onChangeText={setNewName}
+          onSubmitEditing={submitAdd}
+          returnKeyType="done"
+          placeholder="Exercise name (e.g. Lat Pulldown)"
+          placeholderTextColor={C.textMuted}
+          style={styles.addInput}
+        />
+        <Pressable
+          onPress={() => {
+            setAdding(false);
+            setNewName("");
+          }}
+          style={styles.cancelAddBtn}
+          hitSlop={4}
+        >
+          <Text style={styles.cancelAddBtnText}>✕</Text>
+        </Pressable>
+        <Pressable
+          onPress={submitAdd}
+          disabled={!newName.trim()}
+          style={[
+            styles.confirmAddBtn,
+            !newName.trim() && styles.confirmAddBtnDisabled,
+          ]}
+          hitSlop={4}
+        >
+          <Text style={styles.confirmAddBtnText}>✓</Text>
+        </Pressable>
+      </View>
+    ) : (
+      <Pressable
+        onPress={() => setAdding(true)}
+        style={styles.addExerciseBtn}
+      >
+        <View style={styles.addExerciseBadge}>
+          <Text style={styles.addExercisePlus}>+</Text>
+        </View>
+        <View>
+          <Text style={styles.addExerciseTitle}>Add exercise</Text>
+          <Text style={styles.addExerciseHint}>Append to this workout</Text>
+        </View>
+      </Pressable>
+    );
 
-                  return (
-                    <View
-                      key={ex.id}
-                      style={[
-                        styles.exerciseRow,
-                        isConfirming && styles.exerciseRowDanger,
-                      ]}
-                    >
-                      <Pressable
-                        onPress={() => onEditExercise(ex.id)}
-                        style={styles.exerciseMain}
-                      >
-                        <View
-                          style={[
-                            styles.badge,
-                            allDone && styles.badgeDone,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.badgeText,
-                              allDone && styles.badgeTextDone,
-                            ]}
-                          >
-                            {allDone ? "✓" : String(idx + 1).padStart(2, "0")}
-                          </Text>
-                        </View>
-                        <View style={styles.exerciseInfo}>
-                          <Text style={styles.exerciseName} numberOfLines={1}>
-                            {ex.name}
-                          </Text>
-                          <Text style={styles.exerciseMeta}>
-                            {done}/{total} sets · {ex.restSeconds ?? 0}s rest
-                            {skippedCount > 0 ? ` · ${skippedCount} skipped` : ""}
-                          </Text>
-                        </View>
-                        <View style={styles.exDots}>
-                          {ex.sets.map((s) => {
-                            let bg: string = C.borderSoft;
-                            if (s.completed) bg = C.success;
-                            else if (s.skipped) bg = "#5b524b";
-                            return (
-                              <View
-                                key={s.id}
-                                style={[styles.exDot, { backgroundColor: bg }]}
-                              />
-                            );
-                          })}
-                        </View>
-                      </Pressable>
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      {/* Modal renders into a separate native view tree on iOS, so we re-root
+          the gesture-handler tree here — without this, the DraggableFlatList
+          drag gesture never reaches the recognizer. */}
+      <GestureHandlerRootView style={styles.modalRoot}>
+        <Pressable style={styles.backdrop} onPress={onClose}>
+          <Animated.View
+            style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
+          >
+            <Pressable>
+              <View style={styles.handle} />
 
-                      {isConfirming ? (
-                        <View style={styles.confirmBtns}>
-                          <Pressable
-                            onPress={() => setConfirmRemoveId(null)}
-                            style={styles.keepBtn}
-                          >
-                            <Text style={styles.keepBtnText}>Keep</Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => {
-                              onRemoveExercise(ex.id);
-                              setConfirmRemoveId(null);
-                            }}
-                            style={styles.confirmRemoveBtn}
-                          >
-                            <Text style={styles.confirmRemoveBtnText}>🗑</Text>
-                          </Pressable>
-                        </View>
-                      ) : (
-                        <Pressable
-                          onPress={() => setConfirmRemoveId(ex.id)}
-                          style={styles.trashBtn}
-                          hitSlop={4}
-                        >
-                          <Text style={styles.trashBtnText}>🗑</Text>
-                        </Pressable>
-                      )}
-                    </View>
-                  );
-                })}
-
-                {adding ? (
-                  <View style={styles.addRow}>
-                    <View style={styles.addBadge}>
-                      <Text style={styles.addBadgeText}>+</Text>
-                    </View>
-                    <TextInput
-                      ref={inputRef}
-                      value={newName}
-                      onChangeText={setNewName}
-                      onSubmitEditing={submitAdd}
-                      returnKeyType="done"
-                      placeholder="Exercise name (e.g. Lat Pulldown)"
-                      placeholderTextColor={C.textMuted}
-                      style={styles.addInput}
-                    />
+              <View style={styles.sheetHeader}>
+                <View style={styles.sheetHeaderText}>
+                  <Text style={styles.sheetEyebrow}>WORKOUT</Text>
+                  <Text style={styles.sheetTitle}>{title}</Text>
+                  {sourceUrl ? (
                     <Pressable
                       onPress={() => {
-                        setAdding(false);
-                        setNewName("");
+                        Linking.openURL(sourceUrl).catch(() => undefined);
                       }}
-                      style={styles.cancelAddBtn}
-                      hitSlop={4}
+                      style={styles.sourceLink}
+                      hitSlop={6}
+                      accessibilityRole="link"
+                      accessibilityLabel="Open original source video"
                     >
-                      <Text style={styles.cancelAddBtnText}>✕</Text>
+                      <Text style={styles.sourceLinkIcon}>🎬</Text>
+                      <Text style={styles.sourceLinkText}>View original</Text>
                     </Pressable>
-                    <Pressable
-                      onPress={submitAdd}
-                      disabled={!newName.trim()}
-                      style={[
-                        styles.confirmAddBtn,
-                        !newName.trim() && styles.confirmAddBtnDisabled,
-                      ]}
-                      hitSlop={4}
-                    >
-                      <Text style={styles.confirmAddBtnText}>✓</Text>
-                    </Pressable>
-                  </View>
-                ) : (
-                  <Pressable
-                    onPress={() => setAdding(true)}
-                    style={styles.addExerciseBtn}
-                  >
-                    <View style={styles.addExerciseBadge}>
-                      <Text style={styles.addExercisePlus}>+</Text>
-                    </View>
-                    <View>
-                      <Text style={styles.addExerciseTitle}>Add exercise</Text>
-                      <Text style={styles.addExerciseHint}>Append to this workout</Text>
-                    </View>
-                  </Pressable>
-                )}
+                  ) : null}
+                </View>
+                <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={8}>
+                  <Text style={styles.closeBtnText}>✕</Text>
+                </Pressable>
               </View>
-            </ScrollView>
-          </Pressable>
-        </Animated.View>
-      </Pressable>
+
+              <DraggableFlatList
+                data={exercises}
+                keyExtractor={(item) => item.id}
+                renderItem={renderItem}
+                onDragBegin={() => setConfirmRemoveId(null)}
+                onDragEnd={({ data, from, to }) => {
+                  if (from !== to) {
+                    onReorder(data);
+                  }
+                }}
+                activationDistance={8}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.list}
+                ListFooterComponent={renderFooter}
+              />
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  modalRoot: {
+    flex: 1,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.7)",
@@ -261,8 +330,35 @@ const styles = StyleSheet.create({
   sheetHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 14,
+    gap: 12,
+  },
+  sheetHeaderText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sourceLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: C.borderSoft,
+    backgroundColor: C.surfaceMuted,
+  },
+  sourceLinkIcon: {
+    fontSize: 12,
+  },
+  sourceLinkText: {
+    fontFamily: F.bold,
+    fontSize: 11,
+    letterSpacing: 0.4,
+    color: C.primary,
   },
   sheetEyebrow: {
     fontFamily: F.bold,
@@ -307,6 +403,16 @@ const styles = StyleSheet.create({
   exerciseRowDanger: {
     backgroundColor: C.errorSoft,
     borderColor: "rgba(255,90,76,0.4)",
+  },
+  exerciseRowDragging: {
+    backgroundColor: C.surfaceStrong,
+    borderColor: C.primary,
+    transform: [{ scale: 1.02 }],
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
   exerciseMain: {
     flex: 1,
@@ -359,6 +465,22 @@ const styles = StyleSheet.create({
     width: 14,
     height: 4,
     borderRadius: 999,
+  },
+  dragHandle: {
+    width: 28,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    gap: 3,
+  },
+  dragHandleLine: {
+    width: 14,
+    height: 2,
+    borderRadius: 999,
+    backgroundColor: C.textMuted,
+    opacity: 0.55,
   },
   trashBtn: {
     width: 32,

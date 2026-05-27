@@ -24,15 +24,18 @@ import { LinearGradient } from "expo-linear-gradient";
 import { VideoView, useVideoPlayer } from "expo-video";
 
 import { AppleSignInButton } from "../components/AppleSignInButton";
+import { checkUsernameAvailability } from "../lib/api";
 import { isAppleSignInAvailable } from "../lib/appleAuth";
 import { F } from "../lib/fonts";
 import {
+  cmToInches,
+  computeAgeFromBirthDate,
   feetInchesToTotalInches,
+  formatBirthDateIso,
   formatMetricNumber,
-  inchesToMeters,
+  inchesToCm,
   kgToLbs,
   lbsToKg,
-  metersToInches,
   totalInchesToFeetInches,
   type MeasurementUnitSystem,
 } from "../lib/measurementUnits";
@@ -43,12 +46,15 @@ import {
 import { getTheme, type ThemeMode } from "../theme";
 import type { AuthMode, OnboardingGoal, OnboardingSex, SaveOnboardingRequest } from "../types";
 
-const AUTH_SLIDE_INDEX = 8;
+const AUTH_SLIDE_INDEX = 9;
 const ONBOARDING_STEP_COUNT = AUTH_SLIDE_INDEX - 1;
 const AGE_ITEM_WIDTH = 56;
 const AGE_ITEM_GAP = 8;
 const AGE_SNAP_INTERVAL = AGE_ITEM_WIDTH + AGE_ITEM_GAP;
-const TRY_DEMO_SLIDE_INDEX = 5;
+const TRY_DEMO_SLIDE_INDEX = 6;
+const USERNAME_RE = /^[a-z0-9](?:[a-z0-9_]{1,18}[a-z0-9])$/;
+/** Async availability check is debounced to avoid hammering the API. */
+const USERNAME_AVAILABILITY_DEBOUNCE_MS = 350;
 const WORKOUT_VIDEO = require("../../assets/my-workout.mp4");
 const NUNO_VIDEO = require("../../assets/nuno.mov");
 const NICOLETTE_VIDEO = require("../../assets/nicolette.mp4");
@@ -90,6 +96,7 @@ function createAuthColors(mode: ThemeMode) {
     inputPlaceholder: theme.colors.textMuted,
     error: theme.colors.error,
     errorSoft: theme.colors.errorSoft,
+    success: theme.colors.success,
     noticeSoft: isDark ? "rgba(255, 111, 34, 0.12)" : "rgba(71, 88, 240, 0.10)",
     track: theme.colors.track,
     switchThumb: theme.colors.surfaceStrong,
@@ -128,8 +135,21 @@ interface AuthLandingScreenProps {
   onCreateAccount: (fullName: string, phone: string) => void;
   onLogin: (phone: string) => void;
   onOnboardingPayloadChange?: (payload: SaveOnboardingRequest | null) => void;
+  /**
+   * Username chosen during the onboarding carousel. Forwarded to the app
+   * shell so it can claim the handle via `PUT /auth/username` immediately
+   * after onboarding is saved post-signup. The mandatory `UsernameScreen`
+   * still serves as a fallback if the claim races with another user.
+   */
+  onProposedUsernameChange?: (username: string | null) => void;
   onSelectMode: (mode: Exclude<AuthMode, "otp">) => void;
   onThemeModeChange?: (mode: ThemeMode) => void;
+  /**
+   * Notifies the app shell when the athlete toggles between metric/imperial
+   * during onboarding so workout-flow components stay in sync without waiting
+   * for the next AsyncStorage round-trip.
+   */
+  onUnitSystemChange?: (system: MeasurementUnitSystem) => void;
   themeMode?: ThemeMode;
 }
 
@@ -152,7 +172,8 @@ const sexOptions: Array<{ label: string; sub: string; value: OnboardingSex }> = 
   { label: "Prefer not to say", sub: "Skip creator matching", value: "prefer_not_to_say" },
 ];
 
-const ageOptions = Array.from({ length: 57 }, (_, index) => index + 14);
+/** Ages allowed by onboarding API (13–120); wheel is view-only preview. */
+const ageOptions = Array.from({ length: 108 }, (_, index) => index + 13);
 
 export function AuthLandingScreen({
   activeIndex,
@@ -168,8 +189,10 @@ export function AuthLandingScreen({
   onCreateAccount,
   onLogin,
   onOnboardingPayloadChange,
+  onProposedUsernameChange,
   onSelectMode,
   onThemeModeChange,
+  onUnitSystemChange,
   themeMode = "dark",
 }: AuthLandingScreenProps) {
   const { width, height: windowHeight } = useWindowDimensions();
@@ -198,15 +221,27 @@ export function AuthLandingScreen({
   const [fullName, setFullName] = useState(initialFullName ?? "");
   const [phoneNumber, setPhoneNumber] = useState(initialPhoneNumber ?? "");
   const [isAppleAvailable, setIsAppleAvailable] = useState(false);
-  const [age, setAge] = useState(22);
+  const defaultBirthYear = new Date().getFullYear() - 22;
+  const [birthMonth, setBirthMonth] = useState("6");
+  const [birthDay, setBirthDay] = useState("15");
+  const [birthYear, setBirthYear] = useState(String(defaultBirthYear));
   const [sex, setSex] = useState<OnboardingSex | null>(null);
   const [selectedGoals, setSelectedGoals] = useState<OnboardingGoal[]>([]);
   const [weightLbs, setWeightLbs] = useState("");
   const [weightKg, setWeightKg] = useState("");
   const [heightFeet, setHeightFeet] = useState("");
   const [heightInches, setHeightInches] = useState("");
-  const [heightMeters, setHeightMeters] = useState("");
+  // Metric height is captured in centimeters per onboarding (user-facing label
+  // "cm"). We translate to inches for the API which always stores
+  // `height_inches`.
+  const [heightCm, setHeightCm] = useState("");
   const [unitSystem, setUnitSystem] = useState<MeasurementUnitSystem>("imperial");
+  const [proposedUsername, setProposedUsername] = useState("");
+  // Tracks the live availability state for the username step. `null` while
+  // idle or invalid, `"checking"` mid-debounce, otherwise the resolved boolean.
+  const [usernameAvailability, setUsernameAvailability] = useState<
+    "checking" | "available" | "taken" | "error" | null
+  >(null);
   const [isThemeModalVisible, setIsThemeModalVisible] = useState(false);
   const [tryStage, setTryStage] = useState<"tiktok" | "share" | "import" | "workout">("tiktok");
   const isNicoletteDemo = sex === "female";
@@ -280,26 +315,49 @@ export function AuthLandingScreen({
     return () => clearTimeout(id);
   }, [activeIndex, width]);
 
+  const parsedBirthMonth = Number.parseInt(birthMonth, 10);
+  const parsedBirthDay = Number.parseInt(birthDay, 10);
+  const parsedBirthYear = Number.parseInt(birthYear, 10);
+  const computedAge = computeAgeFromBirthDate(
+    parsedBirthYear,
+    parsedBirthMonth,
+    parsedBirthDay,
+  );
+  const hasValidBirthDate =
+    computedAge != null && computedAge >= 13 && computedAge <= 120;
+  const birthDateIso = hasValidBirthDate
+    ? formatBirthDateIso(parsedBirthYear, parsedBirthMonth, parsedBirthDay)
+    : null;
+
   useEffect(() => {
+    if (computedAge == null) {
+      return;
+    }
+    const clamped = Math.max(
+      ageOptions[0],
+      Math.min(ageOptions[ageOptions.length - 1], computedAge),
+    );
     const id = setTimeout(() => {
       ageScrollRef.current?.scrollTo({
-        animated: false,
-        x: Math.max(0, ageOptions.indexOf(age)) * AGE_SNAP_INTERVAL,
+        animated: true,
+        x: Math.max(0, ageOptions.indexOf(clamped)) * AGE_SNAP_INTERVAL,
       });
     }, 0);
     return () => clearTimeout(id);
-  }, []);
+  }, [computedAge]);
 
   const parsedHeightFeet = Number.parseInt(heightFeet, 10);
   const parsedHeightInches = Number.parseInt(heightInches, 10);
-  const parsedHeightMeters = Number.parseFloat(heightMeters);
+  const parsedHeightCm = Number.parseFloat(heightCm);
   const parsedWeightLbs = Number.parseFloat(weightLbs);
   const parsedWeightKg = Number.parseFloat(weightKg);
   const imperialHeightInches = feetInchesToTotalInches(
     Number.isFinite(parsedHeightFeet) ? parsedHeightFeet : 0,
     Number.isFinite(parsedHeightInches) ? parsedHeightInches : 0,
   );
-  const metricHeightInches = metersToInches(parsedHeightMeters);
+  const metricHeightInches = Number.isFinite(parsedHeightCm)
+    ? cmToInches(parsedHeightCm)
+    : 0;
   const totalHeightInches =
     unitSystem === "metric" ? metricHeightInches : imperialHeightInches;
   const numericWeight =
@@ -307,13 +365,64 @@ export function AuthLandingScreen({
   const hasValidHeight = Number.isFinite(totalHeightInches) && totalHeightInches > 0;
   const hasValidWeight = Number.isFinite(numericWeight) && numericWeight > 0;
 
+  // Username has both a synchronous format check and an async server check.
+  // We treat "available" as the only state that lets the user advance.
+  const cleanProposedUsername = proposedUsername.trim().toLowerCase();
+  const isUsernameFormatValid = USERNAME_RE.test(cleanProposedUsername);
+  const canContinueFromUsername =
+    isUsernameFormatValid && usernameAvailability === "available";
+
+  useEffect(() => {
+    if (!isUsernameFormatValid) {
+      setUsernameAvailability(null);
+      onProposedUsernameChange?.(null);
+      return;
+    }
+    setUsernameAvailability("checking");
+    onProposedUsernameChange?.(cleanProposedUsername);
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      try {
+        const response = await checkUsernameAvailability(cleanProposedUsername);
+        if (cancelled) {
+          return;
+        }
+        setUsernameAvailability(response.available ? "available" : "taken");
+      } catch {
+        if (!cancelled) {
+          // Treat network failures as "let the user proceed" — the server
+          // unique index will block a duplicate at claim time and the
+          // mandatory `UsernameScreen` will surface the error.
+          setUsernameAvailability("error");
+        }
+      }
+    }, USERNAME_AVAILABILITY_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [cleanProposedUsername, isUsernameFormatValid, onProposedUsernameChange]);
+
   const onboardingPayload = useMemo<SaveOnboardingRequest | null>(() => {
-    if (!sex || selectedGoals.length === 0 || !hasValidWeight || !hasValidHeight) {
+    if (
+      !sex ||
+      selectedGoals.length === 0 ||
+      !hasValidWeight ||
+      !hasValidHeight ||
+      !hasValidBirthDate ||
+      !birthDateIso ||
+      computedAge == null ||
+      // Block the signup slide if the user hasn't picked a username yet (or
+      // their pick is unavailable / mid-check) so we never end up with an
+      // onboarded account that has a null username.
+      !canContinueFromUsername
+    ) {
       return null;
     }
 
     return {
-      age,
+      age: computedAge,
+      birth_date: birthDateIso,
       days_per_week: 4,
       experience_level: "intermediate",
       goals: selectedGoals,
@@ -323,7 +432,18 @@ export function AuthLandingScreen({
       custom_split_notes: null,
       weight_lbs: numericWeight,
     };
-  }, [age, hasValidHeight, hasValidWeight, numericWeight, selectedGoals, sex, totalHeightInches]);
+  }, [
+    birthDateIso,
+    canContinueFromUsername,
+    computedAge,
+    hasValidBirthDate,
+    hasValidHeight,
+    hasValidWeight,
+    numericWeight,
+    selectedGoals,
+    sex,
+    totalHeightInches,
+  ]);
 
   useEffect(() => {
     onOnboardingPayloadChange?.(onboardingPayload);
@@ -386,16 +506,16 @@ export function AuthLandingScreen({
         setWeightKg(formatMetricNumber(lbsToKg(lbs)));
       }
       if (totalInches > 0) {
-        setHeightMeters(formatMetricNumber(inchesToMeters(totalInches), 2));
+        setHeightCm(formatMetricNumber(inchesToCm(totalInches), 0));
       }
     } else {
       const kg = Number.parseFloat(weightKg);
-      const meters = Number.parseFloat(heightMeters);
+      const cm = Number.parseFloat(heightCm);
       if (Number.isFinite(kg) && kg > 0) {
         setWeightLbs(formatMetricNumber(kgToLbs(kg), 1));
       }
-      if (Number.isFinite(meters) && meters > 0) {
-        const { feet, inches } = totalInchesToFeetInches(metersToInches(meters));
+      if (Number.isFinite(cm) && cm > 0) {
+        const { feet, inches } = totalInchesToFeetInches(cmToInches(cm));
         setHeightFeet(String(feet));
         setHeightInches(String(inches));
       }
@@ -403,6 +523,7 @@ export function AuthLandingScreen({
 
     setUnitSystem(nextSystem);
     void storeMeasurementUnit(nextSystem);
+    onUnitSystemChange?.(nextSystem);
   };
 
   const handleSubmit = () => {
@@ -419,25 +540,6 @@ export function AuthLandingScreen({
     setSelectedGoals((current) =>
       current.includes(goal) ? current.filter((value) => value !== goal) : [...current, goal],
     );
-  };
-
-  const handleAgeScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const nextIndex = Math.max(
-      0,
-      Math.min(
-        ageOptions.length - 1,
-        Math.round(event.nativeEvent.contentOffset.x / AGE_SNAP_INTERVAL),
-      ),
-    );
-    setAge(ageOptions[nextIndex]);
-  };
-
-  const selectAge = (value: number) => {
-    setAge(value);
-    ageScrollRef.current?.scrollTo({
-      animated: true,
-      x: Math.max(0, ageOptions.indexOf(value)) * AGE_SNAP_INTERVAL,
-    });
   };
 
   useEffect(() => {
@@ -523,14 +625,38 @@ export function AuthLandingScreen({
 
         <StepSlide
           back={back}
-          canContinue
+          canContinue={hasValidBirthDate}
           index={1}
           next={next}
-          title="How old are you?"
-          subtitle="So we can keep intensity, examples, and progress defaults grounded."
+          title="When's your birthday?"
+          subtitle="We'll use this for age-based defaults. Your age updates automatically below."
           width={width}
         >
+          <View style={styles.birthDateCard}>
+            <Text style={styles.fieldLabel}>Birthday</Text>
+            <View style={styles.birthDateRow}>
+              <StatInput
+                label="Month"
+                onChange={setBirthMonth}
+                suffix=""
+                value={birthMonth}
+              />
+              <StatInput
+                label="Day"
+                onChange={setBirthDay}
+                suffix=""
+                value={birthDay}
+              />
+              <StatInput
+                label="Year"
+                onChange={setBirthYear}
+                suffix=""
+                value={birthYear}
+              />
+            </View>
+          </View>
           <View style={styles.ageCard}>
+            <Text style={styles.fieldLabel}>Your age</Text>
             <View style={styles.ageWheelWindow}>
               <View pointerEvents="none" style={styles.ageWheelCenter} />
               <ScrollView
@@ -541,29 +667,30 @@ export function AuthLandingScreen({
                 ]}
                 decelerationRate="fast"
                 horizontal
-                onMomentumScrollEnd={handleAgeScrollEnd}
-                onScrollEndDrag={handleAgeScrollEnd}
+                pointerEvents="none"
+                scrollEnabled={false}
                 showsHorizontalScrollIndicator={false}
                 snapToInterval={AGE_SNAP_INTERVAL}
                 snapToAlignment="start"
               >
                 {ageOptions.map((option) => {
-                  const selected = age === option;
+                  const selected = computedAge === option;
                   return (
-                    <Pressable
+                    <View
                       key={option}
-                      onPress={() => selectAge(option)}
                       style={[styles.ageWheelItem, selected && styles.ageWheelItemActive]}
                     >
                       <Text style={[styles.ageWheelText, selected && styles.ageWheelTextActive]}>
                         {option}
                       </Text>
-                    </Pressable>
+                    </View>
                   );
                 })}
               </ScrollView>
             </View>
-            <Text style={styles.ageReadout}>{age}</Text>
+            <Text style={styles.ageReadout}>
+              {hasValidBirthDate ? computedAge : "—"}
+            </Text>
             <Text style={styles.mutedCaps}>years old</Text>
           </View>
         </StepSlide>
@@ -643,11 +770,10 @@ export function AuthLandingScreen({
                 </View>
                 <View style={styles.fieldGrid}>
                   <StatInput
-                    decimal
                     label="Height"
-                    onChange={setHeightMeters}
-                    suffix="m"
-                    value={heightMeters}
+                    onChange={setHeightCm}
+                    suffix="cm"
+                    value={heightCm}
                   />
                 </View>
               </>
@@ -667,9 +793,69 @@ export function AuthLandingScreen({
 
         <StepSlide
           back={back}
+          canContinue={canContinueFromUsername}
+          index={5}
+          next={next}
+          title="Pick your username."
+          subtitle="This handle is unique to you. We'll lock it in when you sign up."
+          width={width}
+        >
+          <View style={styles.usernameCard}>
+            <View style={styles.usernameInputShell}>
+              <Text style={styles.usernameAtSign}>@</Text>
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardAppearance={colors.isDark ? "dark" : "light"}
+                onChangeText={(value) =>
+                  setProposedUsername(
+                    value.toLowerCase().replace(/[^a-z0-9_]/g, ""),
+                  )
+                }
+                placeholder="fitfo_lifter"
+                placeholderTextColor={colors.inputPlaceholder}
+                returnKeyType="done"
+                style={styles.usernameInput}
+                value={proposedUsername}
+              />
+              {usernameAvailability === "checking" ? (
+                <ActivityIndicator color={colors.accent} size="small" />
+              ) : usernameAvailability === "available" ? (
+                <Ionicons
+                  color={colors.success}
+                  name="checkmark-circle"
+                  size={22}
+                />
+              ) : usernameAvailability === "taken" ? (
+                <Ionicons
+                  color={colors.error}
+                  name="close-circle"
+                  size={22}
+                />
+              ) : null}
+            </View>
+            <Text
+              style={[
+                styles.usernameHint,
+                usernameAvailability === "available" && styles.usernameHintValid,
+                usernameAvailability === "taken" && styles.usernameHintError,
+              ]}
+            >
+              {getProposedUsernameHint(
+                proposedUsername,
+                cleanProposedUsername,
+                isUsernameFormatValid,
+                usernameAvailability,
+              )}
+            </Text>
+          </View>
+        </StepSlide>
+
+        <StepSlide
+          back={back}
           canContinue
           compact
-          index={5}
+          index={6}
           next={next}
           showContinue={tryStage === "workout"}
           title="Take it for a spin."
@@ -957,7 +1143,7 @@ export function AuthLandingScreen({
         <StepSlide
           back={back}
           canContinue
-          index={6}
+          index={7}
           next={next}
           title="Schedule it. Show up to it."
           subtitle="Drop imported workouts into your week and get a nudge when it is time."
@@ -969,7 +1155,7 @@ export function AuthLandingScreen({
         <StepSlide
           back={back}
           canContinue
-          index={7}
+          index={8}
           next={next}
           title="Coach in your pocket."
           subtitle="Once you start a workout, open the coach and ask about form, swaps, progression, reps, weights, or anything about the session you're in."
@@ -1477,6 +1663,42 @@ function UnitPreviewChip({
   );
 }
 
+function getProposedUsernameHint(
+  raw: string,
+  clean: string,
+  isFormatValid: boolean,
+  availability: "checking" | "available" | "taken" | "error" | null,
+): string {
+  if (!raw) {
+    return "3-20 characters, letters / numbers / underscores.";
+  }
+  if (clean.length < 3) {
+    return "Username is too short.";
+  }
+  if (clean.length > 20) {
+    return "Username is too long.";
+  }
+  if (clean.startsWith("_") || clean.endsWith("_")) {
+    return "Cannot start or end with an underscore.";
+  }
+  if (!isFormatValid) {
+    return "Only letters, numbers, and underscores allowed.";
+  }
+  if (availability === "checking") {
+    return "Checking availability…";
+  }
+  if (availability === "taken") {
+    return "Already taken — try a different handle.";
+  }
+  if (availability === "available") {
+    return "Available.";
+  }
+  if (availability === "error") {
+    return "Couldn't verify right now — we'll confirm at sign-up.";
+  }
+  return "Enter a username.";
+}
+
 function StatInput({
   decimal = false,
   label,
@@ -1507,7 +1729,7 @@ function StatInput({
           style={styles.statInput}
           value={value}
         />
-        <Text style={styles.statSuffix}>{suffix}</Text>
+        {suffix ? <Text style={styles.statSuffix}>{suffix}</Text> : null}
       </View>
     </View>
   );
@@ -1869,6 +2091,19 @@ function createAuthStyles(colors: AuthColors) {
   pressed: {
     opacity: 0.88,
     transform: [{ scale: 0.98 }],
+  },
+  birthDateCard: {
+    gap: 10,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 16,
+    marginBottom: 12,
+  },
+  birthDateRow: {
+    flexDirection: "row",
+    gap: 10,
   },
   ageCard: {
     alignItems: "center",
@@ -2240,6 +2475,49 @@ function createAuthStyles(colors: AuthColors) {
   statInputGroup: {
     flex: 1,
     gap: 8,
+  },
+  usernameCard: {
+    gap: 10,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 18,
+  },
+  usernameInputShell: {
+    minHeight: 58,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+  usernameAtSign: {
+    color: colors.textMuted,
+    fontFamily: F.bold,
+    fontSize: 18,
+  },
+  usernameInput: {
+    flex: 1,
+    color: colors.text,
+    fontFamily: F.bold,
+    fontSize: 18,
+    paddingVertical: 12,
+  },
+  usernameHint: {
+    color: colors.textMuted,
+    fontFamily: F.bold,
+    fontSize: 12,
+    letterSpacing: 0.4,
+  },
+  usernameHintValid: {
+    color: colors.success,
+  },
+  usernameHintError: {
+    color: colors.error,
   },
   fieldLabel: {
     color: colors.textMuted,

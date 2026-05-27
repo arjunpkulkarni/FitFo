@@ -7,7 +7,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { View, StyleSheet, Text, Pressable } from "react-native";
+import { Linking, View, StyleSheet, Text, Pressable } from "react-native";
 
 import CoachSheet, { type CoachChatMessage } from "../components/CoachSheet";
 import { F } from "../lib/fonts";
@@ -18,6 +18,7 @@ import type {
   ActiveSessionPreview,
   ActiveSetPreview,
 } from "../types";
+import type { MeasurementUnitSystem } from "../lib/measurementUnits";
 import type { WorkoutContext as ChatWorkoutContext } from "../lib/chat";
 
 import {
@@ -66,6 +67,13 @@ interface ActiveWorkoutScreenProps {
   onHubTourListViewportMeasured?: (rect: { x: number; y: number; width: number; height: number } | null) => void;
   onHubTourFinishButtonVisible?: () => void;
   themeMode?: ThemeMode;
+  /**
+   * The athlete's onboarding measurement-unit preference. Passed through to
+   * the set card so the WEIGHT input shows kg or lb correctly. New sets the
+   * athlete logs are stamped with the matching `weightUnit` so historical
+   * reads remain in the unit they were recorded in.
+   */
+  unitSystem?: MeasurementUnitSystem;
   resolveLastLiftLabel?: (exerciseName: string, setPositionOneBased: number) => string | null;
   resolveExerciseLiftSummary?: (exerciseName: string) => {
     lastSessionLabel: string | null;
@@ -147,11 +155,14 @@ export function ActiveWorkoutScreen({
   onCoachButtonMeasured,
   coachOpenRequestId = 0,
   themeMode,
+  unitSystem = "imperial",
   resolveLastLiftLabel,
   resolveExerciseLiftSummary,
   userId = null,
   onOpenSuggestFeatures,
 }: ActiveWorkoutScreenProps) {
+  const preferredWeightUnit: "lb" | "kg" =
+    unitSystem === "metric" ? "kg" : "lb";
   // ── Core state ──────────────────────────────────────────────────────────────
   const [exercises, setExercises] = useState<ActiveExercisePreview[]>(() =>
     deepCloneExercises(session.exercises),
@@ -163,6 +174,15 @@ export function ActiveWorkoutScreen({
   const [coachOpen, setCoachOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [restElapsed, setRestElapsed] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  /** Wall-clock time at which the user pressed pause; null while running. */
+  const [pausedAtWallMs, setPausedAtWallMs] = useState<number | null>(null);
+  /**
+   * Total milliseconds the workout has spent in the paused state. We subtract
+   * this from `now - session.startedAt` so the elapsed clock cleanly resumes
+   * from where the user paused without inventing a new "startedAt".
+   */
+  const [pausedAccumulatorMs, setPausedAccumulatorMs] = useState(0);
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const cursor = useMemo(() => findCursor(exercises), [exercises]);
@@ -177,17 +197,33 @@ export function ActiveWorkoutScreen({
   // ── Reset on new session ────────────────────────────────────────────────────
   useEffect(() => {
     setExercises(deepCloneExercises(session.exercises));
+    setIsPaused(false);
+    setPausedAtWallMs(null);
+    setPausedAccumulatorMs(0);
   }, [session]);
 
   // ── Elapsed workout timer ───────────────────────────────────────────────────
+  // While paused, freeze elapsed at the moment of the pause so the clock can
+  // pick up exactly where it left off when the user resumes.
   useEffect(() => {
     const startedAt = session.startedAt;
-    const update = () =>
-      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    const update = () => {
+      const reference = pausedAtWallMs ?? Date.now();
+      setElapsed(
+        Math.max(
+          0,
+          Math.floor((reference - startedAt - pausedAccumulatorMs) / 1000),
+        ),
+      );
+    };
     update();
+    if (pausedAtWallMs != null) {
+      // Paused — no need to keep ticking.
+      return;
+    }
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
-  }, [session.startedAt]);
+  }, [session.startedAt, pausedAtWallMs, pausedAccumulatorMs]);
 
   // ── Rest elapsed timer (for Live Activity) ──────────────────────────────────
   useEffect(() => {
@@ -195,12 +231,62 @@ export function ActiveWorkoutScreen({
       setRestElapsed(0);
       return;
     }
+    if (pausedAtWallMs != null) {
+      // Pause freezes the rest timer too — we read the rest end-time from the
+      // current elapsed value below, so simply don't tick the clock here.
+      return;
+    }
     const { startedAt } = restState;
     const update = () => setRestElapsed(Math.floor((Date.now() - startedAt) / 1000));
     update();
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
+  }, [restState, pausedAtWallMs]);
+
+  // ── Pause toggle ───────────────────────────────────────────────────────────
+  // Capturing pausedAtWallMs lets us add the pause duration to
+  // pausedAccumulatorMs on resume so the elapsed clock looks continuous.
+  const togglePause = useCallback(() => {
+    setIsPaused((prev) => {
+      const next = !prev;
+      const now = Date.now();
+      if (next) {
+        setPausedAtWallMs(now);
+        if (restState) {
+          // Snapshot the rest start so it resumes counting from the same place.
+          setRestState({
+            ...restState,
+            startedAt: restState.startedAt,
+          });
+        }
+      } else {
+        setPausedAtWallMs((wallMs) => {
+          if (wallMs != null) {
+            const delta = Math.max(0, now - wallMs);
+            setPausedAccumulatorMs((accum) => accum + delta);
+            if (restState) {
+              // Push the rest startedAt forward by the same delta so the rest
+              // overlay's countdown picks up exactly where it paused.
+              setRestState({
+                ...restState,
+                startedAt: restState.startedAt + delta,
+              });
+            }
+          }
+          return null;
+        });
+      }
+      return next;
+    });
   }, [restState]);
+
+  const handleOpenSource = useCallback(() => {
+    const url = session.sourceUrl?.trim();
+    if (!url) {
+      return;
+    }
+    Linking.openURL(url).catch(() => undefined);
+  }, [session.sourceUrl]);
 
   // ── Auto-open finish when all sets done ─────────────────────────────────────
   useEffect(() => {
@@ -461,6 +547,10 @@ export function ActiveWorkoutScreen({
         elapsed={elapsed}
         done={progress.done}
         total={progress.total}
+        isPaused={isPaused}
+        onTogglePause={togglePause}
+        sourceUrl={session.sourceUrl}
+        onOpenSource={handleOpenSource}
         onCoach={() => setCoachOpen(true)}
         onOverview={() => setShowOverview(true)}
         onFinish={() => setShowFinish(true)}
@@ -506,12 +596,30 @@ export function ActiveWorkoutScreen({
                     canGoBack={isTop && previousSetCursor != null}
                     onWeightChange={
                       isTop
-                        ? (v) => updateCurrentSet({ loggedWeight: v })
+                        ? (v) =>
+                            // Stamp the user's current preferred unit on every
+                            // edit so the value's meaning is unambiguous when
+                            // it lands in completed_workouts JSON. Existing
+                            // sets without a unit are read as `lb` (legacy
+                            // default) so historical data stays correct.
+                            updateCurrentSet({
+                              loggedWeight: v,
+                              weightUnit:
+                                item.set.weightUnit ?? preferredWeightUnit,
+                            })
                         : () => {}
                     }
                     onRepsChange={
                       isTop
                         ? (v) => updateCurrentSet({ loggedReps: v })
+                        : () => {}
+                    }
+                    onNotesChange={
+                      isTop
+                        ? (v) =>
+                            updateCurrentSet({
+                              notes: v.length > 0 ? v : null,
+                            })
                         : () => {}
                     }
                     onAddSet={isTop ? addSet : () => {}}
@@ -529,6 +637,7 @@ export function ActiveWorkoutScreen({
                     personalRecordLabel={
                       resolveExerciseLiftSummary?.(item.exercise.name)?.personalRecordLabel ?? null
                     }
+                    weightUnit={preferredWeightUnit}
                   />
                 );
               })}
@@ -573,6 +682,7 @@ export function ActiveWorkoutScreen({
         <WorkoutOverviewSheet
           title={session.title}
           exercises={exercises}
+          sourceUrl={session.sourceUrl}
           onClose={() => setShowOverview(false)}
           onEditExercise={(id) => {
             setShowOverview(false);
@@ -581,6 +691,7 @@ export function ActiveWorkoutScreen({
           onRemoveExercise={(id) => {
             setExercises((prev) => prev.filter((e) => e.id !== id));
           }}
+          onReorder={setExercises}
           onAddExercise={(name) => {
             setExercises((prev) => [
               ...prev,

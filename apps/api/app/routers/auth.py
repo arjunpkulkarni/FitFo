@@ -157,6 +157,7 @@ def _clean_onboarding_payload(body: SaveOnboardingRequest) -> Dict[str, Any]:
         "height_inches": body.height_inches,
         "experience_level": str(body.experience_level),
         "age": body.age,
+        "birth_date": (body.birth_date or "").strip() or None,
     }
 
 
@@ -589,6 +590,40 @@ def check_username(
     try:
         existing = supabase_db.get_profile_by_username(clean)
         available = existing is None or str(existing.get("id")) == profile_id
+        return UsernameCheckResponse(
+            ok=True,
+            username=clean,
+            available=available,
+            message="Username is available." if available else "Username is already taken.",
+        )
+    except HTTPException:
+        raise
+    except supabase_db.SupabaseNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to check username: {exc}"
+        ) from exc
+
+
+@router.get("/username/availability", response_model=UsernameCheckResponse)
+def check_username_availability(
+    username: str = Query(..., min_length=1, max_length=64),
+) -> UsernameCheckResponse:
+    """
+    Public availability check used by the onboarding carousel before the user
+    has an access token. Mirrors the auth-gated endpoint above but always
+    reports availability against the global pool — there is no logged-in
+    profile to consider as "yourself".
+
+    Note: race conditions between this check and a later `PUT /auth/username`
+    are tolerated; the unique index on `lower(username)` plus the 409 response
+    in `update_profile_username` are the source of truth.
+    """
+    clean = _clean_username(username)
+    try:
+        existing = supabase_db.get_profile_by_username(clean)
+        available = existing is None
         return UsernameCheckResponse(
             ok=True,
             username=clean,

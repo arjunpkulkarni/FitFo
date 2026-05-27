@@ -11,6 +11,11 @@ interface WorkoutTopBarProps {
   elapsed: number;
   done: number;
   total: number;
+  isPaused: boolean;
+  onTogglePause: () => void;
+  /** When set, renders a "view source video" button that opens the URL. */
+  sourceUrl?: string | null;
+  onOpenSource?: () => void;
   onCoach: () => void;
   onOverview: () => void;
   onFinish: () => void;
@@ -22,6 +27,10 @@ export default function WorkoutTopBar({
   elapsed,
   done,
   total,
+  isPaused,
+  onTogglePause,
+  sourceUrl,
+  onOpenSource,
   onCoach,
   onOverview,
   onFinish,
@@ -29,17 +38,42 @@ export default function WorkoutTopBar({
 }: WorkoutTopBarProps) {
   const progress = total > 0 ? done / total : 0;
   const finishActive = done > 0;
+  const showSourceButton = Boolean(sourceUrl) && Boolean(onOpenSource);
 
   return (
     <View style={styles.container}>
       {/* Row 1: pause | coach + overview + finish */}
       <View style={styles.row1}>
-        <Pressable style={styles.iconBtn}>
-          <View style={styles.pauseIcon}>
-            <View style={styles.pauseBar} />
-            <View style={styles.pauseBar} />
-          </View>
-        </Pressable>
+        <View style={styles.leftButtons}>
+          <Pressable
+            onPress={onTogglePause}
+            style={[styles.iconBtn, isPaused && styles.iconBtnActive]}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={isPaused ? "Resume workout" : "Pause workout"}
+          >
+            {isPaused ? (
+              <View style={styles.playIcon} />
+            ) : (
+              <View style={styles.pauseIcon}>
+                <View style={styles.pauseBar} />
+                <View style={styles.pauseBar} />
+              </View>
+            )}
+          </Pressable>
+
+          {showSourceButton ? (
+            <Pressable
+              onPress={onOpenSource}
+              style={styles.iconBtn}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Open original source video"
+            >
+              <Text style={styles.iconBtnText}>🎬</Text>
+            </Pressable>
+          ) : null}
+        </View>
 
         <View style={styles.rightButtons}>
           <Pressable
@@ -70,8 +104,8 @@ export default function WorkoutTopBar({
       {/* Row 2: timer + title | sets counter */}
       <View style={styles.row2}>
         <View style={styles.row2Left}>
-          <Text style={styles.eyebrow}>
-            {formatClock(elapsed)} · IN PROGRESS
+          <Text style={[styles.eyebrow, isPaused && styles.eyebrowPaused]}>
+            {formatClock(elapsed)} · {isPaused ? "PAUSED" : "IN PROGRESS"}
           </Text>
           <Text style={styles.workoutTitle} numberOfLines={1}>
             {title}
@@ -102,6 +136,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     height: 36,
   },
+  leftButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   iconBtn: {
     width: 34,
     height: 34,
@@ -111,6 +150,10 @@ const styles = StyleSheet.create({
     borderColor: C.borderSoft,
     alignItems: "center",
     justifyContent: "center",
+  },
+  iconBtnActive: {
+    backgroundColor: C.primary,
+    borderColor: C.primary,
   },
   iconBtnText: {
     fontSize: 14,
@@ -126,6 +169,17 @@ const styles = StyleSheet.create({
     height: 11,
     borderRadius: 2,
     backgroundColor: C.textMuted,
+  },
+  playIcon: {
+    width: 0,
+    height: 0,
+    borderTopWidth: 6,
+    borderBottomWidth: 6,
+    borderLeftWidth: 10,
+    borderTopColor: "transparent",
+    borderBottomColor: "transparent",
+    borderLeftColor: "#fff",
+    marginLeft: 2,
   },
   rightButtons: {
     flexDirection: "row",
@@ -168,6 +222,9 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 1.4,
     color: C.primary,
+  },
+  eyebrowPaused: {
+    color: C.textMuted,
   },
   workoutTitle: {
     fontFamily: F.bold,

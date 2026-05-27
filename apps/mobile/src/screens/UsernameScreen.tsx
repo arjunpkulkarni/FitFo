@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,14 +11,23 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { checkUsername } from "../lib/api";
 import { getTheme, type ThemeMode } from "../theme";
 
 interface UsernameScreenProps {
+  /**
+   * Bearer token used for the live availability lookup. When omitted, the
+   * screen still works — it just skips the live check and relies on the
+   * server's 409 response when the user submits.
+   */
+  accessToken?: string | null;
   error?: string | null;
   isSubmitting?: boolean;
   onSubmit: (username: string) => void;
   themeMode?: ThemeMode;
 }
+
+const AVAILABILITY_DEBOUNCE_MS = 350;
 
 const USERNAME_RE = /^[a-z0-9](?:[a-z0-9_]{1,18}[a-z0-9])$/;
 
@@ -26,7 +35,11 @@ function normalizeUsernameInput(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
 }
 
-function getUsernameHint(username: string): string {
+function getResolvedHint(
+  username: string,
+  isFormatValid: boolean,
+  availability: "checking" | "available" | "taken" | "error" | null,
+): string {
   if (!username) {
     return "Use 3-20 letters, numbers, or underscores.";
   }
@@ -39,13 +52,26 @@ function getUsernameHint(username: string): string {
   if (username.startsWith("_") || username.endsWith("_")) {
     return "Do not start or end with an underscore.";
   }
-  if (!USERNAME_RE.test(username)) {
+  if (!isFormatValid) {
     return "Only letters, numbers, and underscores are allowed.";
+  }
+  if (availability === "checking") {
+    return "Checking availability…";
+  }
+  if (availability === "taken") {
+    return "Already taken — pick a different handle.";
+  }
+  if (availability === "error") {
+    return "Could not verify right now — we'll try again on submit.";
+  }
+  if (availability === "available") {
+    return "Available.";
   }
   return "Looks good.";
 }
 
 export function UsernameScreen({
+  accessToken,
   error,
   isSubmitting = false,
   onSubmit,
@@ -54,17 +80,49 @@ export function UsernameScreen({
   const theme = getTheme(themeMode);
   const styles = createStyles(theme);
   const [username, setUsername] = useState("");
+  const [availability, setAvailability] = useState<
+    "checking" | "available" | "taken" | "error" | null
+  >(null);
 
   const cleanUsername = useMemo(() => normalizeUsernameInput(username), [username]);
-  const isValid = USERNAME_RE.test(cleanUsername);
-  const hint = getUsernameHint(cleanUsername);
+  const isFormatValid = USERNAME_RE.test(cleanUsername);
+  // We allow submit when the format is valid even if the live check failed
+  // (network blip, etc) — the server's unique index is the source of truth.
+  const canSubmit = isFormatValid && availability !== "taken" && !isSubmitting;
+  const hint = getResolvedHint(cleanUsername, isFormatValid, availability);
+
+  useEffect(() => {
+    if (!isFormatValid || !accessToken) {
+      setAvailability(null);
+      return;
+    }
+    setAvailability("checking");
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      try {
+        const response = await checkUsername(accessToken, cleanUsername);
+        if (cancelled) {
+          return;
+        }
+        setAvailability(response.available ? "available" : "taken");
+      } catch {
+        if (!cancelled) {
+          setAvailability("error");
+        }
+      }
+    }, AVAILABILITY_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [accessToken, cleanUsername, isFormatValid]);
 
   const handleChange = (value: string) => {
     setUsername(normalizeUsernameInput(value));
   };
 
   const handleSubmit = () => {
-    if (!isValid || isSubmitting) {
+    if (!canSubmit) {
       return;
     }
     onSubmit(cleanUsername);
@@ -100,9 +158,28 @@ export function UsernameScreen({
             style={styles.input}
             value={username}
           />
+          {availability === "checking" ? (
+            <ActivityIndicator color={theme.colors.primary} size="small" />
+          ) : availability === "available" ? (
+            <Ionicons
+              color={theme.colors.success}
+              name="checkmark-circle"
+              size={22}
+            />
+          ) : availability === "taken" ? (
+            <Ionicons color={theme.colors.error} name="close-circle" size={22} />
+          ) : null}
         </View>
 
-        <Text style={[styles.hint, isValid ? styles.hintValid : null]}>{hint}</Text>
+        <Text
+          style={[
+            styles.hint,
+            availability === "available" && styles.hintValid,
+            availability === "taken" && styles.hintError,
+          ]}
+        >
+          {hint}
+        </Text>
 
         {error ? (
           <View style={styles.errorCard}>
@@ -112,11 +189,11 @@ export function UsernameScreen({
 
         <Pressable
           accessibilityRole="button"
-          disabled={!isValid || isSubmitting}
+          disabled={!canSubmit}
           onPress={handleSubmit}
           style={({ pressed }) => [
             styles.button,
-            (!isValid || isSubmitting) && styles.buttonDisabled,
+            !canSubmit && styles.buttonDisabled,
             pressed && styles.buttonPressed,
           ]}
         >
@@ -217,6 +294,9 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     },
     hintValid: {
       color: theme.colors.success,
+    },
+    hintError: {
+      color: theme.colors.error,
     },
     errorCard: {
       borderRadius: 16,

@@ -170,6 +170,11 @@ class SaveOnboardingRequest(BaseModel):
     height_inches: int = Field(..., ge=36, le=96)
     experience_level: ExperienceLevel
     age: int = Field(..., ge=13, le=120)
+    birth_date: Optional[str] = Field(
+        default=None,
+        description="ISO calendar date YYYY-MM-DD from onboarding birthday step.",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+    )
 
 
 class SaveOnboardingResponse(BaseModel):

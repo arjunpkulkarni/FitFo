@@ -8,62 +8,37 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		1BF039F96FE5489E890D0FD9 /* MainInterface.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2EE875D78CBE4593A4AA0257 /* MainInterface.storyboard */; };
-		1C075CE02FBE90A8007DBB42 /* FitFoWorkoutAttributesShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C075CDD2FBE90A8007DBB42 /* FitFoWorkoutAttributesShared.swift */; };
-		1C075CE12FBE90A8007DBB42 /* LiveWorkoutActivityModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C075CDE2FBE90A8007DBB42 /* LiveWorkoutActivityModule.swift */; };
-		1C075CE22FBE90A8007DBB42 /* LiveWorkoutActivityModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 1C075CDF2FBE90A8007DBB42 /* LiveWorkoutActivityModule.m */; };
-		1C3DA83C2FBE8B6D008B8307 /* FitFoLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C3DA83A2FBE8B6D008B8307 /* FitFoLiveActivity.swift */; };
-		1C3DA83D2FBE8B6D008B8307 /* FitFoWorkoutAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C3DA83B2FBE8B6D008B8307 /* FitFoWorkoutAttributes.swift */; };
-		1EDB72CC7AAE47A3B9B99E6B /* ShareExtensionPreprocessor.js in Resources */ = {isa = PBXBuildFile; fileRef = 454A6F49CE2F4A348FF3B00C /* ShareExtensionPreprocessor.js */; };
-		2E6BE9748AB0BDE912536AC0 /* libPods-Fitfo.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1773431455DF98C7D8C8E29F /* libPods-Fitfo.a */; };
+		2AE33D94389F467AAC4CF51A /* fitfoShare.appex in Copy Files */ = {isa = PBXBuildFile; fileRef = BFCEECEDC2864006950363CF /* fitfoShare.appex */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		50775F29175046A18CEDC175 /* fitfoShare.appex in Copy Files */ = {isa = PBXBuildFile; fileRef = 5337D0870BC94B538C325F18 /* fitfoShare.appex */; };
-		5A52FC37FA882513E5E13849 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C9B608060D85EE658BB1ABB /* ExpoModulesProvider.swift */; };
-		5C54BDE878604BEE9A3F310B /* FitFoLiveActivity.appex in Copy Files */ = {isa = PBXBuildFile; fileRef = 5BB753418D0544E0AFBD1075 /* FitFoLiveActivity.appex */; };
-		5F3F388DB20942469BBBAE47 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E31B9B2219D4810922954C3 /* ShareViewController.swift */; };
-		6B78A8F23E7F403DBBA2CCBE /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5D08E536092F48C081BA0A94 /* PrivacyInfo.xcprivacy */; };
-		B4EDC7DD9B4341FC9AA0E601 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2AA29C247F99418A9EB9FB8C /* Assets.xcassets */; };
+		63A5BA73303C217FD2A59044 /* libPods-Fitfo.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F946FD27850A00C6EB9D912 /* libPods-Fitfo.a */; };
+		93BB4BE4821C4357BCD17169 /* MainInterface.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C0587583B8CC414BA6B8E77E /* MainInterface.storyboard */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		DE85D7051BC51461E0E097D5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5D08E536092F48C081BA0A94 /* PrivacyInfo.xcprivacy */; };
+		C5C4F02830B34FD58229F34B /* ShareExtensionPreprocessor.js in Resources */ = {isa = PBXBuildFile; fileRef = 5A0D110167244976BA720BFC /* ShareExtensionPreprocessor.js */; };
+		D87CFC50379B45B48ABE6E91 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 4C57DF95D61041A79CEFF5DE /* PrivacyInfo.xcprivacy */; };
+		DC673ADF2BC9C62EEE90987A /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F93C07FA5EC27997D0E0C3B /* ExpoModulesProvider.swift */; };
+		DD3CDDA72B3948B0BA39B90F /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 819EA55BA3D149F9A868DBF8 /* ShareViewController.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		FDFACBF0D583792E5C5C4BF6 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 4C57DF95D61041A79CEFF5DE /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		45A262912E6A444A80E05171 /* PBXContainerItemProxy */ = {
+		9B405FD203FA4B2084F88AD8 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 53C056EA55B542A0BC8159C2;
+			remoteGlobalIDString = 964A2D7027D64FBB9BD6A719;
 			remoteInfo = fitfoShare;
-		};
-		5188A1E18831457B9B149AC1 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 509550226F3C4F53A6572AF1;
-			remoteInfo = FitFoLiveActivity;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		EC6BDB804D2948D8A65ECECA /* Copy Files */ = {
+		A217BA4ECBC445428793FE57 /* Copy Files */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-			);
-			name = "Copy Files";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F7D86EF6AC6B4DBBB62DFBAE /* Copy Files */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				50775F29175046A18CEDC175 /* fitfoShare.appex in Copy Files */,
-				5C54BDE878604BEE9A3F310B /* FitFoLiveActivity.appex in Copy Files */,
+				2AE33D94389F467AAC4CF51A /* fitfoShare.appex in Copy Files */,
 			);
 			name = "Copy Files";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -71,36 +46,25 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0D7493E1E5C34CA98E44B32B /* ShareExtension-Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; path = "ShareExtension-Info.plist"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* Fitfo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fitfo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Fitfo/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Fitfo/Info.plist; sourceTree = "<group>"; };
-		1773431455DF98C7D8C8E29F /* libPods-Fitfo.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Fitfo.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		1AFCF80261D9CB9A262E3C5C /* Pods-Fitfo.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Fitfo.release.xcconfig"; path = "Target Support Files/Pods-Fitfo/Pods-Fitfo.release.xcconfig"; sourceTree = "<group>"; };
-		1C075CDD2FBE90A8007DBB42 /* FitFoWorkoutAttributesShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FitFoWorkoutAttributesShared.swift; path = Fitfo/LiveWorkoutActivity/FitFoWorkoutAttributesShared.swift; sourceTree = "<group>"; };
-		1C075CDE2FBE90A8007DBB42 /* LiveWorkoutActivityModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveWorkoutActivityModule.swift; path = Fitfo/LiveWorkoutActivity/LiveWorkoutActivityModule.swift; sourceTree = "<group>"; };
-		1C075CDF2FBE90A8007DBB42 /* LiveWorkoutActivityModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LiveWorkoutActivityModule.m; path = Fitfo/LiveWorkoutActivity/LiveWorkoutActivityModule.m; sourceTree = "<group>"; };
-		1C3DA83A2FBE8B6D008B8307 /* FitFoLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitFoLiveActivity.swift; sourceTree = "<group>"; };
-		1C3DA83B2FBE8B6D008B8307 /* FitFoWorkoutAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitFoWorkoutAttributes.swift; sourceTree = "<group>"; };
-		1DA12EFF3C6347EE97B87E92 /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = FitFoLiveActivity/Info.plist; sourceTree = "<group>"; };
-		22BBD48708B5483FB3164A81 /* FitFoWorkoutAttributesShared.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = FitFoWorkoutAttributesShared.swift; path = Fitfo/LiveWorkoutActivity/FitFoWorkoutAttributesShared.swift; sourceTree = "<group>"; };
-		2AA29C247F99418A9EB9FB8C /* Assets.xcassets */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = FitFoLiveActivity/Assets.xcassets; sourceTree = "<group>"; };
-		2C9B608060D85EE658BB1ABB /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Fitfo/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		2EE875D78CBE4593A4AA0257 /* MainInterface.storyboard */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; path = MainInterface.storyboard; sourceTree = "<group>"; };
-		328B788C7F4CBA62D9D4AA0D /* Pods-Fitfo.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Fitfo.debug.xcconfig"; path = "Target Support Files/Pods-Fitfo/Pods-Fitfo.debug.xcconfig"; sourceTree = "<group>"; };
-		3E31B9B2219D4810922954C3 /* ShareViewController.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
-		454A6F49CE2F4A348FF3B00C /* ShareExtensionPreprocessor.js */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; path = ShareExtensionPreprocessor.js; sourceTree = "<group>"; };
-		5337D0870BC94B538C325F18 /* fitfoShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = 9; includeInIndex = 0; path = fitfoShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		5BB753418D0544E0AFBD1075 /* FitFoLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = 9; includeInIndex = 0; path = FitFoLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		5D08E536092F48C081BA0A94 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		91DB1EB72E5B4AC0B15B3A6F /* LiveWorkoutActivityModule.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = LiveWorkoutActivityModule.swift; path = Fitfo/LiveWorkoutActivity/LiveWorkoutActivityModule.swift; sourceTree = "<group>"; };
-		A1E49AD48F8D4E97BAFFBAB2 /* LiveWorkoutActivityModule.m */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.c.objc; name = LiveWorkoutActivityModule.m; path = Fitfo/LiveWorkoutActivity/LiveWorkoutActivityModule.m; sourceTree = "<group>"; };
+		3F946FD27850A00C6EB9D912 /* libPods-Fitfo.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Fitfo.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4C57DF95D61041A79CEFF5DE /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		5A0D110167244976BA720BFC /* ShareExtensionPreprocessor.js */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; path = ShareExtensionPreprocessor.js; sourceTree = "<group>"; };
+		7F93C07FA5EC27997D0E0C3B /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Fitfo/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		819EA55BA3D149F9A868DBF8 /* ShareViewController.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		9169661321924C3BA789C338 /* ShareExtension.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Fitfo/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		C0EA0FBB26774A5E97A09ACD /* ShareExtension.entitlements */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; path = ShareExtension.entitlements; sourceTree = "<group>"; };
-		DFEB94AD67F647E29353B28E /* ShareExtension-Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; path = "ShareExtension-Info.plist"; sourceTree = "<group>"; };
+		BFCEECEDC2864006950363CF /* fitfoShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; fileEncoding = 9; includeInIndex = 0; path = fitfoShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0587583B8CC414BA6B8E77E /* MainInterface.storyboard */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; path = MainInterface.storyboard; sourceTree = "<group>"; };
+		E67D40B48FB0DCA9CBDA2EC2 /* Pods-Fitfo.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Fitfo.debug.xcconfig"; path = "Target Support Files/Pods-Fitfo/Pods-Fitfo.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Fitfo/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Fitfo-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Fitfo-Bridging-Header.h"; path = "Fitfo/Fitfo-Bridging-Header.h"; sourceTree = "<group>"; };
+		FC7781926FA1EA76DA645524 /* Pods-Fitfo.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Fitfo.release.xcconfig"; path = "Target Support Files/Pods-Fitfo/Pods-Fitfo.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -108,18 +72,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2E6BE9748AB0BDE912536AC0 /* libPods-Fitfo.a in Frameworks */,
+				63A5BA73303C217FD2A59044 /* libPods-Fitfo.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A52FD5C25F794457B250D555 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		EE499ED527E84275BB2E1CDB /* Frameworks */ = {
+		19473DE6D6DC4CD0A18DCA94 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -138,59 +95,23 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				24354FFFA228437B9CE6C144 /* LiveWorkoutActivity */,
 			);
 			name = Fitfo;
-			sourceTree = "<group>";
-		};
-		24354FFFA228437B9CE6C144 /* LiveWorkoutActivity */ = {
-			isa = PBXGroup;
-			children = (
-				22BBD48708B5483FB3164A81 /* FitFoWorkoutAttributesShared.swift */,
-				91DB1EB72E5B4AC0B15B3A6F /* LiveWorkoutActivityModule.swift */,
-				A1E49AD48F8D4E97BAFFBAB2 /* LiveWorkoutActivityModule.m */,
-			);
-			name = LiveWorkoutActivity;
-			path = Fitfo/LiveWorkoutActivity;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				1773431455DF98C7D8C8E29F /* libPods-Fitfo.a */,
+				3F946FD27850A00C6EB9D912 /* libPods-Fitfo.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		3863FF14A8B34FAEBFB30519 /* FitFoLiveActivity */ = {
+		377A8736B1E454AE84C238CD /* Fitfo */ = {
 			isa = PBXGroup;
 			children = (
-				1DA12EFF3C6347EE97B87E92 /* Info.plist */,
-				1C3DA83A2FBE8B6D008B8307 /* FitFoLiveActivity.swift */,
-				1C3DA83B2FBE8B6D008B8307 /* FitFoWorkoutAttributes.swift */,
-				2AA29C247F99418A9EB9FB8C /* Assets.xcassets */,
-			);
-			path = FitFoLiveActivity;
-			sourceTree = "<group>";
-		};
-		4D58EEE23A2F465FA2CF09D1 /* fitfoShare */ = {
-			isa = PBXGroup;
-			children = (
-				3E31B9B2219D4810922954C3 /* ShareViewController.swift */,
-				2EE875D78CBE4593A4AA0257 /* MainInterface.storyboard */,
-				454A6F49CE2F4A348FF3B00C /* ShareExtensionPreprocessor.js */,
-				5D08E536092F48C081BA0A94 /* PrivacyInfo.xcprivacy */,
-				DFEB94AD67F647E29353B28E /* ShareExtension-Info.plist */,
-				C0EA0FBB26774A5E97A09ACD /* ShareExtension.entitlements */,
-			);
-			path = fitfoShare;
-			sourceTree = "<group>";
-		};
-		7C39949DAF945E971BA3B11B /* Fitfo */ = {
-			isa = PBXGroup;
-			children = (
-				2C9B608060D85EE658BB1ABB /* ExpoModulesProvider.swift */,
+				7F93C07FA5EC27997D0E0C3B /* ExpoModulesProvider.swift */,
 			);
 			name = Fitfo;
 			sourceTree = "<group>";
@@ -205,17 +126,13 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
-				1C075CDD2FBE90A8007DBB42 /* FitFoWorkoutAttributesShared.swift */,
-				1C075CDF2FBE90A8007DBB42 /* LiveWorkoutActivityModule.m */,
-				1C075CDE2FBE90A8007DBB42 /* LiveWorkoutActivityModule.swift */,
 				13B07FAE1A68108700A75B9A /* Fitfo */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				4D58EEE23A2F465FA2CF09D1 /* fitfoShare */,
-				DF5B110207B6A8EAB411BE86 /* Pods */,
-				B46B68934DAB128E4F268904 /* ExpoModulesProviders */,
-				3863FF14A8B34FAEBFB30519 /* FitFoLiveActivity */,
+				E4CE0CAC894641DD9139C975 /* fitfoShare */,
+				EFB4CF1D24E9464B0557B201 /* Pods */,
+				9DA2AD62E8DD10E7E0889967 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -226,16 +143,15 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* Fitfo.app */,
-				5337D0870BC94B538C325F18 /* fitfoShare.appex */,
-				5BB753418D0544E0AFBD1075 /* FitFoLiveActivity.appex */,
+				BFCEECEDC2864006950363CF /* fitfoShare.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		B46B68934DAB128E4F268904 /* ExpoModulesProviders */ = {
+		9DA2AD62E8DD10E7E0889967 /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				7C39949DAF945E971BA3B11B /* Fitfo */,
+				377A8736B1E454AE84C238CD /* Fitfo */,
 			);
 			name = ExpoModulesProviders;
 			sourceTree = "<group>";
@@ -249,11 +165,24 @@
 			path = Fitfo/Supporting;
 			sourceTree = "<group>";
 		};
-		DF5B110207B6A8EAB411BE86 /* Pods */ = {
+		E4CE0CAC894641DD9139C975 /* fitfoShare */ = {
 			isa = PBXGroup;
 			children = (
-				328B788C7F4CBA62D9D4AA0D /* Pods-Fitfo.debug.xcconfig */,
-				1AFCF80261D9CB9A262E3C5C /* Pods-Fitfo.release.xcconfig */,
+				819EA55BA3D149F9A868DBF8 /* ShareViewController.swift */,
+				C0587583B8CC414BA6B8E77E /* MainInterface.storyboard */,
+				5A0D110167244976BA720BFC /* ShareExtensionPreprocessor.js */,
+				4C57DF95D61041A79CEFF5DE /* PrivacyInfo.xcprivacy */,
+				0D7493E1E5C34CA98E44B32B /* ShareExtension-Info.plist */,
+				9169661321924C3BA789C338 /* ShareExtension.entitlements */,
+			);
+			path = fitfoShare;
+			sourceTree = "<group>";
+		};
+		EFB4CF1D24E9464B0557B201 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				E67D40B48FB0DCA9CBDA2EC2 /* Pods-Fitfo.debug.xcconfig */,
+				FC7781926FA1EA76DA645524 /* Pods-Fitfo.release.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -266,51 +195,32 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Fitfo" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				24FF338A0D572E1349D7340A /* [Expo] Configure project */,
+				58F216597C98836E52AE8076 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				F7D86EF6AC6B4DBBB62DFBAE /* Copy Files */,
-				1E04C42AF7837DB445906360 /* [CP] Embed Pods Frameworks */,
-				EC6BDB804D2948D8A65ECECA /* Copy Files */,
+				A217BA4ECBC445428793FE57 /* Copy Files */,
+				3E5C320FD93A47487ACD167C /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				8D0202E15BA749429D1B427F /* PBXTargetDependency */,
-				E3FC45EDA82746F79E5E37D0 /* PBXTargetDependency */,
+				FCBD3980FA8E458588A45221 /* PBXTargetDependency */,
 			);
 			name = Fitfo;
 			productName = Fitfo;
 			productReference = 13B07F961A680F5B00A75B9A /* Fitfo.app */;
 			productType = "com.apple.product-type.application";
 		};
-		509550226F3C4F53A6572AF1 /* FitFoLiveActivity */ = {
+		964A2D7027D64FBB9BD6A719 /* fitfoShare */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A52F2D47CAA4420096A4D2DA /* Build configuration list for PBXNativeTarget "FitFoLiveActivity" */;
+			buildConfigurationList = 97EBE1090A104114B36CBE27 /* Build configuration list for PBXNativeTarget "fitfoShare" */;
 			buildPhases = (
-				721EACEADADB4F2FAD2ECEC9 /* Sources */,
-				D40CEB1C7C204549A9383166 /* Resources */,
-				A52FD5C25F794457B250D555 /* Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = FitFoLiveActivity;
-			productName = FitFoLiveActivity;
-			productReference = 5BB753418D0544E0AFBD1075 /* FitFoLiveActivity.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
-		53C056EA55B542A0BC8159C2 /* fitfoShare */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 3940BDB89F0E406794F8E164 /* Build configuration list for PBXNativeTarget "fitfoShare" */;
-			buildPhases = (
-				66279B92A39E493E98E67003 /* Sources */,
-				A0AD94F88D5C43D1A4062C03 /* Resources */,
-				EE499ED527E84275BB2E1CDB /* Frameworks */,
+				635B3CC9DB314DF99E4B955F /* Sources */,
+				FF08DC646E014A5387B24A9D /* Resources */,
+				19473DE6D6DC4CD0A18DCA94 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -318,7 +228,7 @@
 			);
 			name = fitfoShare;
 			productName = fitfoShare;
-			productReference = 5337D0870BC94B538C325F18 /* fitfoShare.appex */;
+			productReference = BFCEECEDC2864006950363CF /* fitfoShare.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -327,18 +237,10 @@
 		83CBB9F71A601CBA00E9B192 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2650;
+				LastUpgradeCheck = 1130;
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
-						ProvisioningStyle = Automatic;
-					};
-					509550226F3C4F53A6572AF1 = {
-						LastSwiftMigration = 2650;
-					};
-					53C056EA55B542A0BC8159C2 = {
-						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -356,8 +258,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* Fitfo */,
-				53C056EA55B542A0BC8159C2 /* fitfoShare */,
-				509550226F3C4F53A6572AF1 /* FitFoLiveActivity */,
+				964A2D7027D64FBB9BD6A719 /* fitfoShare */,
 			);
 		};
 /* End PBXProject section */
@@ -370,25 +271,17 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				DE85D7051BC51461E0E097D5 /* PrivacyInfo.xcprivacy in Resources */,
+				FDFACBF0D583792E5C5C4BF6 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		A0AD94F88D5C43D1A4062C03 /* Resources */ = {
+		FF08DC646E014A5387B24A9D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1BF039F96FE5489E890D0FD9 /* MainInterface.storyboard in Resources */,
-				1EDB72CC7AAE47A3B9B99E6B /* ShareExtensionPreprocessor.js in Resources */,
-				6B78A8F23E7F403DBBA2CCBE /* PrivacyInfo.xcprivacy in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		D40CEB1C7C204549A9383166 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				B4EDC7DD9B4341FC9AA0E601 /* Assets.xcassets in Resources */,
+				93BB4BE4821C4357BCD17169 /* MainInterface.storyboard in Resources */,
+				C5C4F02830B34FD58229F34B /* ShareExtensionPreprocessor.js in Resources */,
+				D87CFC50379B45B48ABE6E91 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -434,7 +327,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		1E04C42AF7837DB445906360 /* [CP] Embed Pods Frameworks */ = {
+		3E5C320FD93A47487ACD167C /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -456,7 +349,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Fitfo/Pods-Fitfo-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		24FF338A0D572E1349D7340A /* [Expo] Configure project */ = {
+		58F216597C98836E52AE8076 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -531,59 +424,40 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1C075CE02FBE90A8007DBB42 /* FitFoWorkoutAttributesShared.swift in Sources */,
-				1C075CE12FBE90A8007DBB42 /* LiveWorkoutActivityModule.swift in Sources */,
-				1C075CE22FBE90A8007DBB42 /* LiveWorkoutActivityModule.m in Sources */,
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				5A52FC37FA882513E5E13849 /* ExpoModulesProvider.swift in Sources */,
+				DC673ADF2BC9C62EEE90987A /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		66279B92A39E493E98E67003 /* Sources */ = {
+		635B3CC9DB314DF99E4B955F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5F3F388DB20942469BBBAE47 /* ShareViewController.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		721EACEADADB4F2FAD2ECEC9 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				1C3DA83C2FBE8B6D008B8307 /* FitFoLiveActivity.swift in Sources */,
-				1C3DA83D2FBE8B6D008B8307 /* FitFoWorkoutAttributes.swift in Sources */,
+				DD3CDDA72B3948B0BA39B90F /* ShareViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		8D0202E15BA749429D1B427F /* PBXTargetDependency */ = {
+		FCBD3980FA8E458588A45221 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 53C056EA55B542A0BC8159C2 /* fitfoShare */;
-			targetProxy = 45A262912E6A444A80E05171 /* PBXContainerItemProxy */;
-		};
-		E3FC45EDA82746F79E5E37D0 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 509550226F3C4F53A6572AF1 /* FitFoLiveActivity */;
-			targetProxy = 5188A1E18831457B9B149AC1 /* PBXContainerItemProxy */;
+			target = 964A2D7027D64FBB9BD6A719 /* fitfoShare */;
+			targetProxy = 9B405FD203FA4B2084F88AD8 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 328B788C7F4CBA62D9D4AA0D /* Pods-Fitfo.debug.xcconfig */;
+			baseConfigurationReference = E67D40B48FB0DCA9CBDA2EC2 /* Pods-Fitfo.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Fitfo/Fitfo.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 533W5X82G7;
 				ENABLE_BITCODE = NO;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
@@ -613,15 +487,13 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1AFCF80261D9CB9A262E3C5C /* Pods-Fitfo.release.xcconfig */;
+			baseConfigurationReference = FC7781926FA1EA76DA645524 /* Pods-Fitfo.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Fitfo/Fitfo.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				DEVELOPMENT_TEAM = 533W5X82G7;
 				INFOPLIST_FILE = Fitfo/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -641,33 +513,6 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
-			};
-			name = Release;
-		};
-		29E4FDF91D7D4C979FDBECC7 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = fitfoShare/ShareExtension.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "fitfoShare/ShareExtension-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "fit fo Share";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0.3;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.fitfo.mobile.fitfoShare;
-				PRODUCT_NAME = fitfoShare;
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -694,7 +539,6 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -702,10 +546,8 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
-				DEVELOPMENT_TEAM = 533W5X82G7;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -731,7 +573,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../../node_modules/react-native";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				USE_HERMES = true;
@@ -761,7 +602,6 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -769,10 +609,8 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = YES;
-				DEVELOPMENT_TEAM = 533W5X82G7;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -790,65 +628,32 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../../node_modules/react-native";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				USE_HERMES = true;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
-		8FE939A9EB5043059807FF56 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"DEBUG=1",
-					"$(inherited)",
-				);
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = FitFoLiveActivity/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.fitfo.mobile.liveactivity;
-				PRODUCT_NAME = FitFoLiveActivity;
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		CA563C3DBBFD443DAC24F286 /* Debug */ = {
+		999E5FAF4C5841A2825C07AD /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = fitfoShare/ShareExtension.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 20;
+				CURRENT_PROJECT_VERSION = 28;
+				DEVELOPMENT_TEAM = 533W5X82G7;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					"$(inherited)",
 				);
-				GENERATE_INFOPLIST_FILE = NO;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "fitfoShare/ShareExtension-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "fit fo Share";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.3;
+				MARKETING_VERSION = 1.0.6;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.fitfo.mobile.fitfoShare;
 				PRODUCT_NAME = fitfoShare;
@@ -859,24 +664,25 @@
 			};
 			name = Debug;
 		};
-		DFB64D0705E74A48909C1286 /* Release */ = {
+		CF75368A8A2F4CF5B1ADE3B0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = fitfoShare/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = FitFoLiveActivity/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				CURRENT_PROJECT_VERSION = 28;
+				DEVELOPMENT_TEAM = 533W5X82G7;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "fitfoShare/ShareExtension-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.6;
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.fitfo.mobile.liveactivity;
-				PRODUCT_NAME = FitFoLiveActivity;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fitfo.mobile.fitfoShare;
+				PRODUCT_NAME = fitfoShare;
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -896,15 +702,6 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		3940BDB89F0E406794F8E164 /* Build configuration list for PBXNativeTarget "fitfoShare" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				CA563C3DBBFD443DAC24F286 /* Debug */,
-				29E4FDF91D7D4C979FDBECC7 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "Fitfo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -914,11 +711,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A52F2D47CAA4420096A4D2DA /* Build configuration list for PBXNativeTarget "FitFoLiveActivity" */ = {
+		97EBE1090A104114B36CBE27 /* Build configuration list for PBXNativeTarget "fitfoShare" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				8FE939A9EB5043059807FF56 /* Debug */,
-				DFB64D0705E74A48909C1286 /* Release */,
+				999E5FAF4C5841A2825C07AD /* Debug */,
+				CF75368A8A2F4CF5B1ADE3B0 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

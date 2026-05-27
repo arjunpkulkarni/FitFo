@@ -468,6 +468,21 @@ export async function checkUsername(
   });
 }
 
+/**
+ * Public username availability check — used by the onboarding carousel before
+ * the user has an access token. Race conditions vs. {@link saveUsername} are
+ * resolved by the API's 409 response, so a "yes available" answer is a
+ * best-effort hint, not a hold.
+ */
+export async function checkUsernameAvailability(
+  username: string,
+): Promise<UsernameCheckResponse> {
+  const query = new URLSearchParams({ username });
+  return request<UsernameCheckResponse>(
+    `/auth/username/availability?${query}`,
+  );
+}
+
 export async function saveUsername(
   accessToken: string,
   body: SaveUsernameRequest,

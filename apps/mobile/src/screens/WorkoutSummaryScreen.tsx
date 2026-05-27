@@ -50,7 +50,10 @@ function formatLoggedSet(set: ActiveSetPreview) {
   const parts: string[] = [];
 
   if (set.loggedWeight.trim()) {
-    parts.push(`${set.loggedWeight} lb`);
+    // Render the set in the unit it was logged in (default to lb for
+    // legacy rows that pre-date per-set unit tracking).
+    const unit = set.weightUnit ?? "lb";
+    parts.push(`${set.loggedWeight} ${unit}`);
   }
 
   if (set.loggedReps.trim()) {
@@ -293,18 +296,39 @@ export function WorkoutSummaryScreen({
                 ) : null}
 
                 <View style={styles.setList}>
-                  {exercise.sets.map((set) => (
-                    <View key={set.id} style={styles.setCard}>
-                      <View>
-                        <Text style={styles.setLabel}>{set.label}</Text>
-                        <Text style={styles.setValue}>{formatLoggedSet(set)}</Text>
+                  {exercise.sets.map((set) => {
+                    const setNote = set.notes?.trim();
+                    return (
+                      <View key={set.id} style={styles.setCard}>
+                        <View style={styles.setCardRow}>
+                          <View style={styles.setCardCopy}>
+                            <Text style={styles.setLabel}>{set.label}</Text>
+                            <Text style={styles.setValue}>
+                              {formatLoggedSet(set)}
+                            </Text>
+                          </View>
+                          <View style={styles.setBadge}>
+                            <Ionicons
+                              color={theme.colors.success}
+                              name="checkmark-circle"
+                              size={14}
+                            />
+                            <Text style={styles.setBadgeText}>Saved</Text>
+                          </View>
+                        </View>
+                        {setNote ? (
+                          <View style={styles.setNote}>
+                            <Ionicons
+                              color={theme.colors.primary}
+                              name="document-text-outline"
+                              size={12}
+                            />
+                            <Text style={styles.setNoteText}>{setNote}</Text>
+                          </View>
+                        ) : null}
                       </View>
-                      <View style={styles.setBadge}>
-                        <Ionicons color={theme.colors.success} name="checkmark-circle" size={14} />
-                        <Text style={styles.setBadgeText}>Saved</Text>
-                      </View>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
               </View>
             ))}
@@ -659,10 +683,35 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       borderRadius: theme.radii.medium,
       backgroundColor: theme.colors.successSoft,
       padding: 14,
+      gap: 10,
+    },
+    setCardRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       gap: 12,
+    },
+    setCardCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    setNote: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderRadius: theme.radii.medium,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.borderSoft,
+    },
+    setNoteText: {
+      flex: 1,
+      color: theme.colors.textPrimary,
+      fontSize: 13,
+      lineHeight: 18,
+      fontFamily: "Satoshi-Regular",
     },
     setLabel: {
       color: theme.colors.textPrimary,

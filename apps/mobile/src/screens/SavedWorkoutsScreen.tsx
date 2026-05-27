@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import {
+  Alert,
   LayoutAnimation,
   type LayoutChangeEvent,
   Platform,
@@ -56,6 +57,7 @@ interface SavedWorkoutsScreenProps {
   onRemoveWorkout: (savedWorkoutId: string) => void;
   onRetry: () => void;
   onScheduleWorkout: (routine: SavedRoutinePreview) => void;
+  onRescheduleScheduledWorkout: (routine: SavedRoutinePreview) => void;
   onStartSession: (routine?: SavedRoutinePreview) => void;
   onUnschedule: (scheduledWorkoutId: string) => void;
   scheduledError: string | null;
@@ -64,6 +66,19 @@ interface SavedWorkoutsScreenProps {
   /** When true, re-measures the Saved Workouts bento for hub tour (layout already ran before the step existed). */
   tourSpotlightsSavedWorkoutsCard?: boolean;
   themeMode?: ThemeMode;
+}
+
+function openScheduledWorkoutMenu(
+  routine: SavedRoutinePreview,
+  onReschedule: (routine: SavedRoutinePreview) => void,
+) {
+  Alert.alert("Scheduled workout", routine.title, [
+    {
+      text: "Move to another day",
+      onPress: () => onReschedule(routine),
+    },
+    { text: "Cancel", style: "cancel" },
+  ]);
 }
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -439,6 +454,7 @@ export function SavedWorkoutsScreen({
   onRemoveWorkout,
   onRetry,
   onScheduleWorkout,
+  onRescheduleScheduledWorkout,
   onStartSession,
   onUnschedule,
   onSavedWorkoutsCardMeasured,
@@ -870,6 +886,15 @@ export function SavedWorkoutsScreen({
                         ? () => onUnschedule(routine.scheduledWorkoutId || routine.id)
                         : undefined
                     }
+                    onReschedule={
+                      routine.scheduledWorkoutId
+                        ? () =>
+                            openScheduledWorkoutMenu(
+                              routine,
+                              onRescheduleScheduledWorkout,
+                            )
+                        : undefined
+                    }
                     onStart={() => onStartSession(routine)}
                     removeLabel="Unschedule"
                     routine={routine}
@@ -978,7 +1003,9 @@ export function SavedWorkoutsScreen({
             {upcomingWorkouts.map((routine) => (
               <UpcomingWorkoutRow
                 key={`upcoming-${routine.id}`}
-                onMore={() => onScheduleWorkout(routine)}
+                onMore={() =>
+                  openScheduledWorkoutMenu(routine, onRescheduleScheduledWorkout)
+                }
                 onOpen={() => onOpenWorkout(routine)}
                 onStart={() => onStartSession(routine)}
                 routine={routine}

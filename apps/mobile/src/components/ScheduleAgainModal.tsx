@@ -21,8 +21,12 @@ interface ScheduleAgainModalProps {
   visible: boolean;
   title: string;
   subtitle?: string;
+  /** When rescheduling, pre-select the workout's current calendar day/time. */
+  initialScheduledFor?: string | null;
+  initialScheduledTimeMinutes?: number | null;
   isScheduling?: boolean;
   error?: string | null;
+  mode?: "schedule" | "reschedule";
   onClose: () => void;
   onConfirm: (scheduledFor: string, scheduledTimeMinutes: number) => void;
   themeMode?: ThemeMode;
@@ -80,12 +84,43 @@ function formatReadableDate(date: Date): string {
   return `${DAY_LABELS[reference.getDay()]}, ${MONTH_LABELS[reference.getMonth()]} ${reference.getDate()}`;
 }
 
+function normalizeInitialDateIso(
+  initialScheduledFor: string | null | undefined,
+  upcomingDates: Date[],
+  fallbackIso: string | null,
+): string | null {
+  const trimmed = initialScheduledFor?.trim();
+  if (!trimmed) {
+    return fallbackIso;
+  }
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (!match) {
+    return fallbackIso;
+  }
+  const [, year, month, day] = match;
+  const parsed = new Date(
+    Number.parseInt(year, 10),
+    Number.parseInt(month, 10) - 1,
+    Number.parseInt(day, 10),
+    0,
+    0,
+    0,
+    0,
+  );
+  const iso = toIsoDate(parsed);
+  const inStrip = upcomingDates.some((date) => toIsoDate(date) === iso);
+  return inStrip ? iso : fallbackIso;
+}
+
 export function ScheduleAgainModal({
   visible,
   title,
   subtitle,
+  initialScheduledFor = null,
+  initialScheduledTimeMinutes = null,
   isScheduling = false,
   error,
+  mode = "schedule",
   onClose,
   onConfirm,
   themeMode = "light",
@@ -104,9 +139,27 @@ export function ScheduleAgainModal({
     if (!visible) {
       return;
     }
-    setSelectedDate(defaultDateIso);
-    setScheduledTimeMinutes(defaultScheduleTimeMinutes);
-  }, [defaultDateIso, defaultScheduleTimeMinutes, visible]);
+    const nextDate = normalizeInitialDateIso(
+      initialScheduledFor,
+      upcomingDates,
+      defaultDateIso,
+    );
+    setSelectedDate(nextDate);
+    setScheduledTimeMinutes(
+      typeof initialScheduledTimeMinutes === "number" &&
+        initialScheduledTimeMinutes >= 0 &&
+        initialScheduledTimeMinutes <= 1439
+        ? initialScheduledTimeMinutes
+        : defaultScheduleTimeMinutes,
+    );
+  }, [
+    defaultDateIso,
+    defaultScheduleTimeMinutes,
+    initialScheduledFor,
+    initialScheduledTimeMinutes,
+    upcomingDates,
+    visible,
+  ]);
 
   const readableSelectedDate = useMemo(() => {
     if (!selectedDate) {
@@ -121,13 +174,14 @@ export function ScheduleAgainModal({
 
   const scheduleConfirmLabel = useMemo(() => {
     if (!selectedDate) {
-      return "Schedule workout";
+      return mode === "reschedule" ? "Reschedule workout" : "Schedule workout";
     }
-    return `Schedule for ${formatScheduleDateAndTime(
+    const prefix = mode === "reschedule" ? "Move to" : "Schedule for";
+    return `${prefix} ${formatScheduleDateAndTime(
       selectedDate,
       scheduledTimeMinutes,
     )}`;
-  }, [selectedDate, scheduledTimeMinutes]);
+  }, [mode, selectedDate, scheduledTimeMinutes]);
 
   const handleConfirm = () => {
     if (!selectedDate || isScheduling) {
@@ -162,7 +216,9 @@ export function ScheduleAgainModal({
             />
           </View>
 
-          <Text style={styles.eyebrow}>Schedule again</Text>
+          <Text style={styles.eyebrow}>
+            {mode === "reschedule" ? "Reschedule" : "Schedule again"}
+          </Text>
           <Text style={styles.title} numberOfLines={2}>
             {title}
           </Text>

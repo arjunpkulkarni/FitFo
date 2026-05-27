@@ -38,11 +38,18 @@ interface WorkoutSetCardProps {
   canGoBack: boolean;
   onWeightChange: (v: string) => void;
   onRepsChange: (v: string) => void;
+  onNotesChange: (v: string) => void;
   onAddSet: () => void;
   onRemoveSet: () => void;
   onEditExercise: () => void;
   lastLiftLabel?: string | null;
   personalRecordLabel?: string | null;
+  /**
+   * Unit shown next to the weight input. Defaults to whatever the set was
+   * already logged in (`set.weightUnit`), falling back to the athlete's
+   * current onboarding preference.
+   */
+  weightUnit?: "lb" | "kg";
 }
 
 export default function WorkoutSetCard({
@@ -61,18 +68,32 @@ export default function WorkoutSetCard({
   canGoBack,
   onWeightChange,
   onRepsChange,
+  onNotesChange,
   onAddSet,
   onRemoveSet,
   onEditExercise,
   lastLiftLabel,
   personalRecordLabel,
+  weightUnit = "lb",
 }: WorkoutSetCardProps) {
+  const displayWeightUnit: "lb" | "kg" = set.weightUnit ?? weightUnit;
   const isTimed = set.targetDurationSec != null;
   const canCommit = isTimed
     ? Boolean(String(set.loggedReps).trim())
     : Boolean(String(set.loggedWeight).trim()) && Boolean(String(set.loggedReps).trim());
 
   const [hasDragged, setHasDragged] = useState(false);
+  // Once a note exists for this set (or the user explicitly opens the input),
+  // keep the editor visible. Local state — there's no need to round-trip an
+  // "expanded" flag through the persisted data model.
+  const [noteEditorOpen, setNoteEditorOpen] = useState<boolean>(
+    Boolean(set.notes && set.notes.length > 0),
+  );
+  useEffect(() => {
+    if (set.notes && set.notes.length > 0) {
+      setNoteEditorOpen(true);
+    }
+  }, [set.id, set.notes]);
 
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -278,7 +299,7 @@ export default function WorkoutSetCard({
               <View style={styles.inputRow}>
                 <BigInput
                   label="WEIGHT"
-                  unit="lb"
+                  unit={displayWeightUnit}
                   value={set.loggedWeight}
                   placeholder="0"
                   onChangeText={(v) => onWeightChange(v.replace(/[^0-9.]/g, ""))}
@@ -295,6 +316,17 @@ export default function WorkoutSetCard({
                 />
               </View>
             )}
+            <NoteRow
+              value={set.notes ?? ""}
+              isOpen={noteEditorOpen}
+              onOpen={() => setNoteEditorOpen(true)}
+              onChange={onNotesChange}
+              onClose={() => {
+                if (!set.notes || set.notes.length === 0) {
+                  setNoteEditorOpen(false);
+                }
+              }}
+            />
             {isFirstOfWorkout && isTopCard && !hasDragged ? <SwipeHint /> : null}
           </View>
 
@@ -385,6 +417,50 @@ function BigInput({
         />
         {unit ? <Text style={styles.bigInputUnit}>{unit}</Text> : null}
       </View>
+    </View>
+  );
+}
+
+function NoteRow({
+  value,
+  isOpen,
+  onOpen,
+  onChange,
+  onClose,
+}: {
+  value: string;
+  isOpen: boolean;
+  onOpen: () => void;
+  onChange: (v: string) => void;
+  onClose: () => void;
+}) {
+  if (!isOpen) {
+    return (
+      <Pressable
+        onPress={onOpen}
+        style={styles.noteAddBtn}
+        accessibilityRole="button"
+        accessibilityLabel="Add a note for this set"
+      >
+        <Text style={styles.noteAddBtnIcon}>＋</Text>
+        <Text style={styles.noteAddBtnText}>Add note</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View style={styles.noteEditor}>
+      <Text style={styles.noteEditorLabel}>NOTE</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        onBlur={onClose}
+        placeholder="How did the set feel? RPE, form cues, drop sets…"
+        placeholderTextColor={C.textMuted}
+        multiline
+        style={styles.noteEditorInput}
+        returnKeyType="default"
+      />
     </View>
   );
 }
@@ -649,6 +725,55 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     borderColor: "rgba(255,111,34,0.35)",
     marginTop: 4,
+  },
+  noteAddBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.borderSoft,
+    backgroundColor: "rgba(255,255,255,0.025)",
+  },
+  noteAddBtnIcon: {
+    fontFamily: F.bold,
+    fontSize: 14,
+    color: C.primary,
+    lineHeight: 14,
+  },
+  noteAddBtnText: {
+    fontFamily: F.bold,
+    fontSize: 11,
+    letterSpacing: 0.6,
+    color: C.textMuted,
+  },
+  noteEditor: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
+    borderRadius: 12,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.borderSoft,
+  },
+  noteEditorLabel: {
+    fontFamily: F.bold,
+    fontSize: 9,
+    letterSpacing: 1.4,
+    color: C.textMuted,
+    marginBottom: 4,
+  },
+  noteEditorInput: {
+    fontFamily: F.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: C.textPrimary,
+    minHeight: 36,
+    padding: 0,
+    textAlignVertical: "top",
   },
   swipeHintPart: {
     fontFamily: F.bold,

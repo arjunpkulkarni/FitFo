@@ -107,6 +107,7 @@ export function WorkoutCard({
   accent,
   onOpen,
   onRemove,
+  onReschedule,
   onSchedule,
   onStart,
   removeLabel = "Unsave",
@@ -116,6 +117,7 @@ export function WorkoutCard({
   accent: WorkoutCardAccent;
   onOpen: () => void;
   onRemove?: () => void;
+  onReschedule?: () => void;
   onSchedule?: () => void;
   onStart: () => void;
   removeLabel?: string;
@@ -319,6 +321,25 @@ export function WorkoutCard({
             <Ionicons
               color={theme.colors.textPrimary}
               name="calendar-outline"
+              size={20}
+            />
+          </Pressable>
+        ) : null}
+        {onReschedule ? (
+          <Pressable
+            onPress={onReschedule}
+            style={({ pressed }) => [
+              styles.iconButton,
+              styles.scheduleIconButton,
+              pressed ? styles.iconButtonPressed : null,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="More scheduled workout actions"
+            hitSlop={6}
+          >
+            <Ionicons
+              color={theme.colors.textPrimary}
+              name="ellipsis-horizontal"
               size={20}
             />
           </Pressable>

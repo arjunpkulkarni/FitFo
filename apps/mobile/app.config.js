@@ -19,7 +19,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.fitfo.mobile",
-      buildNumber: "21",
+      buildNumber: "28",
       icon: "./assets/vector-no-bg.png",
       usesAppleSignIn: true,
       associatedDomains: [`applinks:${universalLinkHost}`],

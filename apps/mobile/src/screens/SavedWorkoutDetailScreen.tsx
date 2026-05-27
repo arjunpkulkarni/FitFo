@@ -41,12 +41,10 @@ export interface SavedRoutineUpdate {
 interface SavedWorkoutDetailScreenProps {
   onBack: () => void;
   onRemove?: () => void;
-  /**
-   * Open the schedule-picker modal for this routine. Omitted when the
-   * detail screen represents an already-scheduled instance (rescheduling
-   * is handled via unschedule + schedule from the saved row).
-   */
+  /** Open the schedule-picker for an unsaved-library routine. */
   onSchedule?: () => void;
+  /** Move an already-scheduled instance to another calendar day. */
+  onReschedule?: () => void;
   /** Window rect for hub tour coachmark around Start Session. */
   onStartSessionMeasured?: (rect: {
     x: number;
@@ -267,6 +265,7 @@ function parseIntegerInput(raw: string): number | null | undefined {
 export function SavedWorkoutDetailScreen({
   onBack,
   onRemove,
+  onReschedule,
   onSchedule,
   onStart,
   onStartSessionMeasured,
@@ -518,6 +517,25 @@ export function SavedWorkoutDetailScreen({
             ]}
             accessibilityRole="button"
             accessibilityLabel="Schedule this workout"
+            hitSlop={6}
+          >
+            <Ionicons
+              color={theme.colors.primary}
+              name="calendar-outline"
+              size={22}
+            />
+          </Pressable>
+        ) : null}
+        {onReschedule ? (
+          <Pressable
+            onPress={onReschedule}
+            style={({ pressed }) => [
+              styles.iconButton,
+              styles.scheduleIconButton,
+              pressed ? styles.iconButtonPressed : null,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Move scheduled workout to another day"
             hitSlop={6}
           >
             <Ionicons
