@@ -22,11 +22,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { VideoView, useVideoPlayer } from "expo-video";
+import Body, { type ExtendedBodyPart, type Slug } from "react-native-body-highlighter";
 
 import { AppleSignInButton } from "../components/AppleSignInButton";
 import { checkUsernameAvailability } from "../lib/api";
 import { isAppleSignInAvailable } from "../lib/appleAuth";
 import { F } from "../lib/fonts";
+import {
+  RECOVERY_MUSCLE_LABELS,
+  RECOVERY_STAGE_META,
+  type RecoveryStage,
+} from "../lib/recovery";
 import {
   cmToInches,
   computeAgeFromBirthDate,
@@ -59,7 +65,6 @@ const WORKOUT_VIDEO = require("../../assets/my-workout.mp4");
 const NUNO_VIDEO = require("../../assets/nuno.mov");
 const NICOLETTE_VIDEO = require("../../assets/nicolette.mp4");
 const FITFO_APP_ICON = require("../../assets/vector-no-bg.png");
-const COACH_DEMO = require("../../assets/coachDemo.png");
 
 function createAuthColors(mode: ThemeMode) {
   const theme = getTheme(mode);
@@ -366,11 +371,12 @@ export function AuthLandingScreen({
   const hasValidWeight = Number.isFinite(numericWeight) && numericWeight > 0;
 
   // Username has both a synchronous format check and an async server check.
-  // We treat "available" as the only state that lets the user advance.
+  // If the availability check is unreachable, let sign-up do the final claim.
   const cleanProposedUsername = proposedUsername.trim().toLowerCase();
   const isUsernameFormatValid = USERNAME_RE.test(cleanProposedUsername);
   const canContinueFromUsername =
-    isUsernameFormatValid && usernameAvailability === "available";
+    isUsernameFormatValid &&
+    (usernameAvailability === "available" || usernameAvailability === "error");
 
   useEffect(() => {
     if (!isUsernameFormatValid) {
@@ -629,7 +635,7 @@ export function AuthLandingScreen({
           index={1}
           next={next}
           title="When's your birthday?"
-          subtitle="We'll use this for age-based defaults. Your age updates automatically below."
+          subtitle="We'll use this for age-based defaults."
           width={width}
         >
           <View style={styles.birthDateCard}>
@@ -688,10 +694,6 @@ export function AuthLandingScreen({
                 })}
               </ScrollView>
             </View>
-            <Text style={styles.ageReadout}>
-              {hasValidBirthDate ? computedAge : "—"}
-            </Text>
-            <Text style={styles.mutedCaps}>years old</Text>
           </View>
         </StepSlide>
 
@@ -1143,25 +1145,27 @@ export function AuthLandingScreen({
         <StepSlide
           back={back}
           canContinue
+          compact
           index={7}
           next={next}
-          title="Schedule it. Show up to it."
-          subtitle="Drop imported workouts into your week and get a nudge when it is time."
+          title="10 weeks. Scheduled."
+          subtitle="Build a program from your goals. Fitfo drops every session on your calendar and nudges you when it's time."
           width={width}
         >
-          <FeatureCard title={demoWorkoutTitle} type="calendar" />
+          <ProgramScheduleCard />
         </StepSlide>
 
         <StepSlide
           back={back}
           canContinue
+          compact
           index={8}
           next={next}
-          title="Coach in your pocket."
-          subtitle="Once you start a workout, open the coach and ask about form, swaps, progression, reps, weights, or anything about the session you're in."
+          title="A coach that reads your body."
+          subtitle="Open chat — the coach already sees what's fresh, what's still recovering, and what to hit next."
           width={width}
         >
-          <FeatureCard type="coach" />
+          <CoachRecoveryPreview />
         </StepSlide>
 
         <View style={[styles.slide, { width }]}>
@@ -1770,59 +1774,330 @@ function Field({
   );
 }
 
-function FeatureCard({ title, type }: { title?: string; type: "calendar" | "coach" }) {
+/**
+ * Onboarding-only preview combining the 10-week custom program builder with
+ * the calendar scheduling feature. Mirrors `ProgramBuilderCard` +
+ * `CustomProgramBuilderModal`'s output: a generated split (e.g. PPL × 2), a
+ * 10-week progress bar, and this week dropped onto the calendar with the
+ * next session highlighted.
+ */
+function ProgramScheduleCard() {
   const { colors, styles } = useAuthTheme();
-  const { height: featureWindowHeight } = useWindowDimensions();
-  const featureTight = featureWindowHeight < 720;
 
-  if (type === "calendar") {
-    return (
-      <View style={styles.featureCard}>
-        <Text style={styles.mutedCaps}>This week</Text>
-        <View style={styles.calendarRow}>
-          {["M", "T", "W", "T", "F", "S", "S"].map((day, index) => {
-            const active = index === 2 || index === 4;
-            return (
-              <View
-                key={`${day}-${index}`}
-                style={[
-                  styles.calendarDay,
-                  featureTight && styles.calendarDayTight,
-                  active && styles.calendarDayActive,
-                ]}
-              >
-                <Text style={[styles.calendarText, active && styles.calendarTextActive]}>{day}</Text>
-                <Text style={[styles.calendarDate, active && styles.calendarTextActive]}>{index + 1}</Text>
-              </View>
-            );
-          })}
-        </View>
-        <View style={styles.eventCard}>
-          <Ionicons color={colors.accent} name="barbell-outline" size={20} />
-          <View style={styles.optionCopy}>
-            <Text style={styles.optionTitle}>{title ?? "Imported workout"}</Text>
-            <Text style={styles.optionSub}>6:30 PM · 5 exercises</Text>
-          </View>
-          <Text style={styles.eventBadge}>QUEUED</Text>
-        </View>
-      </View>
-    );
-  }
+  type ProgramDay = {
+    label: string;
+    workout: string | null;
+    state: "done" | "today" | "queued" | "rest";
+  };
 
-  const coachDemoHeight = Math.round(
-    Math.min(Math.max(featureWindowHeight * 0.38, 260), 460),
-  );
+  // Classic Push / Pull / Legs × 2 over a Mon-first week, with Thursday as
+  // the rest day — matches the 6-day default in `getDefaultProgramWeekdays`.
+  const programDays: ProgramDay[] = [
+    { label: "M", workout: "Push", state: "done" },
+    { label: "T", workout: "Pull", state: "done" },
+    { label: "W", workout: "Legs", state: "today" },
+    { label: "T", workout: null, state: "rest" },
+    { label: "F", workout: "Push", state: "queued" },
+    { label: "S", workout: "Pull", state: "queued" },
+    { label: "S", workout: "Legs", state: "queued" },
+  ];
 
   return (
-    <View style={styles.coachDemoCard}>
-      <View style={[styles.coachDemoFrame, { height: coachDemoHeight }]}>
-        <Image
-          accessibilityIgnoresInvertColors
-          accessibilityLabel="Preview of the in-workout Fitfo coach chat"
-          resizeMode="contain"
-          source={COACH_DEMO}
-          style={styles.coachDemoImage}
-        />
+    <View style={styles.programCard}>
+      <View style={styles.programHeader}>
+        <View style={styles.programEyebrowRow}>
+          <Ionicons color={colors.accent} name="sparkles" size={13} />
+          <Text style={styles.programEyebrow}>10-week program</Text>
+        </View>
+        <View style={styles.programWeekBadge}>
+          <Text style={styles.programWeekBadgeText}>Week 3 of 10</Text>
+        </View>
+      </View>
+
+      <Text style={styles.programSplit}>Push / Pull / Legs × 2</Text>
+      <Text style={styles.programMeta}>6 days a week, built from your goals</Text>
+
+      <View style={styles.programProgressTrack}>
+        <View style={[styles.programProgressFill, { width: "30%" }]} />
+      </View>
+
+      <View style={styles.programInnerDivider} />
+
+      <View style={styles.programCalendarHeader}>
+        <Text style={styles.programCalendarCaps}>This week</Text>
+        <View style={styles.programLegendRow}>
+          <View style={styles.programLegendItem}>
+            <View style={[styles.programLegendDot, { backgroundColor: colors.accent }]} />
+            <Text style={styles.programLegendText}>Scheduled</Text>
+          </View>
+          <View style={styles.programLegendItem}>
+            <View style={[styles.programLegendDot, styles.programLegendDotRest]} />
+            <Text style={styles.programLegendText}>Rest</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.programWeekRow}>
+        {programDays.map((day, index) => {
+          const isToday = day.state === "today";
+          const isDone = day.state === "done";
+          const isRest = day.state === "rest";
+          return (
+            <View
+              key={`${day.label}-${index}`}
+              style={[
+                styles.programDay,
+                isDone && styles.programDayDone,
+                isToday && styles.programDayToday,
+                isRest && styles.programDayRest,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.programDayLetter,
+                  isToday && styles.programDayLetterToday,
+                  isDone && styles.programDayLetterDone,
+                ]}
+              >
+                {day.label}
+              </Text>
+              {day.workout ? (
+                <Text
+                  style={[
+                    styles.programDayWorkout,
+                    isToday && styles.programDayWorkoutToday,
+                    isDone && styles.programDayWorkoutDone,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {day.workout}
+                </Text>
+              ) : (
+                <Text style={styles.programDayRestText}>·</Text>
+              )}
+              {isDone ? (
+                <View style={styles.programDayCheck}>
+                  <Ionicons color={colors.onAccent} name="checkmark" size={9} />
+                </View>
+              ) : null}
+            </View>
+          );
+        })}
+      </View>
+
+      <View style={styles.programTodayCard}>
+        <View style={styles.programTodayIcon}>
+          <Ionicons color={colors.onAccent} name="barbell" size={16} />
+        </View>
+        <View style={styles.programTodayCopy}>
+          <Text style={styles.programTodayKicker}>Up next · Today</Text>
+          <Text style={styles.programTodayTitle}>Legs · Session 1</Text>
+          <Text style={styles.programTodayMeta}>6:30 PM · 5 exercises</Text>
+        </View>
+        <View style={styles.programTodayBadge}>
+          <Ionicons color={colors.accent} name="notifications" size={11} />
+          <Text style={styles.programTodayBadgeText}>Reminder set</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Onboarding-only preview combining a live `react-native-body-highlighter`
+ * recovery silhouette with a mocked Personal Coach exchange. The chat
+ * deliberately references the recovery state visible in the body figure so
+ * users understand the coach is recovery-aware before they sign up.
+ */
+function CoachRecoveryPreview() {
+  const { colors, styles } = useAuthTheme();
+  const { height: previewWindowHeight, width: previewWindowWidth } =
+    useWindowDimensions();
+  // Tall phones (Plus / Pro Max) get a second chat exchange. Standard / compact
+  // phones (anything ≤ 850pt) stay at one exchange so the whole card fits
+  // without scrolling — the slide intentionally hides the slide-level scroll.
+  const showSecondExchange = previewWindowHeight >= 850;
+
+  type DemoMuscleSlug =
+    | "chest"
+    | "deltoids"
+    | "biceps"
+    | "triceps"
+    | "abs"
+    | "obliques"
+    | "forearm"
+    | "quadriceps";
+
+  type DemoSlot = {
+    slug: DemoMuscleSlug;
+    stage: Exclude<RecoveryStage, "fresh">;
+  };
+
+  // Mocked recovery snapshot: yesterday's push (chest / triceps / shoulders /
+  // abs) still cooking, Monday's pull (biceps / forearms) near fresh, legs
+  // fully recovered. Matches the chat reply below so the demo reads cleanly.
+  const demoSlots: DemoSlot[] = [
+    { slug: "chest", stage: "recovering" },
+    { slug: "deltoids", stage: "recovering" },
+    { slug: "triceps", stage: "recovering" },
+    { slug: "abs", stage: "recovering" },
+    { slug: "obliques", stage: "recovering" },
+    { slug: "biceps", stage: "almost" },
+    { slug: "forearm", stage: "almost" },
+  ];
+
+  const bodyData = useMemo<ExtendedBodyPart[]>(
+    () =>
+      demoSlots.map((slot) => ({
+        slug: slot.slug as Slug,
+        color: RECOVERY_STAGE_META[slot.stage].color,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  // Same column scale logic as RecoveryMapScreen but tuned for a compact
+  // figure alongside the recovery summary list. Kept small so the whole card
+  // (map + chat) fits on one screen without scrolling.
+  const bodyColumnWidth = Math.max(88, Math.min(118, previewWindowWidth * 0.27));
+  const bodyScale = Math.max(0.44, Math.min(0.6, bodyColumnWidth / 200));
+
+  const recoveringRows: Array<{
+    label: string;
+    detail: string;
+    stage: Exclude<RecoveryStage, "fresh">;
+  }> = [
+    { label: "Chest", detail: "18h", stage: "recovering" },
+    { label: "Triceps", detail: "18h", stage: "recovering" },
+    { label: "Biceps", detail: "54h", stage: "almost" },
+  ];
+
+  const freshSummary = `${RECOVERY_MUSCLE_LABELS.back}, legs · fresh`;
+
+  const defaultBodyFill = colors.isDark ? "#1F1D1B" : "#E5ECF7";
+  const defaultBodyStroke = colors.isDark ? "#3A3631" : "#C9D5E6";
+
+  return (
+    <View style={styles.coachPreviewCard}>
+      <View style={styles.coachPreviewMapSection}>
+        <View style={styles.coachPreviewSectionHeader}>
+          <View style={styles.coachPreviewEyebrowRow}>
+            <Ionicons color={colors.accent} name="pulse" size={13} />
+            <Text style={styles.coachPreviewEyebrow}>Recovery map</Text>
+          </View>
+          <View style={styles.coachPreviewLiveDot}>
+            <View style={styles.coachPreviewLiveDotInner} />
+            <Text style={styles.coachPreviewLiveText}>Live</Text>
+          </View>
+        </View>
+
+        <View style={styles.coachPreviewMapRow}>
+          <View style={[styles.coachPreviewBodyColumn, { width: bodyColumnWidth }]}>
+            <Body
+              border={defaultBodyStroke}
+              data={bodyData}
+              defaultFill={defaultBodyFill}
+              defaultStroke={defaultBodyStroke}
+              gender="male"
+              scale={bodyScale}
+              side="front"
+            />
+          </View>
+
+          <View style={styles.coachPreviewMusclesColumn}>
+            {recoveringRows.map((row) => {
+              const meta = RECOVERY_STAGE_META[row.stage];
+              return (
+                <View key={row.label} style={styles.coachPreviewMuscleRow}>
+                  <View
+                    style={[
+                      styles.coachPreviewMuscleDot,
+                      { backgroundColor: meta.color },
+                    ]}
+                  />
+                  <Text style={styles.coachPreviewMuscleLabel} numberOfLines={1}>
+                    {row.label}
+                  </Text>
+                  <Text style={styles.coachPreviewMuscleDetail} numberOfLines={1}>
+                    {row.detail}
+                  </Text>
+                </View>
+              );
+            })}
+            <View style={styles.coachPreviewFreshRow}>
+              <Ionicons
+                color={colors.success}
+                name="checkmark-circle"
+                size={12}
+              />
+              <Text style={styles.coachPreviewFreshText} numberOfLines={1}>
+                {freshSummary}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.coachPreviewDivider} />
+
+      <View style={styles.coachPreviewChatSection}>
+        <View style={styles.coachPreviewSectionHeader}>
+          <View style={styles.coachPreviewEyebrowRow}>
+            <View style={styles.coachPreviewStatusDot} />
+            <Text style={styles.coachPreviewChatTitle}>Personal coach</Text>
+          </View>
+          <Text style={styles.coachPreviewChatHint}>Sees your recovery</Text>
+        </View>
+
+        <View style={styles.coachPreviewMessages}>
+          <View style={styles.coachPreviewUserRow}>
+            <View style={styles.coachPreviewUserBubble}>
+              <Text style={styles.coachPreviewUserText}>
+                What should I train today?
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.coachPreviewAssistantRow}>
+            <View style={styles.coachPreviewAssistantBubble}>
+              <Text style={styles.coachPreviewAssistantText}>
+                Chest, triceps, and shoulders are still cooking from yesterday
+                (~<Text style={styles.coachPreviewAssistantBold}>62%</Text>).
+                Back and legs are{" "}
+                <Text style={styles.coachPreviewAssistantBold}>fresh</Text> —
+                pull or quad day fits.{" "}
+                <Text style={styles.coachPreviewCitation}>[1]</Text>
+              </Text>
+            </View>
+          </View>
+
+          {showSecondExchange ? (
+            <>
+              <View style={styles.coachPreviewUserRow}>
+                <View style={styles.coachPreviewUserBubble}>
+                  <Text style={styles.coachPreviewUserText}>
+                    Build me a 30-min pull session.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.coachPreviewAssistantRow}>
+                <View style={styles.coachPreviewAssistantBubble}>
+                  <Text style={styles.coachPreviewAssistantText}>
+                    Lat pulldown{" "}
+                    <Text style={styles.coachPreviewAssistantBold}>3×10</Text>,
+                    barbell row{" "}
+                    <Text style={styles.coachPreviewAssistantBold}>3×8</Text>,
+                    face pull{" "}
+                    <Text style={styles.coachPreviewAssistantBold}>3×12</Text>.
+                    Keep RIR 1-2 — biceps aren't fully fresh yet.{" "}
+                    <Text style={styles.coachPreviewCitation}>[2]</Text>
+                  </Text>
+                </View>
+              </View>
+            </>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -2155,12 +2430,6 @@ function createAuthStyles(colors: AuthColors) {
     color: colors.accent,
     fontSize: 26,
     lineHeight: 30,
-  },
-  ageReadout: {
-    color: colors.text,
-    fontFamily: F.black,
-    fontSize: 20,
-    lineHeight: 24,
   },
   mutedCaps: {
     color: colors.textMuted,
@@ -3177,23 +3446,419 @@ function createAuthStyles(colors: AuthColors) {
     backgroundColor: colors.surface,
     padding: 18,
   },
-  coachDemoCard: {
+  coachPreviewCard: {
     alignSelf: "stretch",
-    backgroundColor: "transparent",
-    borderWidth: 0,
-    gap: 0,
-    // stepSlide uses paddingHorizontal 24; bleed so the screenshot reads wider.
-    marginHorizontal: -24,
-    padding: 0,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 22,
+    borderWidth: 1,
+    overflow: "hidden",
   },
-  coachDemoFrame: {
+  coachPreviewMapSection: {
+    gap: 7,
+    paddingBottom: 8,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+  },
+  coachPreviewSectionHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  coachPreviewEyebrowRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  coachPreviewEyebrow: {
+    color: colors.accent,
+    fontFamily: F.black,
+    fontSize: 10,
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+  },
+  coachPreviewLiveDot: {
+    alignItems: "center",
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accentBorder,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  coachPreviewLiveDotInner: {
+    backgroundColor: colors.success,
+    borderRadius: 999,
+    height: 6,
+    width: 6,
+  },
+  coachPreviewLiveText: {
+    color: colors.textSecondary,
+    fontFamily: F.bold,
+    fontSize: 9,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  coachPreviewMapRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  coachPreviewBodyColumn: {
     alignItems: "center",
     justifyContent: "center",
-    width: "100%",
   },
-  coachDemoImage: {
+  coachPreviewMusclesColumn: {
+    flex: 1,
+    gap: 5,
+    minWidth: 0,
+  },
+  coachPreviewMuscleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  coachPreviewMuscleDot: {
+    borderRadius: 999,
+    height: 7,
+    width: 7,
+  },
+  coachPreviewMuscleLabel: {
+    color: colors.text,
+    flex: 1,
+    fontFamily: F.bold,
+    fontSize: 12,
+  },
+  coachPreviewMuscleDetail: {
+    color: colors.textMuted,
+    fontFamily: F.medium,
+    fontSize: 11,
+  },
+  coachPreviewFreshRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 4,
+  },
+  coachPreviewFreshText: {
+    color: colors.textSecondary,
+    flex: 1,
+    fontFamily: F.medium,
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  coachPreviewDivider: {
+    backgroundColor: colors.border,
+    height: 1,
+    marginHorizontal: 14,
+  },
+  coachPreviewChatSection: {
+    gap: 7,
+    paddingBottom: 12,
+    paddingHorizontal: 14,
+    paddingTop: 9,
+  },
+  coachPreviewStatusDot: {
+    backgroundColor: colors.success,
+    borderRadius: 999,
+    height: 7,
+    width: 7,
+  },
+  coachPreviewChatTitle: {
+    color: colors.text,
+    fontFamily: F.black,
+    fontSize: 13,
+    letterSpacing: -0.1,
+  },
+  coachPreviewChatHint: {
+    color: colors.textMuted,
+    fontFamily: F.medium,
+    fontSize: 10,
+  },
+  coachPreviewMessages: {
+    gap: 6,
+  },
+  coachPreviewUserRow: {
+    alignItems: "flex-end",
+  },
+  coachPreviewUserBubble: {
+    backgroundColor: colors.accent,
+    borderRadius: 14,
+    borderTopRightRadius: 5,
+    maxWidth: "88%",
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+  },
+  coachPreviewUserText: {
+    color: colors.onAccent,
+    fontFamily: F.bold,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  coachPreviewAssistantRow: {
+    alignItems: "flex-start",
+  },
+  coachPreviewAssistantBubble: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 14,
+    borderTopLeftRadius: 5,
+    maxWidth: "94%",
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+  },
+  coachPreviewAssistantText: {
+    color: colors.text,
+    fontFamily: F.medium,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  coachPreviewAssistantBold: {
+    color: colors.text,
+    fontFamily: F.black,
+  },
+  coachPreviewCitation: {
+    color: colors.accent,
+    fontFamily: F.black,
+    fontSize: 11,
+  },
+  programCard: {
+    alignSelf: "stretch",
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 22,
+    borderWidth: 1,
+    overflow: "hidden",
+    paddingBottom: 12,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+  },
+  programHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  programEyebrowRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  programEyebrow: {
+    color: colors.accent,
+    fontFamily: F.black,
+    fontSize: 10,
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+  },
+  programWeekBadge: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accentBorder,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+  },
+  programWeekBadgeText: {
+    color: colors.accent,
+    fontFamily: F.black,
+    fontSize: 10,
+    letterSpacing: 0.4,
+  },
+  programSplit: {
+    color: colors.text,
+    fontFamily: F.black,
+    fontSize: 17,
+    lineHeight: 21,
+    marginTop: 8,
+  },
+  programMeta: {
+    color: colors.textSecondary,
+    fontFamily: F.medium,
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  programProgressTrack: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: 999,
+    height: 4,
+    marginTop: 10,
+    overflow: "hidden",
+  },
+  programProgressFill: {
+    backgroundColor: colors.accent,
+    borderRadius: 999,
     height: "100%",
-    width: "100%",
+  },
+  programInnerDivider: {
+    backgroundColor: colors.border,
+    height: 1,
+    marginTop: 12,
+  },
+  programCalendarHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  programCalendarCaps: {
+    color: colors.textMuted,
+    fontFamily: F.bold,
+    fontSize: 10,
+    letterSpacing: 1.4,
+    textTransform: "uppercase",
+  },
+  programLegendRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+  },
+  programLegendItem: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 5,
+  },
+  programLegendDot: {
+    borderRadius: 999,
+    height: 6,
+    width: 6,
+  },
+  programLegendDotRest: {
+    backgroundColor: colors.border,
+  },
+  programLegendText: {
+    color: colors.textMuted,
+    fontFamily: F.bold,
+    fontSize: 10,
+  },
+  programWeekRow: {
+    flexDirection: "row",
+    gap: 4,
+    marginTop: 8,
+  },
+  programDay: {
+    alignItems: "center",
+    backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    flex: 1,
+    gap: 2,
+    minHeight: 58,
+    paddingHorizontal: 2,
+    paddingVertical: 7,
+  },
+  programDayDone: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accentBorder,
+  },
+  programDayToday: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  programDayRest: {
+    backgroundColor: "transparent",
+    borderColor: colors.border,
+    borderStyle: "dashed",
+  },
+  programDayLetter: {
+    color: colors.textMuted,
+    fontFamily: F.black,
+    fontSize: 10,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+  },
+  programDayLetterDone: {
+    color: colors.accent,
+  },
+  programDayLetterToday: {
+    color: colors.onAccent,
+  },
+  programDayWorkout: {
+    color: colors.text,
+    fontFamily: F.black,
+    fontSize: 11,
+    lineHeight: 13,
+  },
+  programDayWorkoutDone: {
+    color: colors.accent,
+  },
+  programDayWorkoutToday: {
+    color: colors.onAccent,
+  },
+  programDayRestText: {
+    color: colors.textMuted,
+    fontFamily: F.black,
+    fontSize: 12,
+    lineHeight: 13,
+  },
+  programDayCheck: {
+    alignItems: "center",
+    backgroundColor: colors.accent,
+    borderRadius: 999,
+    height: 14,
+    justifyContent: "center",
+    marginTop: 1,
+    width: 14,
+  },
+  programTodayCard: {
+    alignItems: "center",
+    backgroundColor: colors.accent,
+    borderRadius: 16,
+    flexDirection: "row",
+    gap: 11,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  programTodayIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.22)",
+    borderRadius: 10,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  programTodayCopy: {
+    flex: 1,
+    gap: 1,
+    minWidth: 0,
+  },
+  programTodayKicker: {
+    color: colors.onAccent,
+    fontFamily: F.black,
+    fontSize: 9,
+    letterSpacing: 1.2,
+    opacity: 0.85,
+    textTransform: "uppercase",
+  },
+  programTodayTitle: {
+    color: colors.onAccent,
+    fontFamily: F.black,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  programTodayMeta: {
+    color: colors.onAccent,
+    fontFamily: F.bold,
+    fontSize: 11,
+    opacity: 0.88,
+  },
+  programTodayBadge: {
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  programTodayBadgeText: {
+    color: colors.accent,
+    fontFamily: F.black,
+    fontSize: 9,
+    letterSpacing: 0.3,
   },
   calendarRow: {
     flexDirection: "row",
