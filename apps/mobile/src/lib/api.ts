@@ -28,6 +28,7 @@ import type {
   ScheduledWorkoutUpdateRequest,
   SendOtpRequest,
   SendOtpResponse,
+  StartFreeAccessResponse,
   UsernameCheckResponse,
   VerifyOtpRequest,
   VerifyOtpResponse,
@@ -455,6 +456,15 @@ export async function saveOnboarding(
     method: "PUT",
     accessToken,
     body: JSON.stringify(body),
+  });
+}
+
+export async function startFreeAccess(
+  accessToken: string,
+): Promise<StartFreeAccessResponse> {
+  return request<StartFreeAccessResponse>("/auth/free-access", {
+    method: "POST",
+    accessToken,
   });
 }
 

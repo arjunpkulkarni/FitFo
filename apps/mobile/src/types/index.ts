@@ -87,6 +87,7 @@ export interface UserProfile {
   apple_user_id: string | null;
   avatar_url?: string | null;
   onboarding: UserOnboarding | null;
+  free_access_started_at?: string | null;
   created_at: string | null;
   updated_at: string | null;
   /** When true, API grants Pro (server allowlist); client should treat as paid tier. */
@@ -243,6 +244,12 @@ export interface SaveOnboardingRequest {
 }
 
 export interface SaveOnboardingResponse {
+  ok: boolean;
+  profile: UserProfile;
+  message: string;
+}
+
+export interface StartFreeAccessResponse {
   ok: boolean;
   profile: UserProfile;
   message: string;

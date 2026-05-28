@@ -80,6 +80,9 @@ interface ActiveWorkoutScreenProps {
     personalRecordLabel: string | null;
   } | null;
   userId?: string | null;
+  accessToken?: string | null;
+  isFreePlan?: boolean;
+  onRequireUpgrade?: (message: string) => void;
   onOpenSuggestFeatures?: () => void;
 }
 
@@ -159,6 +162,9 @@ export function ActiveWorkoutScreen({
   resolveLastLiftLabel,
   resolveExerciseLiftSummary,
   userId = null,
+  accessToken = null,
+  isFreePlan = false,
+  onRequireUpgrade,
   onOpenSuggestFeatures,
 }: ActiveWorkoutScreenProps) {
   const preferredWeightUnit: "lb" | "kg" =
@@ -756,6 +762,9 @@ export function ActiveWorkoutScreen({
         workout={coachWorkoutContext}
         themeMode={themeMode}
         userId={userId}
+        accessToken={accessToken}
+        isFreePlan={isFreePlan}
+        onRequireUpgrade={onRequireUpgrade}
         onOpenSuggestFeatures={onOpenSuggestFeatures}
       />
     </View>

@@ -133,7 +133,8 @@ def _utc_now_iso() -> str:
 
 
 PROFILE_SELECT_FIELDS = (
-    "id, full_name, username, phone, email, apple_user_id, avatar_url, created_at, updated_at"
+    "id, full_name, username, phone, email, apple_user_id, avatar_url, "
+    "free_access_started_at, created_at, updated_at"
 )
 PROFILE_ONBOARDING_SELECT_FIELDS = (
     "user_id, goals, sex, training_split, custom_split_notes, days_per_week, weight_lbs, "
@@ -331,6 +332,32 @@ def list_saved_workouts(user_id: str) -> List[Dict[str, Any]]:
         .execute()
     )
     return list(result.data or [])
+
+
+def count_imported_saved_workouts(user_id: str) -> int:
+    supa = get_supabase()
+    result = (
+        supa.table("saved_workouts")
+        .select("id, job_id, source_url")
+        .eq("user_id", user_id)
+        .execute()
+    )
+    return sum(1 for row in (result.data or []) if row.get("source_url") or row.get("job_id"))
+
+
+def saved_import_exists_for_workout(user_id: str, workout_id: Optional[str]) -> bool:
+    if not workout_id:
+        return False
+    supa = get_supabase()
+    result = (
+        supa.table("saved_workouts")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("workout_id", workout_id)
+        .limit(1)
+        .execute()
+    )
+    return bool(result.data)
 
 
 def create_or_update_saved_workout(
@@ -592,6 +619,50 @@ def delete_scheduled_workout(
     return existing.data[0]
 
 
+def get_ai_coach_usage_count(user_id: str, session_key: str) -> int:
+    supa = get_supabase()
+    result = (
+        supa.table("ai_coach_usage")
+        .select("message_count")
+        .eq("user_id", user_id)
+        .eq("session_key", session_key)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        return 0
+    return int(result.data[0].get("message_count") or 0)
+
+
+def increment_ai_coach_usage(user_id: str, session_key: str) -> int:
+    supa = get_supabase()
+    current = get_ai_coach_usage_count(user_id, session_key)
+    next_count = current + 1
+    if current > 0:
+        result = (
+            supa.table("ai_coach_usage")
+            .update({"message_count": next_count})
+            .eq("user_id", user_id)
+            .eq("session_key", session_key)
+            .execute()
+        )
+    else:
+        result = (
+            supa.table("ai_coach_usage")
+            .insert(
+                {
+                    "user_id": user_id,
+                    "session_key": session_key,
+                    "message_count": next_count,
+                }
+            )
+            .execute()
+        )
+    if not result.data:
+        raise RuntimeError("Supabase ai_coach_usage write returned no data")
+    return next_count
+
+
 def list_completed_workouts(user_id: str) -> List[Dict[str, Any]]:
     supa = get_supabase()
     result = (
@@ -733,6 +804,24 @@ def get_profile_by_id(profile_id: str) -> Optional[Dict[str, Any]]:
     )
     if not result.data:
         return None
+    return _attach_profile_onboarding(result.data[0])
+
+
+def mark_profile_free_access_started(profile_id: str) -> Dict[str, Any]:
+    existing = get_profile_by_id(profile_id)
+    if existing is None:
+        raise ProfileNotFoundError(f"Profile {profile_id} not found")
+    if existing.get("free_access_started_at"):
+        return existing
+    supa = get_supabase()
+    result = (
+        supa.table("profiles")
+        .update({"free_access_started_at": _utc_now_iso()})
+        .eq("id", profile_id)
+        .execute()
+    )
+    if not result.data:
+        raise ProfileNotFoundError(f"Profile {profile_id} not found")
     return _attach_profile_onboarding(result.data[0])
 
 

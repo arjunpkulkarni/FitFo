@@ -143,6 +143,24 @@ def list_just_converted_trials(
     return list(result.data or [])
 
 
+def user_has_active_pro(user_id: str) -> bool:
+    """Return true when RevenueCat says this user currently has Pro access."""
+    if not user_id:
+        return False
+    supa = get_supabase()
+    result = (
+        supa.table("subscription_state")
+        .select("id")
+        .eq("user_id", user_id)
+        .eq("entitlement_id", "pro")
+        .eq("is_family_share", False)
+        .in_("status", [STATUS_TRIALING, STATUS_ACTIVE, STATUS_GRACE, STATUS_CANCELLED])
+        .limit(1)
+        .execute()
+    )
+    return bool(result.data)
+
+
 def has_notification_log(
     *,
     user_id: str,

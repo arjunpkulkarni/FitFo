@@ -50,6 +50,7 @@ class UserProfileResponse(BaseModel):
     apple_user_id: Optional[str] = None
     avatar_url: Optional[str] = None
     onboarding: Optional[UserOnboardingResponse] = None
+    free_access_started_at: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     #: When true, the API grants Fitfo Pro without RevenueCat (allowlisted account).
@@ -178,6 +179,12 @@ class SaveOnboardingRequest(BaseModel):
 
 
 class SaveOnboardingResponse(BaseModel):
+    ok: bool
+    profile: UserProfileResponse
+    message: str
+
+
+class StartFreeAccessResponse(BaseModel):
     ok: bool
     profile: UserProfileResponse
     message: str

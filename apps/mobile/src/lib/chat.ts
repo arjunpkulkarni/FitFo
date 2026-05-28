@@ -105,10 +105,16 @@ export class ChatApiError extends Error {
   }
 }
 
-export async function sendChatMessage(body: ChatRequestBody): Promise<ChatResponse> {
+export async function sendChatMessage(
+  body: ChatRequestBody,
+  accessToken?: string | null,
+): Promise<ChatResponse> {
   const res = await fetch(`${API_BASE}/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
     body: JSON.stringify(body),
   });
   if (!res.ok) {

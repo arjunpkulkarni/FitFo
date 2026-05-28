@@ -61,6 +61,9 @@ interface CoachSheetProps {
   themeMode?: ThemeMode;
   /** Used for lifetime coach engagement + one-time feedback prompt gating. */
   userId?: string | null;
+  accessToken?: string | null;
+  isFreePlan?: boolean;
+  onRequireUpgrade?: (message: string) => void;
   /** Deep link: opens the same mail flow as Profile → Suggest features. */
   onOpenSuggestFeatures?: () => void;
 }
@@ -130,6 +133,9 @@ export default function CoachSheet({
   setMessages,
   themeMode = "dark",
   userId = null,
+  accessToken = null,
+  isFreePlan = false,
+  onRequireUpgrade,
   onOpenSuggestFeatures,
 }: CoachSheetProps) {
   const posthog = usePostHog();
@@ -194,6 +200,11 @@ export default function CoachSheet({
   const send = async (override?: string) => {
     const trimmed = (override ?? input).trim();
     if (!trimmed || pending) return;
+    const usedFreeMessages = messages.filter((m) => m.role === "user").length;
+    if (isFreePlan && usedFreeMessages >= 2) {
+      onRequireUpgrade?.("You've used your 2 AI Coach queries for this workout.");
+      return;
+    }
     setError(null);
 
     const newUser: CoachChatMessage = { role: "user", content: trimmed };
@@ -224,7 +235,7 @@ export default function CoachSheet({
         history,
         workout: workoutRef.current ?? undefined,
         top_k: 8,
-      });
+      }, accessToken);
       const assistantReply: CoachChatMessage = {
         role: "assistant",
         content: result.answer,
@@ -261,6 +272,12 @@ export default function CoachSheet({
       setMessages([...updated, ...nextMessages]);
     } catch (exc) {
       if (exc instanceof ChatApiError) {
+        if (exc.status === 402) {
+          onRequireUpgrade?.(exc.message);
+          setMessages(messages);
+          setInput(trimmed);
+          return;
+        }
         setError(exc.message);
       } else if (exc instanceof Error && exc.message) {
         setError(exc.message);

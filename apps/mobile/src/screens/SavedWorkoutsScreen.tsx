@@ -56,6 +56,9 @@ interface SavedWorkoutsScreenProps {
   onRescheduleScheduledWorkout: (routine: SavedRoutinePreview) => void;
   onStartSession: (routine?: SavedRoutinePreview) => void;
   onUnschedule: (scheduledWorkoutId: string) => void;
+  freeScheduleEndsAt?: Date | null;
+  isFreePlan?: boolean;
+  onRequireUpgrade?: (message: string) => void;
   scheduledError: string | null;
   scheduledWorkouts: SavedRoutinePreview[];
   onSavedWorkoutsCardMeasured?: (rect: { x: number; y: number; width: number; height: number } | null) => void;
@@ -450,6 +453,9 @@ export function SavedWorkoutsScreen({
   onRescheduleScheduledWorkout,
   onStartSession,
   onUnschedule,
+  freeScheduleEndsAt = null,
+  isFreePlan = false,
+  onRequireUpgrade,
   onSavedWorkoutsCardMeasured,
   scheduledError,
   scheduledWorkouts,
@@ -590,10 +596,26 @@ export function SavedWorkoutsScreen({
               MIN_CALENDAR_START_OFFSET,
               currentOffset - CALENDAR_PAGE_SIZE,
             );
-      const nextSelectedDate = toIsoDate(addDays(todayDate, nextOffset + 1));
+      const nextSelectedDay = addDays(todayDate, nextOffset + 1);
+      if (!canUseScheduleDate(nextSelectedDay)) {
+        onRequireUpgrade?.(
+          "You can only schedule workouts within this week on the free plan.",
+        );
+        return currentOffset;
+      }
+      const nextSelectedDate = toIsoDate(nextSelectedDay);
       setSelectedDate(nextSelectedDate);
       return nextOffset;
     });
+  };
+
+  const canUseScheduleDate = (day: Date) => {
+    if (!isFreePlan || !freeScheduleEndsAt) {
+      return true;
+    }
+    const normalized = new Date(day);
+    normalized.setHours(0, 0, 0, 0);
+    return normalized.getTime() <= freeScheduleEndsAt.getTime();
   };
 
   const handleScheduledSectionLayout = (event: LayoutChangeEvent) => {
@@ -687,7 +709,15 @@ export function SavedWorkoutsScreen({
             return (
               <Pressable
                 key={iso}
-                onPress={() => setSelectedDate(iso)}
+                onPress={() => {
+                  if (!canUseScheduleDate(day)) {
+                    onRequireUpgrade?.(
+                      "You can only schedule workouts within this week on the free plan.",
+                    );
+                    return;
+                  }
+                  setSelectedDate(iso);
+                }}
                 style={[
                   styles.calendarPill,
                   isSelected

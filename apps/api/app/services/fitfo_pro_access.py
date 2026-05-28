@@ -16,6 +16,8 @@ from __future__ import annotations
 import os
 from typing import Any, Mapping
 
+from app.services import subscription_state
+
 
 def _env_csv(name: str) -> set[str]:
     raw = (os.environ.get(name) or "").strip()
@@ -52,3 +54,16 @@ def embed_fitfo_pro_bypass(profile: Mapping[str, Any]) -> dict[str, Any]:
     out = dict(profile)
     out["fitfo_pro_bypass"] = profile_has_fitfo_pro_bypass(profile)
     return out
+
+
+def profile_has_fitfo_pro_access(profile: Mapping[str, Any]) -> bool:
+    """True when this profile should bypass Free-tier limits on the API."""
+    if profile_has_fitfo_pro_bypass(profile):
+        return True
+    user_id = str(profile.get("id") or "").strip()
+    if not user_id:
+        return False
+    try:
+        return subscription_state.user_has_active_pro(user_id)
+    except Exception:
+        return False

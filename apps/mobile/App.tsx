@@ -39,6 +39,11 @@ import {
   type CoachmarkRect,
 } from "./src/components/SavedWorkoutsCoachmark";
 import { FitfoLoadingAnimation } from "./src/components/FitfoLoadingAnimation";
+import {
+  FreePlanIntroModal,
+  ProFreemiumAnnouncementModal,
+  ProUpgradeModal,
+} from "./src/components/FreemiumUpgradeModal";
 import { BottomNav } from "./src/components/BottomNav";
 import { ScheduleAgainModal } from "./src/components/ScheduleAgainModal";
 import { useShareIntent } from "expo-share-intent";
@@ -88,6 +93,7 @@ import {
   patchProfile,
   saveInstagramHandle,
   saveOnboarding,
+  startFreeAccess,
   saveUsername,
   saveWorkoutForLater,
   sendOtp,
@@ -498,6 +504,13 @@ export default function App() {
     useState(false);
   const [isCancellationFeedbackSubmitting, setIsCancellationFeedbackSubmitting] =
     useState(false);
+  const [freeIntroVisible, setFreeIntroVisible] = useState(false);
+  const [upgradePromptMessage, setUpgradePromptMessage] = useState<string | null>(
+    null,
+  );
+  const [isUpgradePaywallVisible, setIsUpgradePaywallVisible] = useState(false);
+  const [proAnnouncementVisible, setProAnnouncementVisible] = useState(false);
+  const proAnnouncementHydratedRef = useRef(false);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkoutRecord[]>(
     [],
   );
@@ -654,10 +667,57 @@ export default function App() {
   const revenueCat = useRevenueCat(currentUser);
   const isAccountBillingBypass = hasBillingBypassForUser(currentUser);
   const isServerProBypass = currentUser?.fitfo_pro_bypass === true;
-  const hasBillingAccess =
+  const hasProAccess =
     isAccountBillingBypass ||
     isServerProBypass ||
     revenueCat.hasPro;
+  const hasFreeAccess = Boolean(currentUser?.free_access_started_at);
+  const hasAppAccess = hasProAccess || hasFreeAccess;
+  const isFreePlan = hasAppAccess && !hasProAccess;
+  const hasBillingAccess = hasProAccess;
+  const importedSavedWorkouts = useMemo(
+    () => savedWorkouts.filter((routine) => Boolean(routine.sourceUrl || routine.jobId)),
+    [savedWorkouts],
+  );
+  const freeAccessibleImportedSavedIds = useMemo(
+    () => new Set(importedSavedWorkouts.slice(0, 3).map((routine) => routine.id)),
+    [importedSavedWorkouts],
+  );
+
+  const isImportedRoutineLockedForFree = useCallback(
+    (routine: SavedRoutinePreview | null | undefined) => {
+      if (!isFreePlan || !routine || !(routine.sourceUrl || routine.jobId)) {
+        return false;
+      }
+      if (!routine.savedWorkoutId) {
+        return importedSavedWorkouts.length >= 3;
+      }
+      return !freeAccessibleImportedSavedIds.has(routine.savedWorkoutId);
+    },
+    [freeAccessibleImportedSavedIds, importedSavedWorkouts.length, isFreePlan],
+  );
+
+  const freeScheduleEndsAt = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const daysUntilSunday = (7 - today.getDay()) % 7;
+    const sunday = new Date(today);
+    sunday.setDate(today.getDate() + daysUntilSunday);
+    return sunday;
+  }, []);
+
+  const isDatePastFreeScheduleWindow = useCallback(
+    (isoDate: string | null | undefined) => {
+      if (!isFreePlan || !isoDate) {
+        return false;
+      }
+      const [year, month, day] = isoDate.slice(0, 10).split("-").map(Number);
+      const date = new Date(year, (month || 1) - 1, day || 1);
+      date.setHours(0, 0, 0, 0);
+      return date.getTime() > freeScheduleEndsAt.getTime();
+    },
+    [freeScheduleEndsAt, isFreePlan],
+  );
 
   const userPastOnboarding = Boolean(currentUser?.onboarding);
   const needsUsername = Boolean(
@@ -676,6 +736,7 @@ export default function App() {
   const needsBillingVerification =
     Boolean(currentUser && userPastOnboarding) &&
     !needsUsername &&
+    !hasFreeAccess &&
     !isAccountBillingBypass &&
     !isServerProBypass;
 
@@ -739,6 +800,35 @@ export default function App() {
     void AsyncStorage.setItem(trialExplainerStorageKey, "1").catch(() => undefined);
   }, [trialExplainerStorageKey]);
 
+  const handleStartFreeAccess = useCallback(async () => {
+    if (!accessToken || !currentUser) {
+      return;
+    }
+    try {
+      const response = await startFreeAccess(accessToken);
+      setCurrentUser(response.profile);
+      await storeAuthSession(accessToken, response.profile);
+      posthog.capture("free_access_started");
+      setFreeIntroVisible(true);
+      setIsUpgradePaywallVisible(false);
+    } catch (error) {
+      Alert.alert(
+        "Could not start Free",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    }
+  }, [accessToken, currentUser]);
+
+  const openUpgradePrompt = useCallback((message: string) => {
+    setUpgradePromptMessage(message);
+  }, []);
+
+  const openUpgradePaywall = useCallback(() => {
+    setUpgradePromptMessage(null);
+    setFreeIntroVisible(false);
+    setIsUpgradePaywallVisible(true);
+  }, []);
+
   const handleDismissPostPaywallWelcome = useCallback(async () => {
     const userId = currentUser?.id;
     setIsPostPaywallWelcomeVisible(false);
@@ -793,6 +883,56 @@ export default function App() {
       cancelled = true;
     };
   }, [currentUser?.id, hasBillingAccess, isBillingCheckPending]);
+
+  useEffect(() => {
+    const userId = currentUser?.id;
+    const isRevenueCatPro =
+      Boolean(userId) &&
+      revenueCat.hasPro &&
+      !isAccountBillingBypass &&
+      !isServerProBypass;
+    if (!userId || !isRevenueCatPro || isBillingCheckPending) {
+      proAnnouncementHydratedRef.current = false;
+      setProAnnouncementVisible(false);
+      return;
+    }
+    if (proAnnouncementHydratedRef.current) {
+      return;
+    }
+    proAnnouncementHydratedRef.current = true;
+    let cancelled = false;
+    void AsyncStorage.getItem(`@fitfo:freemium-pro-announcement:v1:${userId}`)
+      .then((flag) => {
+        if (!cancelled && flag !== "1") {
+          setProAnnouncementVisible(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProAnnouncementVisible(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentUser?.id,
+    isAccountBillingBypass,
+    isBillingCheckPending,
+    isServerProBypass,
+    revenueCat.hasPro,
+  ]);
+
+  const dismissProAnnouncement = useCallback(() => {
+    const userId = currentUser?.id;
+    setProAnnouncementVisible(false);
+    if (userId) {
+      void AsyncStorage.setItem(
+        `@fitfo:freemium-pro-announcement:v1:${userId}`,
+        "1",
+      ).catch(() => undefined);
+    }
+  }, [currentUser?.id]);
 
   const resetPostLoginState = useCallback(() => {
     setActiveTab("saved");
@@ -1710,6 +1850,16 @@ export default function App() {
   const handleStartSession = useCallback(
     (routine?: SavedRoutinePreview) => {
       const sourceRoutine = routine || latestImportedRoutine;
+      if (isImportedRoutineLockedForFree(sourceRoutine)) {
+        openUpgradePrompt(
+          "You've maxed out your imported workouts. Remove one from your saved workouts, or upgrade to Pro for unlimited imports.",
+        );
+        return;
+      }
+      if (isDatePastFreeScheduleWindow(sourceRoutine?.scheduledFor)) {
+        openUpgradePrompt("You can only schedule workouts within this week on the free plan.");
+        return;
+      }
       const tourStepNow = hubTourStepRef.current;
       const advanceTourToActiveScroll =
         POST_SIGNUP_HUB_GUIDANCE_ENABLED &&
@@ -1764,12 +1914,29 @@ export default function App() {
         setHubTourCoachRect(null);
       }
     },
-    [latestImportedRoutine, onboardingSex, resetImportFlow],
+    [
+      isDatePastFreeScheduleWindow,
+      isImportedRoutineLockedForFree,
+      latestImportedRoutine,
+      onboardingSex,
+      openUpgradePrompt,
+      resetImportFlow,
+    ],
   );
 
   const handleScheduleImportedWorkout = useCallback(
     async (scheduledFor: string, scheduledTimeMinutes: number) => {
       if (!accessToken || !latestImportedRoutine) {
+        return;
+      }
+      if (isImportedRoutineLockedForFree(latestImportedRoutine)) {
+        openUpgradePrompt(
+          "You've maxed out your imported workouts. Remove one from your saved workouts, or upgrade to Pro for unlimited imports.",
+        );
+        return;
+      }
+      if (isDatePastFreeScheduleWindow(scheduledFor)) {
+        openUpgradePrompt("You can only schedule workouts within this week on the free plan.");
         return;
       }
 
@@ -1855,6 +2022,10 @@ export default function App() {
         // fade-out animation.
         scheduleAddWorkoutCleanup();
       } catch (error) {
+        if (error instanceof ApiError && error.status === 402) {
+          openUpgradePrompt(error.message);
+          return;
+        }
         setSubmitError(
           error instanceof Error
             ? error.message
@@ -1866,9 +2037,12 @@ export default function App() {
     },
     [
       accessToken,
+      isDatePastFreeScheduleWindow,
+      isImportedRoutineLockedForFree,
       isShareDrivenIngest,
       job,
       latestImportedRoutine,
+      openUpgradePrompt,
       scheduleAddWorkoutCleanup,
       workout,
     ],
@@ -1876,6 +2050,12 @@ export default function App() {
 
   const handleSaveImportedWorkout = useCallback(async () => {
     if (!accessToken || !latestImportedRoutine) {
+      return;
+    }
+    if (isImportedRoutineLockedForFree(latestImportedRoutine)) {
+      openUpgradePrompt(
+        "You've maxed out your imported workouts. Remove one from your saved workouts, or upgrade to Pro for unlimited imports.",
+      );
       return;
     }
 
@@ -1926,6 +2106,10 @@ export default function App() {
       // modal is still animating closed.
       scheduleAddWorkoutCleanup();
     } catch (error) {
+      if (error instanceof ApiError && error.status === 402) {
+        openUpgradePrompt(error.message);
+        return;
+      }
       setSubmitError(
         error instanceof Error
           ? error.message
@@ -1936,8 +2120,10 @@ export default function App() {
     }
   }, [
     accessToken,
+    isImportedRoutineLockedForFree,
     job,
     latestImportedRoutine,
+    openUpgradePrompt,
     scheduleAddWorkoutCleanup,
     workout,
   ]);
@@ -2349,6 +2535,12 @@ export default function App() {
   // re-save it.
   const handleRequestScheduleSavedWorkout = useCallback(
     (routine: SavedRoutinePreview) => {
+      if (isImportedRoutineLockedForFree(routine)) {
+        openUpgradePrompt(
+          "You've maxed out your imported workouts. Remove one from your saved workouts, or upgrade to Pro for unlimited imports.",
+        );
+        return;
+      }
       const savedWorkoutId = routine.savedWorkoutId || routine.id;
       setScheduleAgainError(null);
       setScheduleAgainTarget({
@@ -2367,11 +2559,15 @@ export default function App() {
         mode: "schedule",
       });
     },
-    [],
+    [isImportedRoutineLockedForFree, openUpgradePrompt],
   );
 
   const handleRequestRescheduleScheduledWorkout = useCallback(
     (routine: SavedRoutinePreview) => {
+      if (isDatePastFreeScheduleWindow(routine.scheduledFor)) {
+        openUpgradePrompt("You can only schedule workouts within this week on the free plan.");
+        return;
+      }
       const scheduledWorkoutId =
         routine.scheduledWorkoutId?.trim() || routine.id;
       if (!scheduledWorkoutId) {
@@ -2397,7 +2593,7 @@ export default function App() {
         mode: "reschedule",
       });
     },
-    [],
+    [isDatePastFreeScheduleWindow, openUpgradePrompt],
   );
 
   const handleCloseScheduleAgain = useCallback(() => {
@@ -2415,6 +2611,10 @@ export default function App() {
       options?: { swapWith?: ScheduledWorkoutRecord },
     ) => {
       if (!accessToken || !scheduleAgainTarget) {
+        return;
+      }
+      if (isDatePastFreeScheduleWindow(scheduledFor)) {
+        openUpgradePrompt("You can only schedule workouts within this week on the free plan.");
         return;
       }
 
@@ -2560,6 +2760,10 @@ export default function App() {
           origin: "manual",
         });
       } catch (error) {
+        if (error instanceof ApiError && error.status === 402) {
+          openUpgradePrompt(error.message);
+          return;
+        }
         setScheduleAgainError(
           error instanceof Error
             ? error.message
@@ -2569,7 +2773,7 @@ export default function App() {
         setIsSchedulingAgain(false);
       }
     },
-    [accessToken, scheduleAgainTarget],
+    [accessToken, isDatePastFreeScheduleWindow, openUpgradePrompt, scheduleAgainTarget],
   );
 
   const handleConfirmScheduleAgain = useCallback(
@@ -2678,6 +2882,9 @@ export default function App() {
       if (!accessToken || !currentUser) {
         throw new Error("You need to be logged in to build a program.");
       }
+      if (isFreePlan) {
+        throw new Error("AI-driven custom programs are a Pro feature.");
+      }
 
       const generationMode = options?.generationMode ?? "restart";
       const generationOptions = {
@@ -2769,7 +2976,7 @@ export default function App() {
         generationOptions,
       );
     },
-    [accessToken, currentUser],
+    [accessToken, currentUser, isFreePlan],
   );
 
   const maybeRequestStoreReviewAfterFirstWorkout = useCallback(
@@ -3707,8 +3914,29 @@ export default function App() {
   );
 
   const handleOpenSuggestFeaturesFromCoach = useCallback(() => {
+    if (isFreePlan) {
+      openUpgradePrompt("Suggesting features is a Fitfo Pro feature.");
+      return;
+    }
     openFeatureSuggestion((event) => posthog.capture(event));
-  }, []);
+  }, [isFreePlan, openUpgradePrompt]);
+
+  const handleOpenSavedRoutine = useCallback(
+    (routine: SavedRoutinePreview) => {
+      if (isImportedRoutineLockedForFree(routine)) {
+        openUpgradePrompt(
+          "You've maxed out your imported workouts. Remove one from your saved workouts, or upgrade to Pro for unlimited imports.",
+        );
+        return;
+      }
+      if (isDatePastFreeScheduleWindow(routine.scheduledFor)) {
+        openUpgradePrompt("You can only schedule workouts within this week on the free plan.");
+        return;
+      }
+      setSelectedSavedRoutine(routine);
+    },
+    [isDatePastFreeScheduleWindow, isImportedRoutineLockedForFree, openUpgradePrompt],
+  );
 
   const renderAuthenticatedScreen = () => {
     if (activeSession && isActiveWorkoutVisible) {
@@ -3761,6 +3989,9 @@ export default function App() {
           themeMode={themeMode}
           unitSystem={unitSystem}
           userId={currentUser?.id ?? null}
+          accessToken={accessToken}
+          isFreePlan={isFreePlan}
+          onRequireUpgrade={openUpgradePrompt}
           onOpenSuggestFeatures={handleOpenSuggestFeaturesFromCoach}
         />
       );
@@ -3855,6 +4086,8 @@ export default function App() {
           onThemeModeChange={handleThemeModeChange}
           onUpdateFullName={handleUpdateFullName}
           isDeletingAccount={isDeletingAccount}
+          isFreePlan={isFreePlan}
+          onRequireUpgrade={openUpgradePrompt}
           profile={currentUser}
           themeMode={themeMode}
         />
@@ -3876,7 +4109,7 @@ export default function App() {
                 setHubTourCoachRect(null);
               }
             }}
-            onOpenWorkout={(routine) => setSelectedSavedRoutine(routine)}
+            onOpenWorkout={handleOpenSavedRoutine}
             onRemoveWorkout={handleRemoveSavedWorkout}
             onRetry={() => {
               if (accessToken) {
@@ -3906,6 +4139,8 @@ export default function App() {
           completedWorkoutsLoading={completedWorkoutsLoading}
           importedWorkouts={savedWorkouts}
           isScheduleLoading={scheduledWorkoutsLoading}
+          freeScheduleEndsAt={freeScheduleEndsAt}
+          isFreePlan={isFreePlan}
           onAddWorkout={handleOpenAddWorkout}
           onOpenSavedList={() => setIsSavedLibraryVisible(true)}
           onSavedWorkoutsCardMeasured={(rect) => {
@@ -3916,7 +4151,7 @@ export default function App() {
           tourSpotlightsSavedWorkoutsCard={
             POST_SIGNUP_HUB_GUIDANCE_ENABLED && hubTourStep === "saved_card"
           }
-          onOpenWorkout={(routine) => setSelectedSavedRoutine(routine)}
+          onOpenWorkout={handleOpenSavedRoutine}
           onPullToRefresh={refreshHubWorkoutData}
           onRemoveWorkout={handleRemoveSavedWorkout}
           onOpenCompletedSession={handleOpenCompletedWorkout}
@@ -3931,6 +4166,7 @@ export default function App() {
           onRescheduleScheduledWorkout={handleRequestRescheduleScheduledWorkout}
           onStartSession={handleStartSession}
           onUnschedule={handleUnscheduleWorkout}
+          onRequireUpgrade={openUpgradePrompt}
           scheduledError={scheduledWorkoutsError}
           scheduledWorkouts={upcomingScheduledRows.map(createScheduledRoutinePreview)}
           themeMode={themeMode}
@@ -3971,6 +4207,8 @@ export default function App() {
           onBuildCustomProgram={handleBuildCustomProgram}
           onOpenWorkouts={() => setActiveTab("saved")}
           profile={currentUser}
+          isFreePlan={isFreePlan}
+          onRequireUpgrade={openUpgradePrompt}
           themeMode={themeMode}
         />
       );
@@ -3988,6 +4226,8 @@ export default function App() {
             onThemeModeChange={handleThemeModeChange}
             onUpdateFullName={handleUpdateFullName}
             isDeletingAccount={isDeletingAccount}
+            isFreePlan={isFreePlan}
+            onRequireUpgrade={openUpgradePrompt}
             profile={currentUser}
             themeMode={themeMode}
           />
@@ -4218,7 +4458,7 @@ export default function App() {
                 </View>
               ) : null}
             </View>
-          ) : !hasBillingAccess ? (
+          ) : !hasAppAccess ? (
             !hasSeenTrialExplainer ? (
               <TrialExplainerScreen
                 onContinue={handleAcceptTrialExplainer}
@@ -4235,6 +4475,7 @@ export default function App() {
                   pendingPostPaywallWelcomeRef.current = true;
                   void revenueCat.refreshCustomerInfo();
                 }}
+                onStartFree={handleStartFreeAccess}
                 themeMode={themeMode}
               />
             )
@@ -4371,7 +4612,7 @@ export default function App() {
         onSubmit={handleExtractWorkout}
         routine={latestImportedRoutine}
         themeMode={themeMode}
-        visible={hasBillingAccess && isAddWorkoutVisible}
+        visible={hasAppAccess && isAddWorkoutVisible}
       />
 
       <CancellationFeedbackModal
@@ -4406,7 +4647,7 @@ export default function App() {
         visible={
           POST_SIGNUP_HUB_GUIDANCE_ENABLED &&
           isFirstHubTipVisible &&
-          hasBillingAccess &&
+          hasAppAccess &&
           !isPostPaywallWelcomeVisible
         }
         onDismiss={handleDismissFirstHubTip}
@@ -4417,6 +4658,50 @@ export default function App() {
         visible={Boolean(currentUser && hasBillingAccess && isPostPaywallWelcomeVisible)}
         onDismiss={handleDismissPostPaywallWelcome}
       />
+
+      <FreePlanIntroModal
+        onContinue={() => setFreeIntroVisible(false)}
+        onUpgrade={openUpgradePaywall}
+        themeMode={themeMode}
+        visible={Boolean(currentUser && freeIntroVisible)}
+      />
+
+      <ProUpgradeModal
+        message={upgradePromptMessage ?? ""}
+        onClose={() => setUpgradePromptMessage(null)}
+        onUpgrade={openUpgradePaywall}
+        themeMode={themeMode}
+        visible={Boolean(upgradePromptMessage)}
+      />
+
+      <ProFreemiumAnnouncementModal
+        onCancelSubscription={() => {
+          dismissProAnnouncement();
+          setIsCancellationFeedbackVisible(true);
+        }}
+        onContinuePro={dismissProAnnouncement}
+        themeMode={themeMode}
+        visible={Boolean(currentUser && proAnnouncementVisible)}
+      />
+
+      {isUpgradePaywallVisible ? (
+        <View style={styles.upgradePaywallOverlay}>
+          <PaywallScreen
+            error={revenueCat.error}
+            isLoading={revenueCat.isLoading}
+            onManageSubscription={handleManageSubscription}
+            onPurchasePackage={revenueCat.purchasePackage}
+            onRestorePurchases={revenueCat.restorePurchases}
+            onStartFree={() => setIsUpgradePaywallVisible(false)}
+            onUnlocked={() => {
+              setIsUpgradePaywallVisible(false);
+              pendingPostPaywallWelcomeRef.current = true;
+              void revenueCat.refreshCustomerInfo();
+            }}
+            themeMode={themeMode}
+          />
+        </View>
+      ) : null}
 
       {scheduledConfirmation ? (
         <View style={styles.confirmationOverlay}>
@@ -4509,6 +4794,15 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       left: 0,
       right: 0,
       bottom: 0,
+      backgroundColor: theme.colors.background,
+    },
+    upgradePaywallOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 45,
       backgroundColor: theme.colors.background,
     },
   });

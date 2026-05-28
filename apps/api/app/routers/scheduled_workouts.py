@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -10,6 +10,7 @@ from app.schemas.scheduled_workouts import (
     ScheduledWorkoutUpdateRequest,
 )
 from app.services import supabase_db
+from app.services.fitfo_pro_access import profile_has_fitfo_pro_access
 
 router = APIRouter(prefix="/scheduled-workouts", tags=["scheduled-workouts"])
 
@@ -22,6 +23,42 @@ def _parse_date(value: str, field: str) -> str:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid {field}: must be YYYY-MM-DD",
         ) from exc
+
+
+def _current_week_sunday(today: Optional[date] = None) -> date:
+    anchor = today or date.today()
+    return anchor + timedelta(days=(6 - anchor.weekday()))
+
+
+def _enforce_free_schedule_window(profile_id: str, scheduled_for: str) -> None:
+    profile = supabase_db.get_profile_by_id(profile_id)
+    if profile is None:
+        raise HTTPException(status_code=401, detail="Account not found.")
+    if profile_has_fitfo_pro_access(profile):
+        return
+    if date.fromisoformat(scheduled_for) > _current_week_sunday():
+        raise HTTPException(
+            status_code=402,
+            detail="You can only schedule workouts within this week on the free plan.",
+        )
+
+
+def _enforce_free_import_cap(profile_id: str, body: ScheduledWorkoutCreateRequest) -> None:
+    if not (body.source_url or body.job_id):
+        return
+    profile = supabase_db.get_profile_by_id(profile_id)
+    if profile is None:
+        raise HTTPException(status_code=401, detail="Account not found.")
+    if profile_has_fitfo_pro_access(profile):
+        return
+    if supabase_db.count_imported_saved_workouts(profile_id) >= 3:
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                "You've maxed out your imported workouts. Remove one from your "
+                "saved workouts, or upgrade to Pro for unlimited imports."
+            ),
+        )
 
 
 @router.get("", response_model=list[ScheduledWorkoutResponse])
@@ -56,6 +93,8 @@ def create_scheduled_workout(
 ) -> ScheduledWorkoutResponse:
     try:
         scheduled_for = _parse_date(body.scheduled_for, "scheduled_for")
+        _enforce_free_schedule_window(profile_id, scheduled_for)
+        _enforce_free_import_cap(profile_id, body)
         row = supabase_db.create_scheduled_workout(
             profile_id,
             scheduled_for=scheduled_for,
@@ -95,6 +134,7 @@ def update_scheduled_workout(
     patch = body.model_dump(exclude_unset=True)
     if "scheduled_for" in patch and patch["scheduled_for"] is not None:
         patch["scheduled_for"] = _parse_date(patch["scheduled_for"], "scheduled_for")
+        _enforce_free_schedule_window(profile_id, patch["scheduled_for"])
     if not patch:
         raise HTTPException(status_code=400, detail="No fields to update")
     try:

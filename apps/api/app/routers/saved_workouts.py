@@ -6,6 +6,7 @@ from app.schemas.workout_persistence import (
     SavedWorkoutUpdateRequest,
     SavedWorkoutUpsertRequest,
 )
+from app.services.fitfo_pro_access import profile_has_fitfo_pro_access
 from app.services import supabase_db
 
 router = APIRouter(prefix="/saved-workouts", tags=["saved-workouts"])
@@ -29,6 +30,27 @@ def save_workout_for_later(
     profile_id: str = Depends(require_profile_id),
 ) -> SavedWorkoutResponse:
     try:
+        profile = supabase_db.get_profile_by_id(profile_id)
+        if profile is None:
+            raise HTTPException(status_code=401, detail="Account not found.")
+        is_imported = bool(body.source_url or body.job_id)
+        is_existing_update = supabase_db.saved_import_exists_for_workout(
+            profile_id,
+            body.workout_id,
+        )
+        if (
+            is_imported
+            and not is_existing_update
+            and not profile_has_fitfo_pro_access(profile)
+            and supabase_db.count_imported_saved_workouts(profile_id) >= 3
+        ):
+            raise HTTPException(
+                status_code=402,
+                detail=(
+                    "You've maxed out your imported workouts. Remove one from your "
+                    "saved workouts, or upgrade to Pro for unlimited imports."
+                ),
+            )
         # Save-for-later records are written against the authenticated account and become the backend source of truth.
         row = supabase_db.create_or_update_saved_workout(
             profile_id,
@@ -44,6 +66,8 @@ def save_workout_for_later(
             workout_plan=body.workout_plan,
         )
         return SavedWorkoutResponse(**row)
+    except HTTPException:
+        raise
     except supabase_db.SupabaseNotConfiguredError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:

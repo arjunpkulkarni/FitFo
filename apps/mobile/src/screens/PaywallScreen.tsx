@@ -23,6 +23,8 @@ import {
 import { getTheme, type ThemeMode } from "../theme";
 
 const TRIAL_DAYS = 7;
+const FALLBACK_ANNUAL_PRICE = "$39.99";
+const FALLBACK_MONTHLY_PRICE = "$5.99";
 
 const BENEFITS: ReadonlyArray<string> = [
   "Import workouts from TikTok & Instagram in seconds",
@@ -45,6 +47,8 @@ interface PaywallScreenProps {
   onRestorePurchases: () => Promise<boolean>;
   /** Called when entitlements unlock (success or restore). Parent should refresh + route Home. */
   onUnlocked: () => void;
+  /** Lets the user enter Fitfo Free instead of starting Pro. */
+  onStartFree?: () => void;
   themeMode?: ThemeMode;
 }
 
@@ -87,6 +91,7 @@ export function PaywallScreen({
   onManageSubscription,
   onPurchasePackage,
   onRestorePurchases,
+  onStartFree,
   onUnlocked,
   themeMode = "dark",
 }: PaywallScreenProps) {
@@ -368,6 +373,17 @@ export function PaywallScreen({
       style={styles.root}
     >
       <View style={styles.headerBlock}>
+        {onStartFree ? (
+          <Pressable
+            accessibilityLabel="Continue with Fitfo Free"
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={onStartFree}
+            style={styles.closeButton}
+          >
+            <Ionicons color={theme.colors.textMuted} name="close" size={22} />
+          </Pressable>
+        ) : null}
         <View style={styles.heroIcon}>
           <Image
             accessibilityIgnoresInvertColors
@@ -495,11 +511,12 @@ export function PaywallScreen({
                 <Text style={styles.planSubLabel}>Loading App Store price…</Text>
               ) : (
                 <>
-                  <Text style={[styles.planPriceLarge, styles.planPriceUnavailable]}>
-                    —
+                  <Text style={styles.planPriceLarge}>
+                    {FALLBACK_ANNUAL_PRICE}
+                    <Text style={styles.planPricePeriod}>/year</Text>
                   </Text>
                   <Text style={[styles.planSubLabel, styles.planSubLabelUnavailable]}>
-                    Pricing unavailable
+                    Fallback price. Live App Store pricing loads when available.
                   </Text>
                 </>
               )}
@@ -547,11 +564,12 @@ export function PaywallScreen({
                 <Text style={styles.planSubLabel}>Loading App Store price…</Text>
               ) : (
                 <>
-                  <Text style={[styles.planPriceLarge, styles.planPriceUnavailable]}>
-                    —
+                  <Text style={styles.planPriceLarge}>
+                    {FALLBACK_MONTHLY_PRICE}
+                    <Text style={styles.planPricePeriod}>/month</Text>
                   </Text>
                   <Text style={[styles.planSubLabel, styles.planSubLabelUnavailable]}>
-                    Pricing unavailable
+                    Fallback price. Live App Store pricing loads when available.
                   </Text>
                 </>
               )}
@@ -697,6 +715,19 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
     headerBlock: {
       alignItems: "center",
       gap: 8,
+      paddingTop: 8,
+    },
+    closeButton: {
+      position: "absolute",
+      right: 0,
+      top: 0,
+      width: 38,
+      height: 38,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 19,
+      backgroundColor: theme.colors.surfaceMuted,
+      zIndex: 2,
     },
     heroIcon: {
       width: 72,

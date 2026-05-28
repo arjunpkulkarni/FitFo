@@ -54,6 +54,8 @@ interface RecoveryMapScreenProps {
   ) => Promise<CustomProgramBuildResult>;
   onOpenWorkouts?: () => void;
   profile?: UserProfile | null;
+  isFreePlan?: boolean;
+  onRequireUpgrade?: (message: string) => void;
   themeMode?: ThemeMode;
 }
 
@@ -71,6 +73,8 @@ export function RecoveryMapScreen({
   onBuildCustomProgram,
   onOpenWorkouts,
   profile = null,
+  isFreePlan = false,
+  onRequireUpgrade,
   themeMode = "light",
 }: RecoveryMapScreenProps) {
   const tabBarScrollPad = useTabBarScrollPadding();
@@ -175,6 +179,10 @@ export function RecoveryMapScreen({
   };
 
   const handleBuildPress = () => {
+    if (isFreePlan) {
+      onRequireUpgrade?.("AI-driven custom programs are a Pro feature.");
+      return;
+    }
     if (!storedProgram) {
       openBuilder("restart");
       return;
@@ -272,7 +280,7 @@ export function RecoveryMapScreen({
         <View style={styles.bodyRow}>
           <View style={styles.bodyColumn}>
             <Body
-              data={bodyData}
+              data={isFreePlan ? [] : bodyData}
               gender="male"
               side="front"
               scale={bodyScale}
@@ -284,7 +292,7 @@ export function RecoveryMapScreen({
           </View>
           <View style={styles.bodyColumn}>
             <Body
-              data={bodyData}
+              data={isFreePlan ? [] : bodyData}
               gender="male"
               side="back"
               scale={bodyScale}
@@ -296,6 +304,20 @@ export function RecoveryMapScreen({
           </View>
         </View>
 
+        {isFreePlan ? (
+          <View style={styles.recoveryLockedOverlay}>
+            <Ionicons color={theme.colors.primary} name="lock-closed" size={18} />
+            <Text style={styles.recoveryLockedTitle}>
+              Upgrade to Pro to unlock your Recovery Map
+            </Text>
+            <Pressable
+              onPress={() => onRequireUpgrade?.("Recovery Map is a Pro feature.")}
+              style={styles.recoveryLockedButton}
+            >
+              <Text style={styles.recoveryLockedButtonText}>Upgrade to Pro</Text>
+            </Pressable>
+          </View>
+        ) : (
         <View style={styles.legendRow}>
           {STAGE_ORDER.map((stage) => {
             const meta = RECOVERY_STAGE_META[stage];
@@ -309,9 +331,10 @@ export function RecoveryMapScreen({
             );
           })}
         </View>
+        )}
       </View>
 
-      {isAllFresh ? (
+      {isFreePlan ? null : isAllFresh ? (
         <AllFreshCard themeMode={themeMode} />
       ) : (
         <NeedsAttentionCard
@@ -321,7 +344,7 @@ export function RecoveryMapScreen({
         />
       )}
 
-      {freshStates.length > 0 ? (
+      {!isFreePlan && freshStates.length > 0 ? (
         <ReadyToTrainCard states={freshStates} themeMode={themeMode} />
       ) : null}
 
@@ -760,6 +783,37 @@ const createStyles = (theme: ReturnType<typeof getTheme>) =>
       fontFamily: "Satoshi-Bold",
       fontWeight: "700",
       color: theme.colors.textPrimary,
+    },
+    recoveryLockedOverlay: {
+      alignItems: "center",
+      gap: 10,
+      padding: 16,
+      borderRadius: 18,
+      backgroundColor: theme.colors.surfaceMuted,
+      borderWidth: 1,
+      borderColor: theme.colors.borderSoft,
+    },
+    recoveryLockedTitle: {
+      color: theme.colors.textPrimary,
+      fontSize: 15,
+      lineHeight: 20,
+      fontFamily: "Satoshi-Black",
+      fontWeight: "900",
+      textAlign: "center",
+    },
+    recoveryLockedButton: {
+      minHeight: 38,
+      borderRadius: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 14,
+      backgroundColor: theme.colors.primary,
+    },
+    recoveryLockedButtonText: {
+      color: theme.colors.surface,
+      fontSize: 13,
+      fontFamily: "Satoshi-Bold",
+      fontWeight: "800",
     },
   });
 

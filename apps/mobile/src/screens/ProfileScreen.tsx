@@ -36,6 +36,8 @@ interface ProfileScreenProps {
   /** True while uploading or deleting the profile photo. */
   isProfilePhotoBusy?: boolean;
   isDeletingAccount?: boolean;
+  isFreePlan?: boolean;
+  onRequireUpgrade?: (message: string) => void;
   profile: UserProfile;
   themeMode?: ThemeMode;
 }
@@ -50,6 +52,8 @@ export function ProfileScreen({
   onManageProfilePhoto,
   isProfilePhotoBusy = false,
   isDeletingAccount = false,
+  isFreePlan = false,
+  onRequireUpgrade,
   profile,
   themeMode = "dark",
 }: ProfileScreenProps) {
@@ -57,6 +61,10 @@ export function ProfileScreen({
   const posthog = usePostHog();
 
   const handleSuggestFeatures = () => {
+    if (isFreePlan) {
+      onRequireUpgrade?.("Suggesting features is a Fitfo Pro feature.");
+      return;
+    }
     openFeatureSuggestion((event) => posthog.capture(event));
   };
 

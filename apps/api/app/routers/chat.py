@@ -22,7 +22,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.services import corpus_chat
+from app.routers.deps import require_profile_id
+from app.services import corpus_chat, supabase_db
+from app.services.fitfo_pro_access import profile_has_fitfo_pro_access
 
 
 _log = logging.getLogger(__name__)
@@ -153,8 +155,30 @@ def _coerce_workout(schema: Optional[WorkoutContextSchema]) -> Optional[corpus_c
     )
 
 
+def _coach_session_key(body: ChatRequest) -> str:
+    started_at = body.workout.session_started_at_ms if body.workout else None
+    if started_at is not None:
+        return str(started_at)
+    return "no-session"
+
+
 @router.post("", response_model=ChatResponse, dependencies=[Depends(_chat_enabled)])
-async def chat(body: ChatRequest) -> ChatResponse:
+async def chat(
+    body: ChatRequest,
+    profile_id: str = Depends(require_profile_id),
+) -> ChatResponse:
+    profile = supabase_db.get_profile_by_id(profile_id)
+    if profile is None:
+        raise HTTPException(status_code=401, detail="Account not found.")
+    session_key = _coach_session_key(body)
+    if not profile_has_fitfo_pro_access(profile):
+        count = supabase_db.get_ai_coach_usage_count(profile_id, session_key)
+        if count >= 2:
+            raise HTTPException(
+                status_code=402,
+                detail="You've used your 2 AI Coach queries for this workout.",
+            )
+
     history = [
         corpus_chat.ChatTurn(role=turn.role, content=turn.content)
         for turn in body.history
@@ -174,6 +198,9 @@ async def chat(body: ChatRequest) -> ChatResponse:
     except Exception as exc:  # noqa: BLE001
         _log.exception("[chat] failure")
         raise HTTPException(status_code=500, detail=f"chat failed: {exc}") from exc
+
+    if not profile_has_fitfo_pro_access(profile):
+        supabase_db.increment_ai_coach_usage(profile_id, session_key)
 
     return ChatResponse(
         answer=result.answer,

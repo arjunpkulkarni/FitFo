@@ -20,6 +20,7 @@ from app.schemas.auth import (
     RegisterExpoPushTokenResponse,
     SaveInstagramHandleRequest,
     SaveInstagramHandleResponse,
+    StartFreeAccessResponse,
     SaveOnboardingRequest,
     SaveOnboardingResponse,
     SaveUsernameRequest,
@@ -731,6 +732,27 @@ def me(payload: Dict[str, Any] = Depends(require_access_payload)) -> MeResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to load profile: {exc}") from exc
+
+
+@router.post("/free-access", response_model=StartFreeAccessResponse)
+def start_free_access(
+    profile_id: str = Depends(require_profile_id),
+) -> StartFreeAccessResponse:
+    try:
+        profile = supabase_db.mark_profile_free_access_started(profile_id)
+        return StartFreeAccessResponse(
+            ok=True,
+            profile=embed_fitfo_pro_bypass(profile),
+            message="Free access started.",
+        )
+    except supabase_db.ProfileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except supabase_db.SupabaseNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to start free access: {exc}"
+        ) from exc
 
 
 @router.delete("/me", response_model=DeleteAccountResponse)

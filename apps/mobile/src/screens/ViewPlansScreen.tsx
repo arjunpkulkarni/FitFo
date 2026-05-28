@@ -28,8 +28,9 @@ const PRO_BENEFITS = [
 ] as const;
 
 /** Shown when App Store price isn’t loaded yet; replaced by `yearlyPrice` when available. */
-const MARKETING_ANNUAL_PRICE_LINE = "$59.99/year";
-const MARKETING_ANNUAL_USD = 59.99;
+const MARKETING_ANNUAL_PRICE_LINE = "$39.99/year";
+const MARKETING_ANNUAL_USD = 39.99;
+const MARKETING_MONTHLY_PRICE_LINE = "$5.99/month";
 
 function toPriceNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -362,7 +363,7 @@ export function ViewPlansScreen({
           >
             <Text style={styles.planName}>Monthly</Text>
             <Text style={styles.planPriceLarge}>
-              {monthlyPrice ?? (sdkOk ? "-" : "Monthly price")}
+              {monthlyPrice ?? MARKETING_MONTHLY_PRICE_LINE}
             </Text>
             <Text style={styles.planPeriodMuted}>Billed every month · Cancel anytime</Text>
             {purchasingId === REVENUECAT_PRODUCT_IDS.monthly ? (
